@@ -1,0 +1,13 @@
+            if (isKynnet && needsWorkTypes) {
+              normalizedData[index] = {
+                ...service,
+                workTypes: ['UUDET', 'POISTO', 'HUOLTO']
+              };
+              console.log(`✅ Added default workTypes to ${service.name} (Kynnet category)`);
+            } else if (isHiukset && needsWorkTypes) {
+              normalizedData[index] = {
+                ...service,
+                workTypes: ['Ei lisäkkeitä', 'Lyhyet', 'Keskipitkät', 'Pitkät']
+              };
+              console.log(`✅ Added default workTypes to ${service.name} (Hiukset category)`);
+            }

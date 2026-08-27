@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "234539763868",
+    "project_id": "servey-5eee1",
+    "storage_bucket": "servey-5eee1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:234539763868:android:6ebbe9d5774b0d1fde4559",
+        "android_client_info": {
+          "package_name": "com.servey.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBnl37JOm3P7G9Hzlq3jvOqMBlQu2CUOO8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

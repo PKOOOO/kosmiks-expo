@@ -1,0 +1,7 @@
+            } else if (isHiukset && needsWorkTypes) {
+              normalizedData[index] = {
+                ...service,
+                workTypes: ['Ei lisäkkeitä', 'Lyhyet', 'Keskipitkät', 'Pitkät']
+              };
+              console.log(`✅ Added default workTypes to ${service.name} (Hiukset category)`);
+            }
