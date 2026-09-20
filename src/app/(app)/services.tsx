@@ -4,13 +4,13 @@ import { SafeAreaView, ScrollView, View, Text, TouchableOpacity, ActivityIndicat
 import { Ionicons } from "@expo/vector-icons";
 import { useFonts } from 'expo-font';
 import { useRouter, useLocalSearchParams } from "expo-router";
-import getServicesByCategory from "../actions/get-services";
-import getServicesBySalon from "../actions/get-services-by-salon";
-import getSaloonsMap from "../actions/get-saloons-map";
-import { Service } from "../types";
-import { Salon } from "../../../types/salon";
-import Header from "../components/Header";
-import SideMenu from "../components/SideMenu";
+import getServicesByCategory from "@/actions/get-services";
+import getServicesBySalon from "@/actions/get-services-by-salon";
+import getSaloonsMap from "@/actions/get-saloons-map";
+import { Service } from "@/types";
+import { Salon } from "@/types/salon";
+import Header from "@/components/Header";
+import SideMenu from "@/components/SideMenu";
 
 // Colors
 const darkBrown = "#423120";
@@ -131,10 +131,10 @@ export default function ServicesPage() {
   const [selectedParentServiceId, setSelectedParentServiceId] = useState<string | null>(null);
 
   const [fontsLoaded] = useFonts({
-    'Philosopher-Regular': require("../assets/fonts/Philosopher-Regular.ttf"),
-    'Philosopher-Bold': require("../assets/fonts/Philosopher-Bold.ttf"),
-    'Philosopher-Italic': require("../assets/fonts/Philosopher-Italic.ttf"),
-    'Philosopher-BoldItalic': require("../assets/fonts/Philosopher-BoldItalic.ttf"),
+    'Philosopher-Regular': require("../../assets/app-fonts/Philosopher-Regular.ttf"),
+    'Philosopher-Bold': require("../../assets/app-fonts/Philosopher-Bold.ttf"),
+    'Philosopher-Italic': require("../../assets/app-fonts/Philosopher-Italic.ttf"),
+    'Philosopher-BoldItalic': require("../../assets/app-fonts/Philosopher-BoldItalic.ttf"),
   });
 
   // Function to extract category names from services
@@ -257,7 +257,7 @@ export default function ServicesPage() {
           normalizedData.forEach(service => {
             // Check if service has saloonServices array
             if (service.saloonServices && service.saloonServices.length > 0) {
-              const salonServiceInfo = service.saloonServices.find(ss => ss.saloonId === salonId);
+              const salonServiceInfo = service.saloonServices.find((ss: any) => ss.saloonId === salonId);
               if (salonServiceInfo) {
                 pricingMap.set(service.id, {
                   price: salonServiceInfo.price,
@@ -582,7 +582,7 @@ export default function ServicesPage() {
         </Text>
 
         {/* Sub-services */}
-        {selectedParent.subServices.map((subService) => (
+        {selectedParent.subServices.map((subService: Service) => (
           <View key={subService.id} style={{ marginBottom: 12 }}>
             <TouchableOpacity
               activeOpacity={0.7}
@@ -1313,7 +1313,7 @@ export default function ServicesPage() {
                       subServices: (uiVariant === 'hiukset' && !salonId && hiuksetSub)
                         ? service.subServices // When hiuksetSub is set, hiuksetGroups already filtered to the correct parent, so show all subServices
                         : (uiVariant === 'karvanpoistot' && !salonId && subCategory)
-                          ? (service.subServices || []).filter(svc => (svc.name || '').toLowerCase() === String(subCategory).toLowerCase())
+                          ? (service.subServices || []).filter((svc: Service) => (svc.name || '').toLowerCase() === String(subCategory).toLowerCase())
                           : service.subServices,
                     }))
                     .filter((service) => (service.subServices?.length || 0) > 0)
@@ -1340,7 +1340,7 @@ export default function ServicesPage() {
                         {/* Sub Service Buttons */}
                         {service.subServices && service.subServices.length > 0 ? (
                           <>
-                            {service.subServices.map((subService) => (
+                            {service.subServices.map((subService: Service) => (
                               <View key={subService.id}>
                                 <TouchableOpacity
                                   activeOpacity={0.7}

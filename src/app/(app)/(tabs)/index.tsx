@@ -5,14 +5,14 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import SideMenu from '../../components/SideMenu';
-import RatingPromptModal from '../../components/RatingPromptModal';
-import getCategories from '../../actions/get-categories';
-import { getBookings } from '../../actions/get-bookings';
-import { Category, Booking } from '../../types';
-import Header from "../../components/Header";
+import SideMenu from '@/components/SideMenu';
+import RatingPromptModal from '@/components/RatingPromptModal';
+import getCategories from '@/actions/get-categories';
+import { getBookings } from '@/actions/get-bookings';
+import { Category, Booking } from '@/types';
+import Header from "@/components/Header";
 import { useAuth, useUser } from "@clerk/clerk-expo";
-import { API_ENDPOINTS } from "../../../../config/constants";
+import { API_ENDPOINTS } from "@/config/constants";
 
 const DISMISSED_RATINGS_KEY = '@cosmix_dismissed_rating_bookings';
 
@@ -215,7 +215,6 @@ export default function Page() {
           <View style={{ position: "relative", borderRadius: 20, height: 300, alignItems: "center", justifyContent: "center", zIndex: 1 }}>
             {/* Background vectors (left/right) - behind the hero card */}
             <Image
-              pointerEvents="none"
               source={require("../../../../assets/vector-left.png")}
               style={{
                 position: "absolute",
@@ -228,7 +227,6 @@ export default function Page() {
               resizeMode="contain"
             />
             <Image
-              pointerEvents="none"
               source={require("../../../../assets/vector-right.png")}
               style={{
                 position: "absolute",

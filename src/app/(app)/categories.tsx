@@ -3,10 +3,10 @@ import { View, Text, TouchableOpacity, ScrollView, Dimensions, ActivityIndicator
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useFonts } from "expo-font";
-import getCategories from "../actions/get-categories";
-import { Category } from "../types";
-import Header from "../components/Header";
-import SideMenu from "../components/SideMenu";
+import getCategories from "@/actions/get-categories";
+import { Category } from "@/types";
+import Header from "@/components/Header";
+import SideMenu from "@/components/SideMenu";
 
 const Categories: React.FC = () => {
   const router = useRouter();
@@ -26,7 +26,7 @@ const Categories: React.FC = () => {
   const basePaddingHorizontal = 24;
 
   const [fontsLoaded] = useFonts({
-    PhilosopherBold: require("../assets/fonts/Philosopher-Bold.ttf"),
+    PhilosopherBold: require("../../assets/app-fonts/Philosopher-Bold.ttf"),
   });
 
   // Fetch categories from backend

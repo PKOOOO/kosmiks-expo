@@ -5,7 +5,7 @@ import { useAuth } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_BASE_URL } from '../../../config/constants';
+import { API_BASE_URL } from '@/config/constants';
 
 const PROVIDER_STATUS_KEY = 'providerStatus';
 // Cache must be scoped per-user so a previous ACTIVE provider's cached status

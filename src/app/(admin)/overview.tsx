@@ -12,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { TouchableOpacity } from 'react-native';
-import { API_BASE_URL } from '../../../config/constants';
+import { API_BASE_URL } from '@/config/constants';
 
 const darkBrown = '#423120';
 const beige = '#D7C3A7';

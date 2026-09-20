@@ -1,8 +1,8 @@
 // src/app/(app)/(tabs)/_layout.tsx
 import { Platform, DynamicColorIOS } from "react-native";
-import { NativeTabs, Icon, Label } from "expo-router/unstable-native-tabs";
+import { NativeTabs } from "expo-router/unstable-native-tabs";
 import { Tabs } from "expo-router";
-import TabBar from "../../components/TabBar";
+import TabBar from "@/components/TabBar";
 
 // DynamicColorIOS is iOS-only — calling it on Android throws at module load.
 const dynamicForeground =
@@ -17,29 +17,28 @@ function IosTabs() {
       tintColor={dynamicForeground}
       labelStyle={{ color: dynamicForeground }}
       minimizeBehavior="onScrollDown"
-      backgroundColor={null}
       shadowColor="transparent"
       disableTransparentOnScrollEdge
     >
       {/* Profile */}
       <NativeTabs.Trigger name="profile">
-        <Icon sf={{ default: "person", selected: "person.fill" }} md="person" />
-        <Label>Profile</Label>
+        <NativeTabs.Trigger.Icon sf={{ default: "person", selected: "person.fill" }} md="person" />
+        <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
       {/* Search / Service */}
       <NativeTabs.Trigger name="service">
-        <Icon
+        <NativeTabs.Trigger.Icon
           sf={{ default: "magnifyingglass", selected: "magnifyingglass" }}
           md="search"
         />
-        <Label>Search</Label>
+        <NativeTabs.Trigger.Label>Search</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
       {/* Home (default) */}
       <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: "house", selected: "house.fill" }} md="home" />
-        <Label>Home</Label>
+        <NativeTabs.Trigger.Icon sf={{ default: "house", selected: "house.fill" }} md="home" />
+        <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );

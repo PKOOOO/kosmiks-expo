@@ -5,10 +5,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
-import getSaloonsByService, { SaloonData } from "../actions/get-saloons-by-service";
-import getSalonById from "../actions/get-salon-by-id";
-import Header from "../components/Header";
-import SideMenu from "../components/SideMenu";
+import getSaloonsByService, { SaloonData } from "@/actions/get-saloons-by-service";
+import getSalonById from "@/actions/get-salon-by-id";
+import Header from "@/components/Header";
+import SideMenu from "@/components/SideMenu";
 import { MAPBOX_TOKEN, hasMapboxToken, MAP_UNAVAILABLE_HTML } from "@/config/constants";
 
 const darkBrown = "#3C2C1E";

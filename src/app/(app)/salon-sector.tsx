@@ -3,14 +3,14 @@ import React, { useState, useEffect, useRef } from "react";
 import { SafeAreaView, View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Image, Modal, Animated, Easing } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import Header from "../components/Header";
-import SideMenu from "../components/SideMenu";
-import getServicesBySalon from "../actions/get-services-by-salon";
-import { Service } from "../types";
-import { Salon } from "../../../types/salon";
-import getSaloonsMap from "../actions/get-saloons-map";
-import getCategories from "../actions/get-categories";
-import { Category } from "../types";
+import Header from "@/components/Header";
+import SideMenu from "@/components/SideMenu";
+import getServicesBySalon from "@/actions/get-services-by-salon";
+import { Service } from "@/types";
+import { Salon } from "@/types/salon";
+import getSaloonsMap from "@/actions/get-saloons-map";
+import getCategories from "@/actions/get-categories";
+import { Category } from "@/types";
 
 const darkBrown = "#3C2C1E";
 const beige = "#D9C7AF";
@@ -677,4 +677,3 @@ function Chip({ label, onPress, color, textColor }: { label: string; onPress: ()
 }
 
 export default SalonSector;
-

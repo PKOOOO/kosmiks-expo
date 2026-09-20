@@ -4,12 +4,12 @@ import {
   ActivityIndicator, Alert, Switch, SafeAreaView,
   KeyboardAvoidingView, Platform, Image, Dimensions,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation } from 'expo-router';
 import { useAuth } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import { API_BASE_URL } from '../../../config/constants';
+import { API_BASE_URL } from '@/config/constants';
 
 const darkBrown = '#423120';
 const beige = '#D7C3A7';

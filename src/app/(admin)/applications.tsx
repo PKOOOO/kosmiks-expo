@@ -17,7 +17,7 @@ import { useAuth } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
-import { API_BASE_URL } from '../../../config/constants';
+import { API_BASE_URL } from '@/config/constants';
 
 const darkBrown = '#423120';
 const beige = '#D7C3A7';

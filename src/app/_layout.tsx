@@ -8,12 +8,13 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ClerkProvider, useAuth } from "@clerk/clerk-expo";
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
-import { StripeProvider } from "@stripe/stripe-react-native";
-import * as Notifications from "expo-notifications";
+import { StripeProvider } from "@/lib/stripe";
 import * as Device from "expo-device";
-import Constants from "expo-constants";
+import Constants, { ExecutionEnvironment } from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_ENDPOINTS } from "@/config/constants";
+
+const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 // Read the EAS projectId from the build config so it can never drift from the
 // project this app was actually built under (a mismatch makes
@@ -22,20 +23,26 @@ const EXPO_PUSH_PROJECT_ID =
   Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
 const PUSH_TOKEN_STORAGE_KEY = "expoPushToken";
 
-// Show notifications while the app is in the foreground
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
-
 // Registers the device for push notifications once the user is signed in,
 // and reports the Expo push token to the backend.
 function PushNotificationRegistrar() {
+  if (isExpoGo) {
+    return null;
+  }
+
+  const Notifications = require("expo-notifications");
+
+  // Show notifications while the app is in the foreground
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    }),
+  });
+
   const { isSignedIn, getToken } = useAuth();
 
   useEffect(() => {
@@ -195,10 +202,10 @@ function ClerkLoadedWithTimeout({ children }: { children: React.ReactNode }) {
 export default function Layout() {
   // Load all Philosopher fonts at the root level
   const [fontsLoaded, fontError] = useFonts({
-    'Philosopher-Regular': require("./assets/fonts/Philosopher-Regular.ttf"),
-    'Philosopher-Bold': require("./assets/fonts/Philosopher-Bold.ttf"),
-    'Philosopher-Italic': require("./assets/fonts/Philosopher-Italic.ttf"),
-    'Philosopher-BoldItalic': require("./assets/fonts/Philosopher-BoldItalic.ttf"),
+    'Philosopher-Regular': require("../assets/app-fonts/Philosopher-Regular.ttf"),
+    'Philosopher-Bold': require("../assets/app-fonts/Philosopher-Bold.ttf"),
+    'Philosopher-Italic': require("../assets/app-fonts/Philosopher-Italic.ttf"),
+    'Philosopher-BoldItalic': require("../assets/app-fonts/Philosopher-BoldItalic.ttf"),
   });
 
   useEffect(() => {

@@ -3,14 +3,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, ScrollView, SafeAreaView, TouchableOpacity, Modal, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CheckoutButton } from '../components/CheckoutButton';
-import { CustomerInfo } from '../actions/checkout';
-import { SaloonService } from '@/app/types';
+import { CheckoutButton } from '@/components/CheckoutButton';
+import { CustomerInfo } from '@/actions/checkout';
+import { SaloonService } from '@/types';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import TimeSlotPicker, { ConfirmBookingTimeButton } from '../components/TimeSlotPicker';
-import Header from '../components/Header';
-import SideMenu from '../components/SideMenu';
-import ReviewsSection from '../components/ReviewsSection';
+import TimeSlotPicker, { ConfirmBookingTimeButton } from '@/components/TimeSlotPicker';
+import Header from '@/components/Header';
+import SideMenu from '@/components/SideMenu';
+import ReviewsSection from '@/components/ReviewsSection';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 
 

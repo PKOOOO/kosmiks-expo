@@ -7,12 +7,6 @@
     "userInterfaceStyle": "automatic",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#423120"
-    },
-    "sdkVersion": "54.0.0",
     "web": {
       "output": "static"
     },
@@ -43,13 +37,13 @@
           "icon": "./assets/icon.png",
           "color": "#423120"
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker",
+      "expo-status-bar"
     ],
     "android": {
       "package": "com.servey.app",
       "versionCode": 1,
-      "compileSdkVersion": 34,
-      "targetSdkVersion": 34,
       "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.ACCESS_FINE_LOCATION",
@@ -57,9 +51,7 @@
         "android.permission.INTERNET",
         "android.permission.POST_NOTIFICATIONS"
       ],
-      "hardwareAccelerated": true,
       "softwareKeyboardLayoutMode": "resize",
-      "usesCleartextTraffic": false,
       "intentFilters": [
         {
           "action": "VIEW",

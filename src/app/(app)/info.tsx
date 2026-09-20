@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, SafeAreaView, Linking, Modal } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import Header from '../components/Header';
-import SideMenu from '../components/SideMenu';
+import Header from '@/components/Header';
+import SideMenu from '@/components/SideMenu';
 
 const darkBrown = "#423120";
 const lightBrown = "#D7C3A7";

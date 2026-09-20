@@ -3,13 +3,13 @@ import { SafeAreaView, View, Text, TextInput, TouchableOpacity, ScrollView, Moda
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Header from "../../components/Header";
-import SideMenu from "../../components/SideMenu";
+import Header from "@/components/Header";
+import SideMenu from "@/components/SideMenu";
 import { useFonts } from "expo-font";
-import getCategories from "../../actions/get-categories";
-import { Category, Service } from "../../types";
-import { Salon } from "../../../../types/salon";
-import getSaloonsMap from "../../actions/get-saloons-map";
+import getCategories from "@/actions/get-categories";
+import { Category, Service } from "@/types";
+import { Salon } from "@/types/salon";
+import getSaloonsMap from "@/actions/get-saloons-map";
 import { API_ENDPOINTS } from "@/config/constants";
 
 const normalizeString = (str: string) => {
@@ -77,10 +77,10 @@ export default function ServicesPage() {
   const [isMenuVisible, setMenuVisible] = useState(false);
 
   const [fontsLoaded] = useFonts({
-    'Philosopher-Regular': require("../../assets/fonts/Philosopher-Regular.ttf"),
-    'Philosopher-Bold': require("../../assets/fonts/Philosopher-Bold.ttf"),
-    'Philosopher-Italic': require("../../assets/fonts/Philosopher-Italic.ttf"),
-    'Philosopher-BoldItalic': require("../../assets/fonts/Philosopher-BoldItalic.ttf"),
+    'Philosopher-Regular': require("../../../assets/app-fonts/Philosopher-Regular.ttf"),
+    'Philosopher-Bold': require("../../../assets/app-fonts/Philosopher-Bold.ttf"),
+    'Philosopher-Italic': require("../../../assets/app-fonts/Philosopher-Italic.ttf"),
+    'Philosopher-BoldItalic': require("../../../assets/app-fonts/Philosopher-BoldItalic.ttf"),
   });
 
   const darkBrown = "#423120";

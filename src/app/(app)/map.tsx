@@ -6,11 +6,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from 'expo-location';
 import { WebView } from "react-native-webview";
-import Header from "../components/Header";
-import SideMenu from "../components/SideMenu";
-import getSaloonsMap from "../actions/get-saloons-map";
-import getServices from "../actions/get-services";
-import { Saloon, Service } from "../types";
+import Header from "@/components/Header";
+import SideMenu from "@/components/SideMenu";
+import getSaloonsMap from "@/actions/get-saloons-map";
+import getServices from "@/actions/get-services";
+import { Saloon, Service } from "@/types";
 import { MAPBOX_TOKEN, hasMapboxToken, MAP_UNAVAILABLE_HTML } from "@/config/constants";
 
 // Extended interface for map salon data
@@ -21,6 +21,12 @@ interface MapSalon extends Saloon {
   reviewCount: number;
 }
 
+const normalizeSearchText = (value: string) => (value || '')
+  .normalize('NFC')
+  .toLocaleLowerCase('fi-FI')
+  .replace(/\s+/g, ' ')
+  .trim();
+
 
 export default function MapScreen() {
   const router = useRouter();
@@ -30,6 +36,8 @@ export default function MapScreen() {
   const [locationPermission, setLocationPermission] = useState(false);
   const [salons, setSalons] = useState<MapSalon[]>([]);
   const [salonsLoading, setSalonsLoading] = useState(false);
+  const [salonsFetchAttempted, setSalonsFetchAttempted] = useState(false);
+  const [salonsError, setSalonsError] = useState<string | null>(null);
   const [selectedSalon, setSelectedSalon] = useState<MapSalon | null>(null);
   const [isMenuVisible, setMenuVisible] = useState(false);
   const [isSearchVisible, setSearchVisible] = useState(false);
@@ -37,6 +45,7 @@ export default function MapScreen() {
   const [selectedSalonForDetail, setSelectedSalonForDetail] = useState<MapSalon | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [services, setServices] = useState<Service[]>([]);
   const [filteredServices, setFilteredServices] = useState<Service[]>([]);
   const [filteredSalons, setFilteredSalons] = useState<MapSalon[]>([]);
@@ -62,6 +71,14 @@ export default function MapScreen() {
       fetchSalons();
     }
   }, [userLocation]);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 250);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
 
   // Load all services for search
   useEffect(() => {
@@ -104,9 +121,33 @@ export default function MapScreen() {
     }
   }, [salons]);
 
+  useEffect(() => {
+    const normalizedQuery = normalizeSearchText(debouncedSearchQuery);
+
+    if (!normalizedQuery) {
+      setDisplayedSalons(salons);
+      setFilteredSalons([]);
+      setFilteredServices(services);
+      return;
+    }
+
+    const matchingSalons = salons.filter((salon) =>
+      normalizeSearchText(salon.name).includes(normalizedQuery)
+    );
+    const matchingServices = services.filter((service) =>
+      normalizeSearchText(service.name).includes(normalizedQuery)
+    );
+
+    setDisplayedSalons(matchingSalons);
+    setFilteredSalons(matchingSalons);
+    setFilteredServices(matchingServices);
+  }, [debouncedSearchQuery, salons, services]);
+
   const fetchSalons = async () => {
     try {
+      setSalonsFetchAttempted(true);
       setSalonsLoading(true);
+      setSalonsError(null);
       const salonsData = await getSaloonsMap({
         lat: userLocation?.latitude,
         lng: userLocation?.longitude,
@@ -125,9 +166,11 @@ export default function MapScreen() {
       setDisplayedSalons(validSalons);
     } catch (error) {
       console.error('Error fetching salons from API:', error);
-      // On failure, show an empty map rather than fake pins.
+      setSalonsError('Unable to load salons.');
       setSalons([]);
       setDisplayedSalons([]);
+      setServices([]);
+      setFilteredServices([]);
     } finally {
       setSalonsLoading(false);
     }
@@ -175,8 +218,8 @@ export default function MapScreen() {
 
   // Sync FlatList when selectedSalon changes externally (e.g., marker click)
   useEffect(() => {
-    if (selectedSalon && salons.length > 0) {
-      const index = salons.findIndex(s => s.id === selectedSalon.id);
+    if (selectedSalon && displayedSalons.length > 0) {
+      const index = displayedSalons.findIndex(s => s.id === selectedSalon.id);
       if (index !== -1 && index !== activeCardIndex) {
         setActiveCardIndex(index);
         // Use setTimeout to ensure FlatList is ready
@@ -198,11 +241,14 @@ export default function MapScreen() {
         }, 100);
       }
     }
-  }, [selectedSalon?.id, salons.length]);
+  }, [selectedSalon?.id, displayedSalons]);
 
   const onMarkerPress = (salon: MapSalon) => {
     setSelectedSalon(salon);
-    const services = salon.saloonServices.map(s => s.service.name).join(', ');
+    const services = (salon.saloonServices ?? [])
+      .map(s => s.service?.name)
+      .filter(Boolean)
+      .join(', ');
     Alert.alert(
       salon.name,
       `Palvelut: ${services}\nArvio: ${salon.averageRating.toFixed(1)}/5 (${salon.reviewCount} arvostelua)\nOsoite: ${salon.address || 'Ei määritelty'}`,
@@ -345,26 +391,14 @@ export default function MapScreen() {
 
   const handleSearchQuery = (query: string) => {
     setSearchQuery(query);
-    const normalize = (s: string) => (s || '')
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/\p{Diacritic}+/gu, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-    const q = normalize(query);
-    if (q.length === 0) {
-      // Show all salons when search is empty
-      setDisplayedSalons(salons);
-      setFilteredSalons([]);
-      return;
-    }
-    // Only filter salons by name
-    const filtered = salons.filter((salon) => {
-      const name = normalize(salon.name);
-      return name.includes(q);
-    });
-    setDisplayedSalons(filtered);
-    setFilteredSalons(filtered);
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setDebouncedSearchQuery('');
+    setDisplayedSalons(salons);
+    setFilteredSalons([]);
+    setFilteredServices(services);
   };
 
   const handleServiceSelect = async (service: Service) => {
@@ -422,14 +456,17 @@ export default function MapScreen() {
     const centerLat = userLocation?.latitude || 60.1699;
     const centerLng = userLocation?.longitude || 24.9384;
 
-    const markers = salons.map(salon => ({
+    const markers = displayedSalons.map(salon => ({
       id: salon.id,
       name: salon.name,
       lat: salon.latitude,
       lng: salon.longitude,
       rating: salon.averageRating,
       reviewCount: salon.reviewCount,
-      services: salon.saloonServices.map(s => s.service.name).join(', '),
+      services: (salon.saloonServices ?? [])
+        .map(s => s.service?.name)
+        .filter(Boolean)
+        .join(', '),
       address: salon.address || 'Ei määritelty'
     }));
 
@@ -691,6 +728,17 @@ export default function MapScreen() {
     }
   };
 
+  const activeSearchLabel = debouncedSearchQuery.replace(/\s+/g, ' ').trim();
+  const hasActiveSearch = normalizeSearchText(debouncedSearchQuery).length > 0;
+  const showFetchError = salonsFetchAttempted && !salonsLoading && !!salonsError;
+  const showPlatformEmpty = salonsFetchAttempted && !salonsLoading && !salonsError && salons.length === 0;
+  const showNoSearchResults = salonsFetchAttempted
+    && !salonsLoading
+    && !salonsError
+    && salons.length > 0
+    && hasActiveSearch
+    && displayedSalons.length === 0;
+
   if (loading) {
     return (
       <View collapsable={false} style={[styles.container, { backgroundColor: white }]}>
@@ -780,29 +828,61 @@ export default function MapScreen() {
                 placeholderTextColor="#999"
                 returnKeyType="search"
               />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity
+                  onPress={clearSearch}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear search"
+                >
+                  <Ionicons name="close-circle" size={22} color={darkBrown} />
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         </KeyboardAvoidingView>
 
-        {/* Empty state — clean map, no fake pins, when there are no salons yet */}
-        {!salonsLoading && displayedSalons.length === 0 && (
-          <View
-            pointerEvents="none"
-            style={{
-              position: 'absolute', bottom: 32, left: 24, right: 24,
-              backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 14,
-              paddingVertical: 16, paddingHorizontal: 18, alignItems: 'center',
-              shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.12, shadowRadius: 8, elevation: 4,
-            }}
-          >
-            <Ionicons name="location-outline" size={22} color="#423120" style={{ marginBottom: 6 }} />
-            <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 15, color: '#423120' }}>
+        {showFetchError && (
+          <View style={[styles.mapStatePanel, { bottom: 150 + insets.bottom }]}>
+            <Ionicons name="cloud-offline-outline" size={22} color={darkBrown} style={styles.mapStateIcon} />
+            <Text style={styles.mapStateTitle}>Unable to load salons</Text>
+            <Text style={styles.mapStateMessage}>Check your connection and try again.</Text>
+            <TouchableOpacity
+              style={styles.mapStateAction}
+              onPress={() => fetchSalons()}
+              accessibilityRole="button"
+            >
+              <Ionicons name="refresh" size={17} color={white} />
+              <Text style={styles.mapStateActionText}>Try again</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {showPlatformEmpty && (
+          <View pointerEvents="none" style={[styles.mapStatePanel, { bottom: 150 + insets.bottom }]}>
+            <Ionicons name="location-outline" size={22} color={darkBrown} style={styles.mapStateIcon} />
+            <Text style={styles.mapStateTitle}>
               No salons available yet
             </Text>
-            <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: '#888', marginTop: 2, textAlign: 'center' }}>
+            <Text style={styles.mapStateMessage}>
               Check back soon — new salons appear here as they join.
             </Text>
+          </View>
+        )}
+
+        {showNoSearchResults && (
+          <View style={[styles.mapStatePanel, { bottom: 150 + insets.bottom }]}>
+            <Ionicons name="search-outline" size={22} color={darkBrown} style={styles.mapStateIcon} />
+            <Text style={styles.mapStateTitle}>No results for '{activeSearchLabel}'</Text>
+            <Text style={styles.mapStateMessage}>Check the spelling or try a different search.</Text>
+            <TouchableOpacity
+              style={styles.mapStateAction}
+              onPress={clearSearch}
+              accessibilityRole="button"
+            >
+              <Ionicons name="close" size={17} color={white} />
+              <Text style={styles.mapStateActionText}>Clear search</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -933,6 +1013,16 @@ export default function MapScreen() {
                     }
                   }}
                 />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity
+                    style={styles.searchButton}
+                    onPress={clearSearch}
+                    accessibilityRole="button"
+                    accessibilityLabel="Clear search"
+                  >
+                    <Ionicons name="close-circle" size={20} color={darkBrown} />
+                  </TouchableOpacity>
+                )}
                 {searchQuery.length > 0 && (
                   <TouchableOpacity
                     style={styles.searchButton}
@@ -1161,6 +1251,55 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  mapStatePanel: {
+    position: 'absolute',
+    left: 24,
+    right: 24,
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#D7C3A7',
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
+    zIndex: 11,
+  },
+  mapStateIcon: {
+    marginBottom: 6,
+  },
+  mapStateTitle: {
+    fontFamily: 'Philosopher-Bold',
+    fontSize: 15,
+    color: '#423120',
+    textAlign: 'center',
+  },
+  mapStateMessage: {
+    fontFamily: 'Philosopher-Regular',
+    fontSize: 13,
+    color: '#77695C',
+    marginTop: 3,
+    textAlign: 'center',
+  },
+  mapStateAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 12,
+    paddingVertical: 9,
+    paddingHorizontal: 16,
+    borderRadius: 18,
+    backgroundColor: '#423120',
+  },
+  mapStateActionText: {
+    color: '#FFFFFF',
+    fontFamily: 'Philosopher-Bold',
+    fontSize: 13,
   },
   webViewLoading: {
     position: 'absolute',

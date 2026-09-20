@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useFonts } from "expo-font";
-import Header from "../components/Header";
+import Header from "@/components/Header";
 
 const darkBrown = "#423120";
 const beige = "#D9C7AF";
@@ -22,10 +22,10 @@ export default function LanguagePage() {
   const [selectedLanguage, setSelectedLanguage] = useState<string>("Suomi");
 
   const [fontsLoaded] = useFonts({
-    'Philosopher-Regular': require("../assets/fonts/Philosopher-Regular.ttf"),
-    'Philosopher-Bold': require("../assets/fonts/Philosopher-Bold.ttf"),
-    'Philosopher-Italic': require("../assets/fonts/Philosopher-Italic.ttf"),
-    'Philosopher-BoldItalic': require("../assets/fonts/Philosopher-BoldItalic.ttf"),
+    'Philosopher-Regular': require("../../assets/app-fonts/Philosopher-Regular.ttf"),
+    'Philosopher-Bold': require("../../assets/app-fonts/Philosopher-Bold.ttf"),
+    'Philosopher-Italic': require("../../assets/app-fonts/Philosopher-Italic.ttf"),
+    'Philosopher-BoldItalic': require("../../assets/app-fonts/Philosopher-BoldItalic.ttf"),
   });
 
   const languages = [
@@ -157,4 +157,3 @@ const styles = StyleSheet.create({
     color: darkBrown,
   },
 });
-

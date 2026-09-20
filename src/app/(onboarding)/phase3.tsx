@@ -10,8 +10,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_BASE_URL } from '../../../config/constants';
-import AddressMapPicker from '../components/AddressMapPicker';
+import { API_BASE_URL } from '@/config/constants';
+import AddressMapPicker from '@/components/AddressMapPicker';
 
 const ADMIN_API_KEY = process.env.EXPO_PUBLIC_ADMIN_API_KEY || '';
 const PROVIDER_STATUS_KEY = 'providerStatus';

@@ -12,8 +12,8 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { router } from "expo-router";
-import Header from "../../../components/Header";
-import SideMenu from "../../../components/SideMenu";
+import Header from "@/components/Header";
+import SideMenu from "@/components/SideMenu";
 import { useClerk, useAuth, useUser } from "@clerk/clerk-expo";
 
 export default function ProfilePage() {

@@ -13,8 +13,8 @@ import React, { useCallback, useEffect } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useOAuth, useAuth } from "@clerk/clerk-expo";
 import * as WebBrowser from "expo-web-browser";
-import Header from "../components/Header";
-import SideMenu from "../components/SideMenu";
+import Header from "@/components/Header";
+import SideMenu from "@/components/SideMenu";
 
 // Color constants
 const darkBrown = "#423120";

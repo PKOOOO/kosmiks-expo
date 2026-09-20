@@ -332,7 +332,7 @@ Env vars are **baked in at build time** — `.env` changes require a rebuild.
 
 ## 14. Gotchas — read before debugging anything
 
-1. **Expo Go cannot receive push notifications** (SDK 53+). This app is on SDK 54. **All push testing must use an EAS build.** Mixing Expo Go and APK testing produces different tokens for the same account, each overwriting the last — this caused hours of phantom-chasing.
+1. **Expo Go cannot receive push notifications** (SDK 53+). This app is on SDK 57. **All push testing must use an EAS build.** Mixing Expo Go and APK testing produces different tokens for the same account, each overwriting the last — this caused hours of phantom-chasing.
 2. **A green build does not mean working code.** Three separate failures compiled cleanly and only broke at runtime — including `/` returning 500 after `<ClerkProvider>` was removed. Run the production server and hit the routes.
 3. **Grep with both quote styles.** An audit missed three importers because it searched `from "@clerk/nextjs"` with double quotes only.
 4. **Push receipts, not send responses.** `send` returning `ok` means queued, not delivered.

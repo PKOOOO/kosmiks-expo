@@ -14,12 +14,12 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { getBookings } from "../actions/get-bookings";
-import { Booking } from "../types";
+import { getBookings } from "@/actions/get-bookings";
+import { Booking } from "@/types";
 import { Ionicons } from "@expo/vector-icons";
-import { API_ENDPOINTS } from "../../../config/constants";
+import { API_ENDPOINTS } from "@/config/constants";
 import { router, useLocalSearchParams } from "expo-router";
-import Header from "../components/Header";
+import Header from "@/components/Header";
 import { useUser, useAuth } from "@clerk/clerk-expo";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
