@@ -194,7 +194,7 @@ const SalonSector = () => {
         <SafeAreaView style={{ flex: 1, backgroundColor: "white" }}>
             {/* Header - Fixed at Top */}
             <Header
-                title="SERVEY"
+                title="KOSMIKS"
                 showBack={true}
                 showMenu={true}
                 onBackPress={() => router.back()}

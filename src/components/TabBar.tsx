@@ -29,7 +29,7 @@ const routeIcons: Record<string, IconName> = {
 };
 
 // These are the same tab glyphs used by react-native-recurrly. Routes without
-// a semantic match keep their Servey-specific outline icon above.
+// a semantic match keep their Kosmiks-specific outline icon above.
 const referenceIcons: Record<string, ImageSourcePropType> = {
   index: require('../../assets/tab-icons/home.png'),
   home: require('../../assets/tab-icons/home.png'),

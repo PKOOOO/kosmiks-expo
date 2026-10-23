@@ -79,10 +79,10 @@ const DOCS = [
 
 const TERMS = [
   'Provide accurate information about yourself and your services.',
-  'Honor all bookings made through the Servey platform.',
+  'Honor all bookings made through the Kosmiks platform.',
   'Maintain professional standards of service quality.',
   'Comply with all applicable Finnish laws and regulations.',
-  'Allow Servey to collect a platform fee of 10% on each completed booking.',
+  'Allow Kosmiks to collect a platform fee of 10% on each completed booking.',
   'Receive payouts via SEPA bank transfer to your provided IBAN.',
 ];
 
@@ -444,7 +444,7 @@ export default function Phase2Screen() {
         return (
           <View>
             <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 15, color: '#555', lineHeight: 23, marginBottom: 16 }}>
-              By joining Servey as a service provider, you agree to:
+              By joining Kosmiks as a service provider, you agree to:
             </Text>
             {TERMS.map((term, i) => (
               <View key={i} style={{ flexDirection: 'row', marginBottom: 14 }}>
@@ -457,7 +457,7 @@ export default function Phase2Screen() {
               </View>
             ))}
             <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 15, color: '#555', lineHeight: 23, marginTop: 4, marginBottom: 28 }}>
-              Servey reserves the right to suspend providers who violate these terms.
+              Kosmiks reserves the right to suspend providers who violate these terms.
             </Text>
 
             <TouchableOpacity
@@ -469,7 +469,7 @@ export default function Phase2Screen() {
                 {termsAccepted && <Ionicons name="checkmark" size={14} color={white} />}
               </View>
               <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: darkBrown, flex: 1 }}>
-                I agree to the Servey terms and conditions
+                I agree to the Kosmiks terms and conditions
               </Text>
             </TouchableOpacity>
           </View>

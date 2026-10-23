@@ -176,7 +176,7 @@ export default function CheckoutScreen() {
   if (!saloonService) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: cream }}>
-        <Header title="SERVEY" showBack showMenu onBackPress={() => router.back()} onMenuPress={() => setMenuVisible(true)} disableSafeAreaPadding />
+        <Header title="KOSMIKS" showBack showMenu onBackPress={() => router.back()} onMenuPress={() => setMenuVisible(true)} disableSafeAreaPadding />
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
           <Ionicons name="alert-circle-outline" size={56} color={dark} style={{ marginBottom: 14, opacity: 0.5 }} />
           <Text style={{ fontSize: 18, fontFamily: 'Philosopher-Bold', color: dark, textAlign: 'center', marginBottom: 6 }}>
@@ -200,7 +200,7 @@ export default function CheckoutScreen() {
   return (
     // Top inset: iOS only — on Android the Header pads for the status bar itself.
     <SafeAreaView edges={Platform.OS === 'ios' ? ['top', 'left', 'right'] : ['left', 'right']} style={{ flex: 1, backgroundColor: pageBg }}>
-      <Header title="SERVEY" showBack showMenu onBackPress={() => router.back()} onMenuPress={() => setMenuVisible(true)} disableSafeAreaPadding />
+      <Header title="KOSMIKS" showBack showMenu onBackPress={() => router.back()} onMenuPress={() => setMenuVisible(true)} disableSafeAreaPadding />
 
       <ScrollView
         style={{ flex: 1 }}

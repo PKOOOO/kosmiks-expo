@@ -13,7 +13,7 @@ type StripeError = {
 
 const unsupportedError: StripeError = {
   code: "Unsupported",
-  message: "Stripe payments are available in the Servey mobile app.",
+  message: "Stripe payments are available in the Kosmiks mobile app.",
 };
 
 export function StripeProvider({ children }: StripeProviderProps) {

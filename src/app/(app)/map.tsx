@@ -754,9 +754,9 @@ export default function MapScreen() {
 
   return (
     <View collapsable={false} style={[styles.container, { backgroundColor: white }]}>
-      {/* Servey Header */}
+      {/* Kosmiks Header */}
       <Header
-        title="SERVEY"
+        title="KOSMIKS"
         showBack={true}
         showMenu={true}
         onMenuPress={() => setMenuVisible(true)}

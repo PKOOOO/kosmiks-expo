@@ -295,7 +295,7 @@ export default function Phase3Screen() {
             ref={salonNameRef}
             value={salonName}
             onChangeText={v => { setSalonName(v); setError(''); }}
-            placeholder="Beauty Studio Servey"
+            placeholder="Beauty Studio Kosmiks"
             placeholderTextColor="#ccc"
             autoCapitalize="words"
             returnKeyType="next"

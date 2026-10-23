@@ -263,7 +263,7 @@ export default function BookingsScreen() {
     <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
       {/* Header */}
       <Header
-        title="SERVEY"
+        title="KOSMIKS"
         showBack={true}
         showMenu={true}
         onBackPress={() => router.back()}

@@ -100,7 +100,7 @@ export default function ProfileEditPage() {
   return (
     <SafeAreaView style={styles.container}>
       <Header
-        title="SERVEY"
+        title="KOSMIKS"
         showBack={true}
         showMenu={true}
         onBackPress={() => router.back()}

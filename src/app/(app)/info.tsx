@@ -60,7 +60,7 @@ export default function InfoPage() {
                     <View>
                         <Text style={styles.sectionTitle}>Tietoja meistä</Text>
                         <Text style={styles.paragraph}>
-                            SERVEY on ensisijainen kauneus- ja hyvinvointipalveluiden kohteesi. Yhdistämme sinut huippuammattilaisiin hiusten, kynsien, hieronnan ja muiden alojen parissa.
+                            KOSMIKS on ensisijainen kauneus- ja hyvinvointipalveluiden kohteesi. Yhdistämme sinut huippuammattilaisiin hiusten, kynsien, hieronnan ja muiden alojen parissa.
                         </Text>
                         <Text style={styles.paragraph}>
                             Missiomme on tehdä itsehoidosta helppoa ja helppoa kaikille. Tarvitsetpa sitten nopeaa siistimistä tai kokonaisen kylpyläpäivän, me hoidamme kaiken.
@@ -96,7 +96,7 @@ export default function InfoPage() {
                     <View>
                         <Text style={styles.sectionTitle}>Käyttöehdot</Text>
                         <Text style={styles.paragraph}>
-                            Tervetuloa SERVEYiin. Käyttämällä sovellustamme hyväksyt nämä ehdot.
+                            Tervetuloa Kosmiksiin. Käyttämällä sovellustamme hyväksyt nämä ehdot.
                         </Text>
                         <Text style={styles.subTitle}>1. Käyttäjätilit</Text>
                         <Text style={styles.paragraph}>

@@ -126,7 +126,7 @@ const CheckoutButtonInner: React.FC<CheckoutButtonProps> = ({
       // Step 2: Initialize the Payment Sheet
       const { error: initError } = await initPaymentSheet({
         paymentIntentClientSecret: result.paymentIntentClientSecret,
-        merchantDisplayName: 'Servey',
+        merchantDisplayName: 'Kosmiks',
         allowsDelayedPaymentMethods: false,
         customFlow: false, // Explicitly set to avoid native crashes
         defaultBillingDetails: {

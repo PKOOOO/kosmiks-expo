@@ -22,7 +22,7 @@ const { width } = Dimensions.get('window');
 const HEADER_HEIGHT = 48;
 
 export default function Header({
-  title = "SERVEY",
+  title = "KOSMIKS",
   showMenu = true,
   showBack = false,
   onMenuPress,

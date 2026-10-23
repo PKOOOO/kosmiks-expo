@@ -103,7 +103,7 @@ export default function ProfilePage() {
     <View collapsable={false} style={styles.container}>
       {/* Header */}
       <Header
-        title="SERVEY"
+        title="KOSMIKS"
         showBack={true}
         showMenu={true}
         onBackPress={() => router.back()}

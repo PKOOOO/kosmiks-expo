@@ -21,6 +21,11 @@ const darkBrown = "#423120";
 const lightBeige = "#F4EDE5";
 const beigeBackground = "#D7C3A7";
 
+// Apple sign-in is disabled on the Clerk production instance until the Apple
+// Developer account exists (Services ID, Team ID, Key ID). Flip to true once
+// those are configured in Clerk.
+const APPLE_SIGN_IN_ENABLED = false;
+
 // Warm up browser hook for faster OAuth
 const useWarmUpBrowser = () => {
   useEffect(() => {
@@ -166,7 +171,7 @@ export default function SignIn() {
   return (
     <View style={{ flex: 1, backgroundColor: beigeBackground }}>
       <Header
-        title="SERVEY"
+        title="KOSMIKS"
         showBack={true}
         showMenu={true}
         onBackPress={() => router.back()}
@@ -241,6 +246,7 @@ export default function SignIn() {
           </TouchableOpacity>
 
           {/* Apple Sign In Button */}
+          {APPLE_SIGN_IN_ENABLED && (
           <TouchableOpacity
             onPress={handleAppleSignIn}
             disabled={isLoading}
@@ -280,6 +286,7 @@ export default function SignIn() {
               </>
             )}
           </TouchableOpacity>
+          )}
 
         </View>
 

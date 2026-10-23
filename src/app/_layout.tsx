@@ -225,8 +225,8 @@ export default function Layout() {
         <PushNotificationRegistrar />
         <StripeProvider
           publishableKey={stripePublishableKey}
-          merchantIdentifier="merchant.com.servey.app"
-          urlScheme="servey"
+          merchantIdentifier="merchant.com.kosmiks.app"
+          urlScheme="kosmiks"
         >
           <SafeAreaProvider>
             <GluestackUIProvider mode="light">

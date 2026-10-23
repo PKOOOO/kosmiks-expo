@@ -1,9 +1,9 @@
 {
   "expo": {
-    "name": "Servey",
+    "name": "Kosmiks",
     "slug": "servey",
     "version": "1.0.0",
-    "scheme": "servey",
+    "scheme": "kosmiks",
     "userInterfaceStyle": "automatic",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -27,7 +27,7 @@
       [
         "@stripe/stripe-react-native",
         {
-          "merchantIdentifier": "merchant.com.servey.app",
+          "merchantIdentifier": "merchant.com.kosmiks.app",
           "enableGooglePay": false
         }
       ],
@@ -39,10 +39,11 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "expo-status-bar"
+      "expo-status-bar",
+      "./plugins/with-stripe-android-fixes"
     ],
     "android": {
-      "package": "com.servey.app",
+      "package": "com.kosmiks.app",
       "versionCode": 1,
       "googleServicesFile": "./google-services.json",
       "permissions": [
@@ -58,7 +59,7 @@
           "autoVerify": true,
           "data": [
             {
-              "scheme": "servey"
+              "scheme": "kosmiks"
             }
           ],
           "category": [
@@ -69,11 +70,11 @@
       ]
     },
     "ios": {
-      "bundleIdentifier": "com.servey.app",
+      "bundleIdentifier": "com.kosmiks.app",
       "buildNumber": "1",
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "Servey uses your photo library so you can add photos of your salon.",
-        "NSCameraUsageDescription": "Servey uses the camera so you can take photos of your salon."
+        "NSPhotoLibraryUsageDescription": "Kosmiks uses your photo library so you can add photos of your salon.",
+        "NSCameraUsageDescription": "Kosmiks uses the camera so you can take photos of your salon."
       }
     },
     "extra": {
