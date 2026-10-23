@@ -77,7 +77,7 @@ export default function InfoPage() {
 
                         <View style={styles.contactItem}>
                             <Ionicons name="mail-outline" size={24} color={darkBrown} />
-                            <Text style={styles.contactText}>support@servey.com</Text>
+                            <Text style={styles.contactText}>support@kosmiks.com</Text>
                         </View>
 
                         <View style={styles.contactItem}>

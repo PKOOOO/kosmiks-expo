@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Dimensions, ActivityIndicator, SafeAreaView, Modal } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, SafeAreaView, Modal } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useFonts } from "expo-font";
@@ -7,23 +7,18 @@ import getCategories from "@/actions/get-categories";
 import { Category } from "@/types";
 import Header from "@/components/Header";
 import SideMenu from "@/components/SideMenu";
+import CategoryCardGrid from "@/components/CategoryCardGrid";
 
 const Categories: React.FC = () => {
   const router = useRouter();
-  const { width } = Dimensions.get("window");
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isMenuVisible, setMenuVisible] = useState(false);
 
-  const buttonMargin = 6;
-  const buttonBorderRadius = 30;
   const baseButtonColor = "#D7C3A7";
   const baseTextColor = "#423120";
   const lightBeige = "#ffffffff";
-  const baseFontSize = 18;
-  const basePaddingVertical = 14;
-  const basePaddingHorizontal = 24;
 
   const [fontsLoaded] = useFonts({
     PhilosopherBold: require("../../assets/app-fonts/Philosopher-Bold.ttf"),
@@ -53,115 +48,16 @@ const Categories: React.FC = () => {
     return null;
   }
 
-  const CategoryButton = ({ category, style }: { category: Category, style?: any }) => (
-    <TouchableOpacity
-      style={{
-        backgroundColor: baseButtonColor,
-        borderRadius: buttonBorderRadius,
-        margin: buttonMargin,
-        alignItems: "center",
-        justifyContent: "center",
-        height: 88,
-        ...style,
-      }}
-      onPress={() => {
-        console.log(`Selected category: ${category.name} (ID: ${category.id})`);
-        router.push({
-          pathname: "services",
-          params: {
-            categoryName: category.name,
-            // Pass a UI variant flag for special categories like Hiukset
-            ...(category.name.toLowerCase() === 'hiukset' ? { uiVariant: 'hiukset' } : {}),
-            ...(category.name.toLowerCase() === 'karvanpoistot' ? { uiVariant: 'karvanpoistot' } : {})
-          }
-        });
-      }}
-    >
-      <Text
-        style={{
-          fontFamily: "PhilosopherBold",
-          fontSize: baseFontSize,
-          color: baseTextColor,
-          textAlign: "center",
-          paddingVertical: basePaddingVertical,
-          paddingHorizontal: basePaddingHorizontal,
-        }}
-      >
-        {category.name}
-      </Text>
-    </TouchableOpacity>
-  );
-
-  // Function to create rows dynamically based on the number of categories
-  const createCategoryRows = () => {
-    if (categories.length === 0) return null;
-
-    const rows = [];
-    let currentIndex = 0;
-
-    const layoutPatterns = [
-      { flex1: 1.5, flex2: 1 },
-      { flex1: 1.1, flex2: 2 },
-      { flex1: 1.7, flex2: 1.2 }, // Row 3: Increased flex2 for "Kynnet" box
-      { flex1: 1.2, flex2: 2 },
-      { flex1: 2, flex2: 1.2 },
-    ];
-
-    // Calculate total number of rows to determine if this is the last row
-    const totalPairs = Math.ceil(categories.length / 2);
-
-    while (currentIndex < categories.length) {
-      const remainingCategories = categories.length - currentIndex;
-      const currentRowNumber = Math.floor(currentIndex / 2) + 1;
-      const isLastRow = currentRowNumber === totalPairs && remainingCategories === 2;
-
-      if (remainingCategories === 1) {
-        rows.push(
-          <CategoryButton
-            key={categories[currentIndex].id}
-            category={categories[currentIndex]}
-            style={{ width: "95%", alignSelf: "center" }}
-          />
-        );
-        currentIndex++;
-      } else {
-        // For the last row, use narrow-wide pattern (1, 2)
-        // For other rows, use the cycling pattern
-        let pattern;
-        if (isLastRow) {
-          pattern = { flex1: 1, flex2: 2 };
-        } else {
-          const patternIndex = Math.floor(currentIndex / 2) % layoutPatterns.length;
-          pattern = layoutPatterns[patternIndex];
-        }
-
-        rows.push(
-          <View key={`row-${currentIndex}`} style={{ flexDirection: "row", justifyContent: "center", alignItems: "center" }}>
-            <CategoryButton
-              category={categories[currentIndex]}
-              style={{
-                flex: pattern.flex1,
-                minWidth: (width * (pattern.flex1 / (pattern.flex1 + pattern.flex2)) * 0.94) - (buttonMargin * 2),
-                maxWidth: "auto"
-              }}
-            />
-            {currentIndex + 1 < categories.length && (
-              <CategoryButton
-                category={categories[currentIndex + 1]}
-                style={{
-                  flex: pattern.flex2,
-                  minWidth: (width * (pattern.flex2 / (pattern.flex1 + pattern.flex2)) * 0.9) - (buttonMargin * 2),
-                  maxWidth: "auto"
-                }}
-              />
-            )}
-          </View>
-        );
-        currentIndex += 2;
-      }
-    }
-
-    return rows;
+  const openCategory = (category: Category) => {
+    console.log(`Selected category: ${category.name} (ID: ${category.id})`);
+    router.push({
+      pathname: "services",
+      params: {
+        categoryName: category.name,
+        ...(category.name.toLowerCase() === 'hiukset' ? { uiVariant: 'hiukset' } : {}),
+        ...(category.name.toLowerCase() === 'karvanpoistot' ? { uiVariant: 'karvanpoistot' } : {}),
+      },
+    });
   };
 
   return (
@@ -229,9 +125,12 @@ const Categories: React.FC = () => {
         {/* Categories List with Custom Layout */}
         {!loading && !error && (
           <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 10, marginLeft: -5 }}>
-            <View style={{ flexDirection: "column", alignItems: "center", paddingBottom: 20 }}>
-              {createCategoryRows()}
-            </View>
+            <CategoryCardGrid
+              categories={categories}
+              onCategoryPress={openCategory}
+              fontFamily="PhilosopherBold"
+              style={{ paddingBottom: 20 }}
+            />
           </ScrollView>
         )}
 

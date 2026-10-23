@@ -1,17 +1,22 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView,
-  SafeAreaView, ActivityIndicator, Alert, Image,
-  KeyboardAvoidingView, Platform, Switch,
+  View, Text, TextInput, TouchableOpacity,
+  SafeAreaView, ActivityIndicator, Alert,
+  KeyboardAvoidingView, Platform, Dimensions, Keyboard, Animated,
 } from 'react-native';
+import type { TextInputInstance } from 'react-native';
+import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '@/config/constants';
 import AddressMapPicker from '@/components/AddressMapPicker';
+import { uploadImage } from '@/lib/upload-image';
+import StackedPhotos, { AddPhotoButton, MAX_PHOTOS } from '@/components/StackedPhotos';
+import { pickSalonPhoto, prepareForUpload } from '@/lib/pick-photo';
+import { forwardGeocode } from '@/lib/geocode';
 
 const ADMIN_API_KEY = process.env.EXPO_PUBLIC_ADMIN_API_KEY || '';
 const PROVIDER_STATUS_KEY = 'providerStatus';
@@ -25,25 +30,17 @@ const lightBeige = '#F4EDE5';
 const white = '#FFFFFF';
 const red = '#c00';
 
-const TOTAL_STEPS = 6;
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const TOTAL_STEPS = 5;
 
-type DaySlot = { dayOfWeek: number; startTime: string; endTime: string; isOpen: boolean };
-
-const DEFAULT_HOURS: DaySlot[] = DAYS.map((_, i) => ({
-  dayOfWeek: i,
-  startTime: '09:00',
-  endTime: '18:00',
-  isOpen: i >= 1 && i <= 5, // Mon–Fri open, Sat/Sun closed
-}));
+// Photos use the same stacked layout as the provider salon screen.
+const PHOTO_CONTENT_WIDTH = Dimensions.get('window').width - 56;
 
 const QUESTIONS = [
   { question: "What's your salon called?" },
   { question: 'Give customers a one-liner', hint: 'Shown as the tagline on the map · optional' },
   { question: 'Tell customers about your salon', hint: 'Optional — you can update this anytime' },
   { question: 'Pin your location', hint: 'Drag the pin or search — this is where customers find you on the map' },
-  { question: 'When are you open?', hint: 'Set your weekly schedule' },
-  { question: 'Add salon photos', hint: 'At least 1 photo required · up to 6' },
+  { question: 'Show off your salon', hint: 'Add at least 1 photo. The first one becomes your cover.' },
 ];
 
 const bigInput = {
@@ -55,20 +52,6 @@ const bigInput = {
   borderRadius: 14,
   paddingHorizontal: 18,
   paddingVertical: 16,
-  backgroundColor: white,
-};
-
-const timeInput = {
-  borderWidth: 2,
-  borderColor: beige,
-  borderRadius: 10,
-  paddingHorizontal: 12,
-  paddingVertical: 8,
-  fontFamily: 'Philosopher-Regular' as const,
-  fontSize: 16,
-  color: darkBrown,
-  width: 76,
-  textAlign: 'center' as const,
   backgroundColor: white,
 };
 
@@ -89,16 +72,27 @@ export default function Phase3Screen() {
   const [address, setAddress] = useState('');
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
-  const [hours, setHours] = useState<DaySlot[]>(DEFAULT_HOURS);
   const [photos, setPhotos] = useState<string[]>([]);
-  const [uploading, setUploading] = useState(false);
+  // Which slot is uploading: an existing photo index (replace) or 'new'.
+  const [uploading, setUploading] = useState<number | 'new' | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  // Drives the stacked-photos scroll effect on the photos step.
+  const scrollY = useRef(new Animated.Value(0)).current;
+
+  // Bumping mapRevision remounts the map centred on the current lat/lng
+  // (same approach as the provider salon screen).
+  const [mapRevision, setMapRevision] = useState(0);
+  const [locationQuery, setLocationQuery] = useState('');
+  const [searchingLocation, setSearchingLocation] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const autoLocatedRef = useRef(false);
 
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const salonNameRef = useRef<TextInput>(null);
-  const shortIntroRef = useRef<TextInput>(null);
-  const descriptionRef = useRef<TextInput>(null);
+  const salonNameRef = useRef<TextInputInstance>(null);
+  const shortIntroRef = useRef<TextInputInstance>(null);
+  const descriptionRef = useRef<TextInputInstance>(null);
 
   const buildHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const token = await getTokenRef.current();
@@ -132,7 +126,7 @@ export default function Phase3Screen() {
 
   // Auto-focus text inputs on step change
   useEffect(() => {
-    const refs = [salonNameRef, shortIntroRef, descriptionRef, null, null, null];
+    const refs = [salonNameRef, shortIntroRef, descriptionRef, null, null];
     const ref = refs[step];
     if (ref) {
       const t = setTimeout(() => ref.current?.focus(), 100);
@@ -143,7 +137,7 @@ export default function Phase3Screen() {
   const validate = (): boolean => {
     if (step === 0 && !salonName.trim()) { setError('Please enter your salon name'); return false; }
     if (step === 3 && (latitude == null || longitude == null)) { setError('Please pin your salon location on the map'); return false; }
-    if (step === 5 && photos.length === 0) { setError('Please add at least one photo'); return false; }
+    if (step === 4 && photos.length === 0) { setError('Please add at least one photo'); return false; }
     setError('');
     return true;
   };
@@ -159,51 +153,87 @@ export default function Phase3Screen() {
     setStep(s => s - 1);
   };
 
-  const updateHour = (dayOfWeek: number, field: keyof DaySlot, value: string | boolean) => {
-    setHours(prev => prev.map(d => d.dayOfWeek === dayOfWeek ? { ...d, [field]: value } : d));
+  const moveMapTo = (lat: number, lng: number) => {
+    setLatitude(lat);
+    setLongitude(lng);
+    setMapRevision(r => r + 1);
+    setError('');
   };
 
-  const pickAndUpload = async () => {
-    if (photos.length >= 6) {
-      Alert.alert('Limit reached', 'Maximum 6 photos allowed.');
+  const locateMe = useCallback(async () => {
+    setLocating(true);
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== 'granted') {
+        setError('Location access is off — search for your address instead');
+        return;
+      }
+      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      moveMapTo(position.coords.latitude, position.coords.longitude);
+    } catch {
+      setError("Couldn't find your location — search for your address instead");
+    } finally {
+      setLocating(false);
+    }
+  }, []);
+
+  // First visit to the map with nothing to show: start from the device location.
+  useEffect(() => {
+    if (step !== 3 || autoLocatedRef.current) return;
+    autoLocatedRef.current = true;
+    if (latitude == null && longitude == null && !address.trim()) void locateMe();
+  }, [step, latitude, longitude, address, locateMe]);
+
+  const runLocationSearch = async () => {
+    const query = locationQuery.trim();
+    if (!query) return;
+    Keyboard.dismiss();
+    setSearchingLocation(true);
+    try {
+      const hit = await forwardGeocode(
+        query,
+        latitude != null && longitude != null ? { latitude, longitude } : null,
+      );
+      if (hit) moveMapTo(hit.latitude, hit.longitude);
+      else setError('No match for that address — try adding the city');
+    } catch {
+      setError('No match for that address — try adding the city');
+    } finally {
+      setSearchingLocation(false);
+    }
+  };
+
+  const pickAndUpload = async (replaceIndex?: number) => {
+    if (replaceIndex == null && photos.length >= MAX_PHOTOS) {
+      Alert.alert('Limit reached', `Maximum ${MAX_PHOTOS} photos allowed.`);
       return;
     }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.8,
-    });
-    if (result.canceled) return;
-    const asset = result.assets[0];
+    const asset = await pickSalonPhoto();
+    if (!asset) return;
 
-    setUploading(true);
+    setUploadProgress(0);
+    setUploading(replaceIndex ?? 'new');
     try {
+      const photoUri = await prepareForUpload(asset);
       const token = await getTokenRef.current();
-      const form = new FormData();
-      form.append('file', {
-        uri: asset.uri,
-        type: asset.mimeType ?? 'image/jpeg',
-        name: asset.fileName ?? 'photo.jpg',
-      } as any);
-      const res = await fetch(`${API_BASE_URL}/upload`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${ADMIN_API_KEY}`,
-          'X-User-Token': token ?? '',
-        },
-        body: form,
+      const { url } = await uploadImage({
+        uri: photoUri,
+        authorization: `Bearer ${ADMIN_API_KEY}`,
+        userToken: token ?? undefined,
+        onProgress: setUploadProgress,
       });
-      if (!res.ok) throw new Error(`${res.status}`);
-      const { url } = await res.json();
-      setPhotos(prev => [...prev, url]);
+      setPhotos(prev => replaceIndex == null
+        ? [...prev, url]
+        : prev.map((current, i) => (i === replaceIndex ? url : current)));
       setError('');
     } catch {
       Alert.alert('Upload failed', 'Please try again.');
     } finally {
-      setUploading(false);
+      setUploading(null);
     }
   };
+
+  const replacePhoto = (index: number) => { void pickAndUpload(index); };
 
   const removePhoto = (index: number) => {
     setPhotos(prev => prev.filter((_, i) => i !== index));
@@ -234,15 +264,7 @@ export default function Phase3Screen() {
       });
       if (!patchRes.ok) throw new Error('Failed to save salon info');
 
-      // 2. Save opening hours
-      const slotsRes = await fetch(`${API_BASE_URL}/saloons/${saloonId}/time-slots`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ timeSlots: hours }),
-      });
-      if (!slotsRes.ok) throw new Error('Failed to save opening hours');
-
-      // 3. Activate the provider account
+      // 2. Activate the provider account
       const phase3Res = await fetch(`${API_BASE_URL}/provider/apply/phase3`, {
         method: 'POST',
         headers,
@@ -252,7 +274,7 @@ export default function Phase3Screen() {
         throw new Error(body.error ?? `${phase3Res.status}`);
       }
 
-      // 4. Seed cache so next open skips pending screen instantly
+      // 3. Seed cache so next open skips pending screen instantly
       if (userId) await AsyncStorage.setItem(statusKeyFor(userId), 'ACTIVE');
 
       router.replace('/(provider)/bookings' as any);
@@ -288,8 +310,6 @@ export default function Phase3Screen() {
             ref={shortIntroRef}
             value={shortIntro}
             onChangeText={v => { setShortIntro(v); setError(''); }}
-            placeholder="Premium beauty treatments in Helsinki"
-            placeholderTextColor="#ccc"
             autoCapitalize="sentences"
             returnKeyType="next"
             onSubmitEditing={goNext}
@@ -307,120 +327,27 @@ export default function Phase3Screen() {
             placeholderTextColor="#ccc"
             autoCapitalize="sentences"
             multiline
-            style={[bigInput, { minHeight: 140, textAlignVertical: 'top' }]}
+            style={[bigInput, { fontSize: 17, height: 112, textAlignVertical: 'top' }]}
           />
         );
 
       // case 3 (location) is rendered full-screen outside the ScrollView — see below.
 
       case 4:
+        // Rendered straight into the scroll content so its pin maths start at 0.
         return (
-          <View>
-            {hours.map((day, i) => (
-              <View
-                key={day.dayOfWeek}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  paddingVertical: 12,
-                  borderBottomWidth: i < hours.length - 1 ? 1 : 0,
-                  borderBottomColor: lightBeige,
-                }}
-              >
-                <Text style={{
-                  fontFamily: 'Philosopher-Bold', fontSize: 14,
-                  color: day.isOpen ? darkBrown : '#bbb', width: 44,
-                }}>
-                  {DAYS[day.dayOfWeek]}
-                </Text>
-                <Switch
-                  value={day.isOpen}
-                  onValueChange={v => updateHour(day.dayOfWeek, 'isOpen', v)}
-                  trackColor={{ false: beige, true: darkBrown }}
-                  thumbColor={white}
-                  style={{ marginRight: 12 }}
-                />
-                {day.isOpen ? (
-                  <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <TextInput
-                      value={day.startTime}
-                      onChangeText={v => updateHour(day.dayOfWeek, 'startTime', v)}
-                      placeholder="09:00"
-                      placeholderTextColor="#bbb"
-                      keyboardType="numbers-and-punctuation"
-                      maxLength={5}
-                      style={timeInput}
-                    />
-                    <Text style={{ fontFamily: 'Philosopher-Regular', color: '#aaa', fontSize: 14 }}>–</Text>
-                    <TextInput
-                      value={day.endTime}
-                      onChangeText={v => updateHour(day.dayOfWeek, 'endTime', v)}
-                      placeholder="18:00"
-                      placeholderTextColor="#bbb"
-                      keyboardType="numbers-and-punctuation"
-                      maxLength={5}
-                      style={timeInput}
-                    />
-                  </View>
-                ) : (
-                  <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: '#bbb' }}>Closed</Text>
-                )}
-              </View>
-            ))}
-          </View>
-        );
-
-      case 5:
-        return (
-          <View>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-              {photos.map((url, i) => (
-                <View key={i} style={{ position: 'relative' }}>
-                  <Image
-                    source={{ uri: url }}
-                    style={{ width: 100, height: 100, borderRadius: 12, backgroundColor: lightBeige }}
-                  />
-                  <TouchableOpacity
-                    onPress={() => removePhoto(i)}
-                    style={{
-                      position: 'absolute', top: 4, right: 4,
-                      backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 12, padding: 4,
-                    }}
-                  >
-                    <Ionicons name="close" size={14} color={white} />
-                  </TouchableOpacity>
-                </View>
-              ))}
-
-              {photos.length < 6 && (
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  onPress={pickAndUpload}
-                  disabled={uploading}
-                  style={{
-                    width: 100, height: 100, borderRadius: 12,
-                    borderWidth: 2, borderColor: beige, borderStyle: 'dashed',
-                    justifyContent: 'center', alignItems: 'center',
-                    backgroundColor: lightBeige,
-                  }}
-                >
-                  {uploading
-                    ? <ActivityIndicator color={darkBrown} />
-                    : <>
-                        <Ionicons name="add" size={28} color={darkBrown} />
-                        <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 11, color: darkBrown, marginTop: 2 }}>
-                          Add photo
-                        </Text>
-                      </>
-                  }
-                </TouchableOpacity>
-              )}
-            </View>
-
-            <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 12, color: '#aaa', marginTop: 14 }}>
-              {photos.length}/6 photos · JPEG/PNG · Auto-compressed
-            </Text>
-          </View>
+          <StackedPhotos
+            images={photos}
+            width={PHOTO_CONTENT_WIDTH}
+            scrollY={scrollY}
+            parentOffsetY={0}
+            uploading={uploading}
+            uploadProgress={uploadProgress}
+            onReplace={replacePhoto}
+            onRemove={removePhoto}
+            onAdd={() => pickAndUpload()}
+            showAddButton={false}
+          />
         );
     }
   };
@@ -461,39 +388,76 @@ export default function Phase3Screen() {
         {/* Content — the location step is a full-screen map; all others scroll. */}
         {step === 3 ? (
           <View style={{ flex: 1 }}>
-            <View style={{ paddingHorizontal: 28, paddingTop: 20, paddingBottom: 14 }}>
-              <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 26, color: darkBrown, lineHeight: 32, marginBottom: q.hint ? 6 : 0 }}>
+            <View style={{ flex: 1 }}>
+              <AddressMapPicker
+                key={`onboarding-map-${mapRevision}`}
+                initialAddress={address}
+                initialLat={latitude}
+                initialLng={longitude}
+                showSearch={false}
+                showResolvedAddress={false}
+                markerVariant="location"
+                markerIcon="home"
+                markerLabel={address || salonName}
+                markerSubtitle="Your salon is here"
+                onChange={({ address: addr, latitude: lat, longitude: lng }) => {
+                  setAddress(addr);
+                  setLatitude(lat);
+                  setLongitude(lng);
+                  setError('');
+                }}
+              />
+              <TouchableOpacity
+                activeOpacity={0.82}
+                accessibilityLabel="Use my current location"
+                onPress={locateMe}
+                disabled={locating}
+                style={mapRecenterButton}
+              >
+                {locating
+                  ? <ActivityIndicator color={darkBrown} />
+                  : <Ionicons name="navigate" size={24} color={darkBrown} />}
+              </TouchableOpacity>
+            </View>
+
+            <View style={locationSheet}>
+              <View style={locationSheetHandle} />
+              <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 26, color: darkBrown, lineHeight: 32 }}>
                 {q.question}
               </Text>
-              {q.hint ? (
-                <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: '#999', lineHeight: 18 }}>
-                  {q.hint}
-                </Text>
-              ) : null}
+              <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: '#6F6258', lineHeight: 20, marginTop: 4, marginBottom: 16 }}>
+                Drag the map to put the pin on your door
+              </Text>
+
+              <View style={locationSearchBar}>
+                <Ionicons name="search" size={20} color="#9A8E83" />
+                <TextInput
+                  value={locationQuery}
+                  onChangeText={setLocationQuery}
+                  placeholder="Search street, city, district…"
+                  placeholderTextColor="#9A8E83"
+                  returnKeyType="search"
+                  onSubmitEditing={runLocationSearch}
+                  style={{ flex: 1, fontFamily: 'Philosopher-Regular', fontSize: 16, color: darkBrown, paddingVertical: 0 }}
+                />
+                {searchingLocation ? <ActivityIndicator size="small" color={darkBrown} /> : null}
+              </View>
+
               {error ? (
-                <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: red, marginTop: 8 }}>
+                <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: red, marginTop: 10 }}>
                   {error}
                 </Text>
               ) : null}
             </View>
-            <AddressMapPicker
-              initialAddress={address}
-              initialLat={latitude}
-              initialLng={longitude}
-              onChange={({ address: addr, latitude: lat, longitude: lng }) => {
-                setAddress(addr);
-                setLatitude(lat);
-                setLongitude(lng);
-                setError('');
-              }}
-            />
           </View>
         ) : (
-          <ScrollView
+          <Animated.ScrollView
             style={{ flex: 1 }}
             contentContainerStyle={{ paddingHorizontal: 28, paddingTop: 48, paddingBottom: 24 }}
             keyboardShouldPersistTaps="always"
             showsVerticalScrollIndicator={false}
+            scrollEventThrottle={16}
+            onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
           >
             <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 30, color: darkBrown, lineHeight: 38, marginBottom: q.hint ? 8 : 28 }}>
               {q.question}
@@ -509,15 +473,28 @@ export default function Phase3Screen() {
                 {error}
               </Text>
             ) : null}
-          </ScrollView>
+          </Animated.ScrollView>
         )}
 
-        {/* Continue / Finish button */}
-        <View style={{ paddingHorizontal: 28, paddingBottom: insets.bottom + 16, paddingTop: 8 }}>
+        {/* Continue / Finish button — on the photos step, Add photo is pinned above it. */}
+        <View style={{
+          paddingHorizontal: 28, paddingBottom: insets.bottom + 16, paddingTop: 8,
+          backgroundColor: step === 3 ? lightBeige : white,
+          ...(step === 4 && { paddingTop: 12, gap: 10, borderTopWidth: 1, borderTopColor: 'rgba(66,49,32,0.08)' }),
+        }}>
+          {step === 4 && photos.length < MAX_PHOTOS && (
+            <AddPhotoButton
+              isFirst={photos.length === 0}
+              uploading={uploading === 'new'}
+              disabled={uploading !== null || submitting}
+              uploadProgress={uploadProgress}
+              onPress={() => pickAndUpload()}
+            />
+          )}
           <TouchableOpacity
             activeOpacity={0.8}
             onPress={goNext}
-            disabled={submitting || uploading}
+            disabled={submitting || uploading !== null}
             style={{ backgroundColor: darkBrown, borderRadius: 14, paddingVertical: 17, alignItems: 'center' }}
           >
             {submitting
@@ -533,3 +510,66 @@ export default function Phase3Screen() {
     </SafeAreaView>
   );
 }
+
+// ─── Styles (map + photos follow the provider salon screen) ───────────────────
+
+const mapRecenterButton = {
+  position: 'absolute' as const,
+  right: 16,
+  bottom: 42,
+  width: 48,
+  height: 48,
+  borderRadius: 24,
+  alignItems: 'center' as const,
+  justifyContent: 'center' as const,
+  backgroundColor: lightBeige,
+  borderWidth: 1,
+  borderColor: '#E5E5E5',
+  shadowColor: '#000000',
+  shadowOffset: { width: 0, height: 3 },
+  shadowOpacity: 0.14,
+  shadowRadius: 8,
+  elevation: 5,
+};
+
+const locationSheet = {
+  marginTop: -24,
+  paddingTop: 10,
+  paddingHorizontal: 28,
+  paddingBottom: 8,
+  borderTopLeftRadius: 30,
+  borderTopRightRadius: 30,
+  backgroundColor: lightBeige,
+  shadowColor: '#000000',
+  shadowOffset: { width: 0, height: -4 },
+  shadowOpacity: 0.1,
+  shadowRadius: 14,
+  elevation: 12,
+};
+
+const locationSheetHandle = {
+  width: 48,
+  height: 5,
+  borderRadius: 3,
+  alignSelf: 'center' as const,
+  marginBottom: 16,
+  backgroundColor: beige,
+};
+
+const locationSearchBar = {
+  minHeight: 52,
+  borderRadius: 26,
+  paddingHorizontal: 18,
+  flexDirection: 'row' as const,
+  alignItems: 'center' as const,
+  gap: 10,
+  backgroundColor: '#EDE3D8',
+};
+
+
+
+
+
+
+
+

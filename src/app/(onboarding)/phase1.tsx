@@ -4,11 +4,13 @@ import {
   SafeAreaView, ActivityIndicator, Alert,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
+import type { TextInputInstance } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_BASE_URL } from '@/config/constants';
+import CategoryCardGrid from '@/components/CategoryCardGrid';
 
 const ADMIN_API_KEY = process.env.EXPO_PUBLIC_ADMIN_API_KEY || '';
 
@@ -58,11 +60,11 @@ export default function Phase1Screen() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const firstNameRef = useRef<TextInput>(null);
-  const lastNameRef = useRef<TextInput>(null);
-  const phoneRef = useRef<TextInput>(null);
-  const neighRef = useRef<TextInput>(null);
-  const addressRef = useRef<TextInput>(null);
+  const firstNameRef = useRef<TextInputInstance>(null);
+  const lastNameRef = useRef<TextInputInstance>(null);
+  const phoneRef = useRef<TextInputInstance>(null);
+  const neighRef = useRef<TextInputInstance>(null);
+  const addressRef = useRef<TextInputInstance>(null);
 
   useEffect(() => {
     fetch(`${API_BASE_URL}/public/categories`)
@@ -233,30 +235,17 @@ export default function Phase1Screen() {
         );
       case 6:
         return (
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-            {categories.map(cat => {
-              const selected = selectedCategories.includes(cat.name);
-              return (
-                <TouchableOpacity
-                  key={cat.id}
-                  activeOpacity={0.8}
-                  onPress={() => toggleCategory(cat.name)}
-                  style={{
-                    paddingHorizontal: 18, paddingVertical: 11, borderRadius: 26,
-                    backgroundColor: selected ? darkBrown : white,
-                    borderWidth: 2, borderColor: selected ? darkBrown : beige,
-                  }}
-                >
-                  <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 15, color: selected ? white : darkBrown }}>
-                    {cat.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          <CategoryCardGrid
+            categories={categories}
+            selectedCategoryNames={selectedCategories}
+            onCategoryPress={category => toggleCategory(category.name)}
+            compact
+          />
         );
     }
   };
+
+  const isServicesStep = step === TOTAL_STEPS - 1;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: white }}>
@@ -284,12 +273,21 @@ export default function Phase1Screen() {
         </View>
 
         {/* Content */}
-        <View style={{ flex: 1, paddingHorizontal: 28, paddingTop: 56 }}>
-          <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 30, color: darkBrown, lineHeight: 38, marginBottom: q.hint ? 8 : 28 }}>
+        <ScrollView
+          style={{ flex: 1 }}
+          // The services step is a long list, so it starts higher to fit without scrolling.
+          contentContainerStyle={{ paddingHorizontal: 28, paddingTop: isServicesStep ? 16 : 56, paddingBottom: 16 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={{
+            fontFamily: 'Philosopher-Bold', color: darkBrown, marginBottom: q.hint ? 8 : 28,
+            fontSize: isServicesStep ? 26 : 30, lineHeight: isServicesStep ? 32 : 38,
+          }}>
             {q.question}
           </Text>
           {q.hint ? (
-            <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: '#999', marginBottom: 24, lineHeight: 20 }}>
+            <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: '#999', marginBottom: isServicesStep ? 14 : 24, lineHeight: 20 }}>
               {q.hint}
             </Text>
           ) : null}
@@ -299,7 +297,7 @@ export default function Phase1Screen() {
               {error}
             </Text>
           ) : null}
-        </View>
+        </ScrollView>
 
         {/* Continue button */}
         <View style={{ paddingHorizontal: 28, paddingBottom: insets.bottom + 16, paddingTop: 8 }}>

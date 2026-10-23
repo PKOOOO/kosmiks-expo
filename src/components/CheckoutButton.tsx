@@ -225,20 +225,25 @@ const CheckoutButtonInner: React.FC<CheckoutButtonProps> = ({
     }
   };
 
+  // Disabled fade lives on a wrapper: TouchableOpacity keeps the opacity it
+  // mounted with, so a button that starts disabled (e.g. before the user's
+  // name has loaded) would otherwise stay faded once it becomes enabled.
   return (
+    <View style={{ opacity: (disabled || isLoading) ? 0.6 : 1 }}>
     <TouchableOpacity
       onPress={handleCheckout}
       disabled={disabled || isLoading}
-      style={{ 
-        backgroundColor: '#423120', 
-        borderRadius: 16, 
-        padding: 16, 
+      style={{
+        backgroundColor: '#423120',
+        borderRadius: 27,
+        height: 54,
+        paddingHorizontal: 18,
+        justifyContent: 'center',
         shadowColor: '#423120',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.2,
         shadowRadius: 4,
         elevation: 3,
-        opacity: (disabled || isLoading) ? 0.6 : 1
       }}
       activeOpacity={0.8}
     >
@@ -246,17 +251,18 @@ const CheckoutButtonInner: React.FC<CheckoutButtonProps> = ({
         {isLoading ? (
           <>
             <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
-            <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 18 }}>
+            <Text style={{ color: '#FFFFFF', fontFamily: 'Philosopher-Bold', fontSize: 16 }}>
               Käsitellään maksua...
             </Text>
           </>
         ) : (
-          <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 18 }}>
+          <Text style={{ color: '#FFFFFF', fontFamily: 'Philosopher-Bold', fontSize: 16 }}>
             {children}
           </Text>
         )}
       </View>
     </TouchableOpacity>
+    </View>
   );
 };
 

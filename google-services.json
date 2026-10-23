@@ -7,6 +7,25 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:234539763868:android:6a47a950241aa8b1de4559",
+        "android_client_info": {
+          "package_name": "com.kosmiks.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBnl37JOm3P7G9Hzlq3jvOqMBlQu2CUOO8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:234539763868:android:6ebbe9d5774b0d1fde4559",
         "android_client_info": {
           "package_name": "com.servey.app"

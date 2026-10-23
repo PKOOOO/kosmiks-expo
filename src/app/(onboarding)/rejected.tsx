@@ -80,7 +80,7 @@ export default function RejectedScreen() {
 
         <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: '#666', textAlign: 'center', lineHeight: 22 }}>
           If you believe this is a mistake, contact us at{' '}
-          <Text style={{ fontFamily: 'Philosopher-Bold', color: darkBrown }}>support@servey.fi</Text>
+          <Text style={{ fontFamily: 'Philosopher-Bold', color: darkBrown }}>support@kosmiks.com</Text>
         </Text>
       </View>
 

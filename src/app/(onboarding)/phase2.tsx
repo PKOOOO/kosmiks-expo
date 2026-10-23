@@ -4,6 +4,7 @@ import {
   SafeAreaView, ActivityIndicator, Alert, Image,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
+import type { TextInputInstance } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,6 +13,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { API_BASE_URL } from '@/config/constants';
+import { uploadImage } from '@/lib/upload-image';
+import UploadProgress from '@/components/UploadProgress';
 
 const ADMIN_API_KEY = process.env.EXPO_PUBLIC_ADMIN_API_KEY || '';
 
@@ -67,6 +70,22 @@ const QUESTIONS = [
   { question: 'Almost done', hint: 'Accept the terms to submit your application' },
 ];
 
+// Step 5 asks for these one at a time. All three are required.
+const DOCS = [
+  { title: 'Diploma or certificate', icon: 'school-outline' },
+  { title: 'Professional license', icon: 'ribbon-outline' },
+  { title: 'Government ID', icon: 'card-outline' },
+] as const;
+
+const TERMS = [
+  'Provide accurate information about yourself and your services.',
+  'Honor all bookings made through the Servey platform.',
+  'Maintain professional standards of service quality.',
+  'Comply with all applicable Finnish laws and regulations.',
+  'Allow Servey to collect a platform fee of 10% on each completed booking.',
+  'Receive payouts via SEPA bank transfer to your provided IBAN.',
+];
+
 const bigInput = {
   fontFamily: 'Philosopher-Regular' as const,
   fontSize: 20,
@@ -93,16 +112,19 @@ export default function Phase2Screen() {
   const [showDobPicker, setShowDobPicker] = useState(false);
   const [iban, setIban] = useState('');
   const [bankAccountName, setBankAccountName] = useState('');
-  const [docSlots, setDocSlots] = useState<(string | null)[]>([null, null, null]);
+  // `preview` is the local file shown in the slot; `url` is the private storage reference sent to the API.
+  const [docSlots, setDocSlots] = useState<({ preview: string; url: string } | null)[]>([null, null, null]);
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [docStep, setDocStep] = useState(0);
   const [termsAccepted, setTermsAccepted] = useState(false);
 
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const legalNameRef = useRef<TextInput>(null);
-  const ibanRef = useRef<TextInput>(null);
-  const bankAccountNameRef = useRef<TextInput>(null);
+  const legalNameRef = useRef<TextInputInstance>(null);
+  const ibanRef = useRef<TextInputInstance>(null);
+  const bankAccountNameRef = useRef<TextInputInstance>(null);
 
   useEffect(() => {
     const refs = [legalNameRef, null, ibanRef, bankAccountNameRef, null, null];
@@ -138,24 +160,19 @@ export default function Phase2Screen() {
     });
     if (result.canceled) return;
     const asset = result.assets[0];
+    setUploadProgress(0);
     setUploadingIndex(slotIndex);
     try {
       const compressedUri = await compressImage(asset.uri);
       const token = await getTokenRef.current();
-      const form = new FormData();
-      form.append('file', { uri: compressedUri, type: 'image/jpeg', name: 'doc.jpg' } as any);
-      const res = await fetch(`${API_BASE_URL}/upload`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${ADMIN_API_KEY}`, 'X-User-Token': token ?? '' },
-        body: form,
+      const { url } = await uploadImage({
+        uri: compressedUri,
+        authorization: `Bearer ${ADMIN_API_KEY}`,
+        userToken: token ?? undefined,
+        kind: 'document',
+        onProgress: setUploadProgress,
       });
-      if (!res.ok) {
-        const errBody = await res.text();
-        console.error('[UPLOAD] Failed:', res.status, errBody);
-        throw new Error(`${res.status}: ${errBody}`);
-      }
-      const { url } = await res.json();
-      setDocSlots(prev => { const next = [...prev]; next[slotIndex] = url; return next; });
+      setDocSlots(prev => { const next = [...prev]; next[slotIndex] = { preview: compressedUri, url }; return next; });
       setError('');
     } catch (err: any) {
       console.error('[UPLOAD] Error:', err?.message ?? err);
@@ -178,20 +195,31 @@ export default function Phase2Screen() {
     }
     if (step === 2 && !isValidFinnishIban(iban)) { setError('IBAN must start with FI and have 16 digits'); return false; }
     if (step === 3 && !bankAccountName.trim()) { setError('Please enter the bank account holder name'); return false; }
-    if (step === 4 && docSlots.filter(Boolean).length === 0) { setError('Please upload at least one qualification document'); return false; }
+    if (step === 4 && !docSlots[docStep]) {
+      setError(`Please upload your ${DOCS[docStep].title.toLowerCase()}`);
+      return false;
+    }
     if (step === 5 && !termsAccepted) { setError('You must accept the terms to continue'); return false; }
     setError('');
     return true;
   };
 
+  // Leave the documents step, or move to the next document within it.
+  const advanceDoc = () => {
+    if (docStep < DOCS.length - 1) { setDocStep(d => d + 1); return; }
+    setStep(s => s + 1);
+  };
+
   const goNext = () => {
     if (!validate()) return;
+    if (step === 4) { advanceDoc(); return; }
     if (step === TOTAL_STEPS - 1) { handleSubmit(); return; }
     setStep(s => s + 1);
   };
 
   const goBack = () => {
     setError('');
+    if (step === 4 && docStep > 0) { setDocStep(d => d - 1); return; }
     setStep(s => s - 1);
   };
 
@@ -207,7 +235,7 @@ export default function Phase2Screen() {
           dateOfBirth,
           iban: iban.replace(/\s+/g, ''),
           bankAccountName: bankAccountName.trim(),
-          qualificationDocs: docSlots.filter(Boolean) as string[],
+          qualificationDocs: docSlots.flatMap(slot => (slot ? [slot.url] : [])),
           termsAccepted: true,
         }),
       });
@@ -225,7 +253,9 @@ export default function Phase2Screen() {
     }
   };
 
-  const q = QUESTIONS[step];
+  const q = step === 4
+    ? { question: DOCS[docStep].title, hint: `Document ${docStep + 1} of ${DOCS.length}` }
+    : QUESTIONS[step];
 
   const renderStep = () => {
     switch (step) {
@@ -315,80 +345,97 @@ export default function Phase2Screen() {
 
       case 3:
         return (
-          <View>
-            <TextInput
-              autoFocus
-              value={bankAccountName}
-              onChangeText={setBankAccountName}
-              placeholder="Full name as shown on bank account"
-              placeholderTextColor="#999"
-              style={{
-                borderWidth: 1,
-                borderColor: '#C9A96E',
-                borderRadius: 12,
-                padding: 16,
-                fontSize: 18,
-                color: '#2C1810',
-                backgroundColor: 'white',
-              }}
-            />
-          </View>
+          <TextInput
+            ref={bankAccountNameRef}
+            value={bankAccountName}
+            onChangeText={v => { setBankAccountName(v); setError(''); }}
+            autoCapitalize="words"
+            returnKeyType="next"
+            onSubmitEditing={goNext}
+            style={bigInput}
+          />
         );
 
       case 4: {
-        const DOC_LABELS = [
-          '📜  Diploma or Certificate',
-          '🪪  Professional License',
-          '🆔  Government ID / Other',
-        ];
+        const doc = DOCS[docStep];
+        const slot = docSlots[docStep];
         return (
-          <View style={{ gap: 14 }}>
-            {DOC_LABELS.map((label, i) => (
-              <View key={i}>
-                <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 13, color: darkBrown, marginBottom: 6 }}>
-                  {label}
-                </Text>
-                {docSlots[i] ? (
-                  <View style={{ borderRadius: 12, overflow: 'hidden', borderWidth: 1.5, borderColor: beige }}>
-                    <Image source={{ uri: docSlots[i]! }} style={{ width: '100%', aspectRatio: 2 }} resizeMode="cover" />
-                    <TouchableOpacity
-                      onPress={() => removeDoc(i)}
-                      style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 14, padding: 5 }}
-                    >
-                      <Ionicons name="close" size={14} color={white} />
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    activeOpacity={0.8}
-                    onPress={() => pickAndUploadDoc(i)}
-                    disabled={uploadingIndex !== null}
-                    style={{
-                      borderWidth: 1.5,
-                      borderColor: beige,
-                      borderStyle: 'dashed',
-                      borderRadius: 12,
-                      paddingVertical: 22,
-                      alignItems: 'center',
-                      backgroundColor: lightBeige,
-                    }}
-                  >
-                    {uploadingIndex === i
-                      ? <ActivityIndicator color={darkBrown} size="small" />
-                      : (
-                        <>
-                          <Ionicons name="cloud-upload-outline" size={22} color={darkBrown} style={{ marginBottom: 4 }} />
-                          <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: darkBrown }}>Tap to upload</Text>
-                        </>
-                      )
-                    }
-                  </TouchableOpacity>
-                )}
+          <View>
+            {/* Sub-step dots: one document at a time */}
+            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 18 }}>
+              {DOCS.map((_, i) => (
+                <View
+                  key={i}
+                  style={{
+                    height: 6, borderRadius: 3,
+                    width: i === docStep ? 22 : 6,
+                    backgroundColor: i === docStep ? darkBrown : docSlots[i] ? '#8A7560' : beige,
+                  }}
+                />
+              ))}
+            </View>
+
+            {slot ? (
+              <View style={{ borderRadius: 16, overflow: 'hidden', backgroundColor: lightBeige }}>
+                <Image source={{ uri: slot.preview }} style={{ width: '100%', aspectRatio: 4 / 3 }} resizeMode="cover" />
+                <View style={{
+                  position: 'absolute', left: 12, bottom: 12,
+                  flexDirection: 'row', alignItems: 'center', gap: 6,
+                  paddingHorizontal: 11, minHeight: 32, borderRadius: 16,
+                  backgroundColor: 'rgba(66,49,32,0.84)',
+                }}>
+                  <Ionicons name="checkmark" size={14} color={white} />
+                  <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 12, color: white }}>Uploaded</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => removeDoc(docStep)}
+                  accessibilityLabel={`Remove ${doc.title}`}
+                  style={{
+                    position: 'absolute', top: 10, right: 10,
+                    width: 34, height: 34, borderRadius: 17,
+                    alignItems: 'center', justifyContent: 'center',
+                    backgroundColor: 'rgba(66,49,32,0.82)',
+                  }}
+                >
+                  <Ionicons name="trash-outline" size={17} color={white} />
+                </TouchableOpacity>
               </View>
-            ))}
-            <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 12, color: '#aaa', marginTop: 2, textAlign: 'center' }}>
-              At least 1 document required · Max 5MB per photo · Auto-compressed
-            </Text>
+            ) : (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => pickAndUploadDoc(docStep)}
+                disabled={uploadingIndex !== null}
+                style={{
+                  borderWidth: 1.5,
+                  borderColor: beige,
+                  borderStyle: 'dashed',
+                  borderRadius: 16,
+                  aspectRatio: 4 / 3,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  paddingHorizontal: 24,
+                  backgroundColor: lightBeige,
+                }}
+              >
+                {uploadingIndex === docStep
+                  ? <UploadProgress percent={uploadProgress} />
+                  : (
+                    <>
+                      <View style={{
+                        width: 52, height: 52, borderRadius: 26, marginBottom: 12,
+                        alignItems: 'center', justifyContent: 'center', backgroundColor: '#EDE3D8',
+                      }}>
+                        <Ionicons name={doc.icon} size={24} color={darkBrown} />
+                      </View>
+                      <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 16, color: darkBrown }}>
+                        Upload {doc.title.toLowerCase()}
+                      </Text>
+                    </>
+                  )
+                }
+              </TouchableOpacity>
+            )}
+
           </View>
         );
       }
@@ -396,21 +443,22 @@ export default function Phase2Screen() {
       case 5:
         return (
           <View>
-            <ScrollView
-              style={{ height: 200, borderWidth: 1.5, borderColor: beige, borderRadius: 12, padding: 14, marginBottom: 16 }}
-              nestedScrollEnabled
-            >
-              <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: '#555', lineHeight: 20 }}>
-                By joining Servey as a service provider, you agree to:{'\n\n'}
-                1. Provide accurate information about yourself and your services.{'\n\n'}
-                2. Honor all bookings made through the Servey platform.{'\n\n'}
-                3. Maintain professional standards of service quality.{'\n\n'}
-                4. Comply with all applicable Finnish laws and regulations.{'\n\n'}
-                5. Allow Servey to collect a platform fee of 10% on each completed booking.{'\n\n'}
-                6. Receive payouts via manual SEPA bank transfer to your provided IBAN.{'\n\n'}
-                Servey reserves the right to suspend providers who violate these terms.
-              </Text>
-            </ScrollView>
+            <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 15, color: '#555', lineHeight: 23, marginBottom: 16 }}>
+              By joining Servey as a service provider, you agree to:
+            </Text>
+            {TERMS.map((term, i) => (
+              <View key={i} style={{ flexDirection: 'row', marginBottom: 14 }}>
+                <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 15, color: darkBrown, width: 24, lineHeight: 23 }}>
+                  {i + 1}.
+                </Text>
+                <Text style={{ flex: 1, fontFamily: 'Philosopher-Regular', fontSize: 15, color: '#555', lineHeight: 23 }}>
+                  {term}
+                </Text>
+              </View>
+            ))}
+            <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 15, color: '#555', lineHeight: 23, marginTop: 4, marginBottom: 28 }}>
+              Servey reserves the right to suspend providers who violate these terms.
+            </Text>
 
             <TouchableOpacity
               activeOpacity={0.8}

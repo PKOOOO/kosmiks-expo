@@ -4,6 +4,9 @@ import { NativeTabs } from "expo-router/unstable-native-tabs";
 import { Tabs } from "expo-router";
 import TabBar from "@/components/TabBar";
 
+// Tab opened first (replaces the old `initialRouteName` prop on <Tabs>).
+export const unstable_settings = { initialRouteName: 'index' };
+
 // DynamicColorIOS is iOS-only — calling it on Android throws at module load.
 const dynamicForeground =
   Platform.OS === "ios"
@@ -23,7 +26,7 @@ function IosTabs() {
       {/* Profile */}
       <NativeTabs.Trigger name="profile">
         <NativeTabs.Trigger.Icon sf={{ default: "person", selected: "person.fill" }} md="person" />
-        <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label hidden>Profile</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
       {/* Search / Service */}
@@ -32,24 +35,22 @@ function IosTabs() {
           sf={{ default: "magnifyingglass", selected: "magnifyingglass" }}
           md="search"
         />
-        <NativeTabs.Trigger.Label>Search</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label hidden>Search</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
       {/* Home (default) */}
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Icon sf={{ default: "house", selected: "house.fill" }} md="home" />
-        <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label hidden>Home</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );
 }
 
-// Android: the original custom TabBar. NativeTabs' liquid-glass styling does not
-// translate to Android, so we keep the plain themed bar instead.
+// Android: floating pill tab bar with a circular active indicator.
 function AndroidTabs() {
   return (
     <Tabs
-      initialRouteName="index"
       tabBar={(props) => <TabBar {...props} />}
       screenOptions={{ headerShown: false }}
     >

@@ -70,7 +70,11 @@
     },
     "ios": {
       "bundleIdentifier": "com.servey.app",
-      "buildNumber": "1"
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Servey uses your photo library so you can add photos of your salon.",
+        "NSCameraUsageDescription": "Servey uses the camera so you can take photos of your salon."
+      }
     },
     "extra": {
       "router": {},

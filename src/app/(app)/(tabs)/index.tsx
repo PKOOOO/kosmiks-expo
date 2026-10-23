@@ -254,7 +254,7 @@ export default function Page() {
             >
               <Image
                 source={{
-                  uri: "https://res.cloudinary.com/dguk4ks45/image/upload/v1755533724/AdobeStock_130939808_cq1whi.png",
+                  uri: "https://media.kosmiks.com/static/home-hero.png",
                 }}
                 style={{
                   width: 300,
@@ -360,7 +360,7 @@ export default function Page() {
                 />
 
                 <Image
-                  source={{ uri: "https://res.cloudinary.com/dguk4ks45/image/upload/v1755533722/AdobeStock_323915985_kzt3ji.png" }}
+                  source={{ uri: "https://media.kosmiks.com/static/home-feature.png" }}
                   style={{
                     width: 127,
                     height: 128,

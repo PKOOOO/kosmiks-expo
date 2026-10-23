@@ -1,7 +1,7 @@
 # Servey — Full Project Context
 
 > Handoff document. Paste at the start of a new chat to restore context.
-> Last updated: 25 August 2026 — supersedes all earlier versions.
+> Last updated: 6 October 2026 (Cloudinary → Cloudflare R2 migration, §9 Storage) — supersedes all earlier versions.
 
 ---
 
@@ -39,7 +39,7 @@
 | Database | Neon PostgreSQL via Prisma |
 | Auth | Clerk (mobile SDK + `@clerk/backend` `verifyToken` server-side) |
 | Payments | Stripe — customer checkout only, no Stripe Connect |
-| Images | Cloudinary |
+| Images & files | **Cloudflare R2** — see §9 Storage (Cloudinary fully removed, Oct 2026) |
 | Maps | **Mapbox GL JS inside a WebView** — `react-native-maps` is NOT installed |
 | Email | Resend |
 | Push | Expo Notifications + Firebase Cloud Messaging (FCM V1) |
@@ -237,9 +237,31 @@ Suggested order: P2/P4/P5/P6 → A1/A2/A3 → P8 → C2/C3 → P9/C4
 - Preview keystore SHA-1: `2C:83:DA:B1:80:85:23:D6:B6:31:A3:17:60:AC:C7:28:17:18:D5:E5`
 
 ### Domain
-- **`kosmiks.com`** purchased by client on GoDaddy, live on Vercel with SSL
+- **`kosmiks.com`** purchased by client on GoDaddy (still the registrar), live on Vercel with SSL
+- **DNS is on Cloudflare** since Oct 2026 (nameservers `devin` / `tori.ns.cloudflare.com`). Edit DNS records in Cloudflare, not GoDaddy
+- Vercel records (`A kosmiks.com → 216.198.79.1`, `CNAME www → …vercel-dns-017.com`) must stay **DNS only (gray cloud)**. Proxying through Cloudflare interferes with Vercel's SSL and caching
 - **Use `https://www.kosmiks.com`** — the apex returns a **308 redirect** to `www`, and a redirect on an authenticated POST risks dropping the body or `Authorization` header
 - All app URLs migrated. Old Vercel origins remain in the CORS allow-list so already-installed APKs keep working
+
+### Storage — Cloudflare R2
+Two buckets, one bucket-scoped API token (`servey-api`, Object Read & Write on both):
+
+| Bucket | Contents | Access | Stored in DB as |
+|---|---|---|---|
+| `kosmiks` | Salon photos (`salon-images/<userId>/…`), static app images (`static/…`) | **Public** at `https://media.kosmiks.com` (R2 custom domain) | Full URL |
+| `kosmiks-documents` | Provider qualification documents (`provider-documents/<userId>/…`) | **Private** — no domain, no r2.dev | `r2-private:<key>` reference |
+
+**Upload flow (current app builds):** app → `POST /api/upload/presign` `{ kind, contentType, size }` → API returns a 5-minute presigned PUT → app uploads straight to R2 → app saves the returned `url`. Content-Type and Content-Length are signed. Images only (jpeg/png/webp/heic), max 10 MB. Bypasses Vercel's ~4.5 MB body limit. Client helper: `src/lib/upload-image.ts` (`kind: 'document'` for private uploads).
+
+**`POST /api/upload`** (multipart, proxied through the API) is kept only for APKs released before Oct 2026. It also writes to R2.
+
+**Private documents:**
+- `ProviderApplication.qualificationDocs` holds `r2-private:` references, **not URLs**. Never render one directly.
+- `GET /api/admin/applications` turns them into 30-minute signed links via `resolveDocumentUrl()` in `lib/r2.ts`.
+- Phase 2 submit only accepts references under the caller's own `provider-documents/<userId>/` prefix, so a user can't attach (and get admins to sign) someone else's document. Plain https URLs from `media.kosmiks.com` / `res.cloudinary.com` are still accepted from old app builds.
+- Phase 2's preview uses the **local** file URI, because the stored value isn't viewable.
+
+**Migration:** `scripts/migrate-cloudinary-to-r2.mjs` (dry run by default, `--execute` to write). Run on 6 Oct 2026: 4 salon photos + 9 documents moved, 0 failures, no Cloudinary URLs left in the DB. Safe to re-run.
 
 ### Build commands
 ```bash
@@ -260,7 +282,7 @@ eas build --profile production --platform android   # Play Store
 | iOS bundle ID | com.cosmix.beauty | **com.servey.app** |
 | Stripe merchantIdentifier | merchant.com.cosmix.beauty | **merchant.com.servey.app** |
 
-**Deliberately unchanged** (would break state or data): AsyncStorage key `@cosmix_dismissed_rating_bookings`, localStorage key `cosmix_has_saloons`, Cloudinary folder `cosmix/provider-documents`, synthetic admin emails `@cosmix.local`, repo directory names.
+**Deliberately unchanged** (would break state or data): AsyncStorage key `@cosmix_dismissed_rating_bookings`, localStorage key `cosmix_has_saloons`, synthetic admin emails `@cosmix.local`, repo directory names.
 
 Changing the package name after Play Store submission is **impossible** — `com.servey.app` is locked in.
 
@@ -285,7 +307,11 @@ DATABASE_URL=...                    # Neon — PRODUCTION
 STRIPE_SECRET_KEY=sk_test_...
 NEXT_PUBLIC_STRIPE_PUBLISH_KEY=pk_test_...   # NOTE: "PUBLISH" not "PUBLISHABLE" — typo, code matches
 ADMIN_EMAIL=admin@cosmix.local      # must stay synthetic, never a real user's address
-CLOUDINARY_CLOUD_NAME / API_KEY / API_SECRET
+R2_ACCOUNT_ID=a929da41595f86d4bca91509a6c28997
+R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY   # token "servey-api" — mark Sensitive in Vercel
+R2_PUBLIC_BUCKET=kosmiks
+R2_PRIVATE_BUCKET=kosmiks-documents
+R2_PUBLIC_URL=https://media.kosmiks.com
 ```
 
 ### `cosmix-v2` (.env + eas.json)
@@ -314,6 +340,8 @@ Env vars are **baked in at build time** — `.env` changes require a rebuild.
 - [ ] **Data repair** — `piis40060@gmail.com` still sits on a row whose `clerkId` is `service-admin`, so that account still 401s. Simplest fix is to let the cleanup script delete it.
 
 ### 🟡 Housekeeping
+- [ ] **Finish Cloudinary removal:** delete the `cosmix/provider-documents` folder on Cloudinary account `dhedbjqza` (the 9 migrated qualification documents are **still publicly reachable** there), then close accounts `dhedbjqza`, `dzmrvngco`, `dguk4ks45`. Remove `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` from Vercel
+- [ ] Mark `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` as **Sensitive** in Vercel (currently flagged "readable secret")
 - [ ] **Update `CLAUDE.md`** — still describes the WebView architecture, marks eleven capabilities "WebView Only", and calls `admin-webview.tsx` a WebView wrapper. All wrong.
 - [ ] Update `scripts/cleanup-test-data.ts` keep-list; commit it (currently untracked)
 - [ ] Set up a Neon dev branch so local work stops hitting production
@@ -342,4 +370,5 @@ Env vars are **baked in at build time** — `.env` changes require a rebuild.
 8. **`NEXT_PUBLIC_STRIPE_PUBLISH_KEY` is misspelled** in Vercel. Code matches the typo — don't fix one without the other.
 9. **`ADMIN_EMAIL` must never be a real user's address** — `ensureServiceUser()` would claim their row.
 10. **Notification and email failures must never break the booking flow** — all calls wrapped and run after the success path is determined.
-11. **Filenames lie.** `admin-webview.tsx` has no WebView. `salon-access.ts` had zero callers. Verify before assuming.
+11. **Qualification documents are `r2-private:` references, not URLs.** Only the admin applications route resolves them (to signed links). Anywhere else that needs to show one must call `resolveDocumentUrl()` server-side.
+12. **Filenames lie.** `admin-webview.tsx` has no WebView. `salon-access.ts` had zero callers. Verify before assuming.

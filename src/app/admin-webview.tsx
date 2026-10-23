@@ -133,7 +133,7 @@ export default function RoleRouterScreen() {
 
     // ── Navigate once role is resolved ────────────────────────────────────
     useEffect(() => {
-        if (userRole === 'admin') router.replace('/(admin)/overview');
+        if (userRole === 'admin') router.replace('/(admin)/home' as any);
         if (userRole === 'provider') router.replace('/(provider)/bookings');
         if (userRole === 'customer') router.replace('/(app)/(tabs)/');
     }, [userRole, router]);

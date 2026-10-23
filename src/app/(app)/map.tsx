@@ -5,7 +5,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from 'expo-location';
-import { WebView } from "react-native-webview";
+import { WebView } from '@/components/WebView';
 import Header from "@/components/Header";
 import SideMenu from "@/components/SideMenu";
 import getSaloonsMap from "@/actions/get-saloons-map";
@@ -909,8 +909,8 @@ export default function MapScreen() {
                 return { length, offset, index };
               }}
               onViewableItemsChanged={({ viewableItems }) => {
-                if (viewableItems.length > 0 && viewableItems[0].index !== null) {
-                  const index = viewableItems[0].index;
+                const index = viewableItems[0]?.index;
+                if (index != null) {
                   const salon = displayedSalons[index];
                   setActiveCardIndex(index);
                   setSelectedSalon(salon);
