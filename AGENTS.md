@@ -115,7 +115,7 @@ Read before touching any auth code.
 |---|---|
 | Clerk app | `cosmix` — `app_3EJ4lKHuAAwia9kQPn8n81E32V1` |
 | Production instance | `ins_3L5vso8bNlwyOqDpK5xci7NNdzf`, domain **`kosmiks.com`** (primary), Frontend API `clerk.kosmiks.com` |
-| Development instance | `ideal-lacewing-71` (`pk_test_…`) — still used by `eas build --profile development` / local `.env` |
+| Development instance | `ideal-lacewing-71` (`pk_test_…`) — **no longer used.** The backend verifies with `sk_live`, so dev-instance tokens get 401. Local `.env` and all build profiles use `pk_live` since 24 Oct 2026. |
 | Social logins (prod) | **Google: custom credentials** (see §9 Google Cloud). **Apple: disabled** until the Apple Developer account exists. |
 | Native redirect allowlist (prod) | `kosmiks://oauth-native-callback` — **required**. Production rejects any redirect URL not on the list; dev accepts anything. |
 | Sign-up requirements | Identical to dev (no phone/username/legal-consent requirements). |
@@ -282,7 +282,7 @@ Two buckets, one bucket-scoped API token (`servey-api`, Object Read & Write on b
 ### Build commands
 ```bash
 eas build --profile preview --platform android      # standalone APK for testing
-eas build --profile development --platform android  # dev client (uses pk_test from .env)
+eas build --profile development --platform android  # dev client (JS from Metro reads pk_live from .env)
 eas build --profile production --platform android   # Play Store
 ```
 
@@ -335,8 +335,7 @@ Env var changes on Vercel need a **redeploy** to take effect.
 
 ### `cosmix-v2` (`eas.json` build profiles + `.env`)
 ```
-EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_Y2xlcmsua29z...   # preview + production profiles → clerk.kosmiks.com
-                                                            # .env / development profile: pk_test_ (ideal-lacewing-71)
+EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_Y2xlcmsua29z...   # eas.json preview + production AND local .env → clerk.kosmiks.com
 EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
 EXPO_PUBLIC_PRODUCTION_DOMAIN=https://www.kosmiks.com
 EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
@@ -411,3 +410,4 @@ EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 18. **`npx clerk@latest` can hang indefinitely.** Wrap calls in `timeout 60`.
 19. **Stripe RN ≥ 0.81 breaks Android release builds** without `plugins/with-stripe-android-fixes.js` (lint → `play-services-tapandpay` not found; R8 → missing `pushProvisioning` classes).
 20. **`/privacy` must stay public** — the Google OAuth consent screen links to it.
+21. **Local development uses Clerk production too.** There is only one backend and database (both production), so `.env` has `pk_live`. A `401` on `getBookings` with a `user_3J…`-style ID in the logs means a session still on the old dev instance (old `.env` or old dev client). Use the Kosmiks dev client (`com.kosmiks.app`, scheme `kosmiks`); **Expo Go can't sign in** — production only allowlists `kosmiks://oauth-native-callback`, not `exp://`.
