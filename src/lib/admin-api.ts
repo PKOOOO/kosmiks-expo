@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { API_BASE_URL } from '@/config/constants';
+import { apiFetch, ApiError, friendlyErrorEn } from '@/lib/api';
 
 // Requests for the native admin dashboard, plus the shared admin data that
 // drives the tab badges (applications to review, payouts to send).
@@ -24,17 +25,28 @@ export async function adminRequest<T = any>(
   };
   if (token) headers['X-User-Token'] = token;
 
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    method: init.method ?? 'GET',
-    headers,
-    body: init.body === undefined ? undefined : JSON.stringify(init.body),
-  });
+  let res: Response;
+  try {
+    res = await apiFetch(`${API_BASE_URL}${path}`, {
+      method: init.method ?? 'GET',
+      headers,
+      body: init.body === undefined ? undefined : JSON.stringify(init.body),
+    });
+  } catch (error) {
+    // Offline / timeout: never surface "Network request failed".
+    throw new Error(friendlyErrorEn(error));
+  }
   const text = await res.text();
   let data: any = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = text; }
   if (!res.ok) {
-    const message = (data && typeof data === 'object' && data.error) || (typeof data === 'string' && data) || `Request failed (${res.status})`;
-    throw new Error(message);
+    // Auth and server errors get friendly copy; a short server message (e.g.
+    // "Rejection reason required") is kept so the admin knows what to fix.
+    const serverMessage = (data && typeof data === 'object' && data.error) || (typeof data === 'string' && data) || '';
+    const error = res.status >= 500 || res.status === 401 || res.status === 403 || res.status === 404
+      ? ApiError.http(res.status)
+      : new Error(serverMessage);
+    throw new Error(friendlyErrorEn(error));
   }
   return data as T;
 }

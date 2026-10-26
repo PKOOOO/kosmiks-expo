@@ -23,6 +23,7 @@ import { pickSalonPhoto, prepareForUpload } from '@/lib/pick-photo';
 import StackedPhotos, { AddPhotoButton, MAX_PHOTOS } from '@/components/StackedPhotos';
 import BrandHeader from '@/components/BrandHeader';
 import { reverseGeocode, searchAddresses } from '@/lib/geocode';
+import { friendlyErrorEn } from '@/lib/api';
 
 const darkBrown = '#423120';
 const beige = '#D7C3A7';
@@ -259,7 +260,7 @@ export default function ProviderSalonScreen() {
     } catch (e: any) {
       // Don't auto-retry the same failing change in a loop; the banner offers a retry.
       failedSaveRef.current = attempt;
-      setError(e?.message || "Couldn't save your changes.");
+      setError(friendlyErrorEn(e, "Couldn't save your changes."));
     } finally { setSaving(false); }
   };
   const handleSaveRef = useRef(handleSave);

@@ -1,6 +1,7 @@
 // src/app/(app)/services.tsx
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import ErrorState from "@/components/ErrorState";
+import RemoteImage from "@/components/RemoteImage";
 import { ApiError } from "@/lib/api";
 import { SafeAreaView, ScrollView, View, Text, TouchableOpacity, ActivityIndicator, Modal, Animated, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -1127,19 +1128,26 @@ export default function ServicesPage() {
                     const animValue = fadeAnims[index];
                     if (!animValue) return null;
                     return (
-                      <Animated.Image
+                      // The fade animates the wrapper; RemoteImage inside gives the
+                      // disk cache (works offline) and a fallback if a photo fails.
+                      <Animated.View
                         key={`salon-image-${index}`}
-                        source={{ uri: imageUrl }}
                         style={{
                           width: "100%",
                           height: "100%",
                           borderRadius: 24,
+                          overflow: "hidden",
                           position: "absolute",
                           opacity: animValue,
                           zIndex: heroContentIndex === index ? 10 : 0
                         }}
-                        resizeMode="cover"
-                      />
+                      >
+                        <RemoteImage
+                          source={{ uri: imageUrl }}
+                          style={{ width: "100%", height: "100%" }}
+                          resizeMode="cover"
+                        />
+                      </Animated.View>
                     );
                   })
                 ) : (

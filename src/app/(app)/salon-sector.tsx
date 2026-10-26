@@ -1,6 +1,7 @@
 // src/app/(app)/salon-sector.tsx
 import React, { useState, useEffect, useRef } from "react";
 import ErrorState from "@/components/ErrorState";
+import RemoteImage from "@/components/RemoteImage";
 import { ApiError } from "@/lib/api";
 import { SafeAreaView, View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Image, Modal, Animated, Easing } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -261,19 +262,26 @@ const SalonSector = () => {
                         >
                             {/* Images - each rendered with absolute positioning, animates opacity */}
                             {salonImages.length > 0 && salonImages.map((imageUrl, index) => (
-                                <Animated.Image
+                                // The fade animates the wrapper; RemoteImage inside gives the
+                                // disk cache (works offline) and a fallback if a photo fails.
+                                <Animated.View
                                     key={index}
-                                    source={{ uri: imageUrl }}
                                     style={{
                                         width: "100%",
                                         height: "100%",
                                         borderRadius: 24,
+                                        overflow: "hidden",
                                         position: "absolute",
                                         opacity: fadeAnims[index] || 0,
                                         zIndex: heroContentIndex === index ? 10 : 0
                                     }}
-                                    resizeMode="cover"
-                                />
+                                >
+                                    <RemoteImage
+                                        source={{ uri: imageUrl }}
+                                        style={{ width: "100%", height: "100%" }}
+                                        resizeMode="cover"
+                                    />
+                                </Animated.View>
                             ))}
 
                             {/* Ellipses at bottom - indicate current page */}

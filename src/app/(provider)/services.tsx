@@ -28,6 +28,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as Haptics from 'expo-haptics';
 import { API_BASE_URL } from '@/config/constants';
 import useProviderServicesStore from '@/store/provider-services.store';
+import { ApiError, friendlyErrorEn } from '@/lib/api';
 
 const darkBrown = '#423120';
 const beige = '#D7C3A7';
@@ -400,14 +401,14 @@ export default function ProviderServicesScreen() {
           headers,
           body: JSON.stringify({ serviceId: selectedServiceId, price, durationMinutes: addDuration, isAvailable: true }),
         });
-        if (!res.ok) throw new Error(await res.text());
+        if (!res.ok) throw res.status >= 500 ? ApiError.http(res.status) : new Error(await res.text());
         const svcRes = await fetch(`${API_BASE_URL}/saloons/${saloonId}/services`, { headers });
         if (svcRes.ok) setServices(await svcRes.json());
         setPickingService(false);
       }
       closeModal();
     } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Failed to save service. Please try again.');
+      Alert.alert('Error', friendlyErrorEn(e, 'Failed to save service. Please try again.'));
     } finally {
       setSaving(false);
     }

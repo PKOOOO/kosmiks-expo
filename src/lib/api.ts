@@ -148,3 +148,26 @@ export function connectionProblemEn(error: unknown): string | null {
       return null;
   }
 }
+
+/**
+ * English error text for the provider and admin screens (they are in English).
+ * Connection problems and server errors get friendly copy; a short, plain
+ * server message (e.g. "Rejection reason required") is kept because it tells
+ * the user what to fix; anything else (HTML pages, stack traces, empty
+ * messages) falls back to `fallback`.
+ */
+export function friendlyErrorEn(error: unknown, fallback = 'Something went wrong. Please try again.'): string {
+  const connection = connectionProblemEn(error);
+  if (connection) return connection;
+  if (error instanceof ApiError) {
+    if (error.kind === 'auth') {
+      return error.status === 403
+        ? "You don't have permission to do this."
+        : 'Your session has expired. Please sign in again.';
+    }
+    if (error.kind === 'notFound') return "That item couldn't be found. It may have been removed.";
+  }
+  const text = error instanceof Error ? error.message.trim() : '';
+  const looksTechnical = !text || text.length > 140 || /^</.test(text) || /^HTTP \d{3}$/.test(text) || /exception|stack|undefined|null/i.test(text);
+  return looksTechnical ? fallback : text;
+}
