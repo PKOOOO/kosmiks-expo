@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import NetInfo, { useNetInfo } from '@react-native-community/netinfo';
 
@@ -21,22 +21,52 @@ AppState.addEventListener('change', (state) => {
   if (state === 'active') void NetInfo.refresh();
 });
 
+// How long a state must last before the app treats the device as offline.
+// No network at all (Wi-Fi and mobile data both off) is reliable, so react
+// fast. "Connected but the probe failed" also happens for a few seconds every
+// time Android hands over from mobile data to a Wi-Fi network that isn't
+// routing yet; the probe re-runs every 5 s, so wait past one re-check before
+// believing it.
+const NO_NETWORK_DELAY_MS = 1500;
+const UNREACHABLE_DELAY_MS = 8000;
+
 /**
  * True when the device has no usable internet connection.
  *
  * `isInternetReachable` is null until NetInfo's first reachability probe
  * finishes, so null is treated as "online" — otherwise every app start would
- * flash the offline banner.
+ * flash the offline banner. Going back online is reported immediately.
  */
 export function useIsOffline(): boolean {
   const { isConnected, isInternetReachable } = useNetInfo();
-  return isConnected === false || isInternetReachable === false;
+  const noNetwork = isConnected === false;
+  const unreachable = !noNetwork && isInternetReachable === false;
+  const [isOffline, setIsOffline] = useState(false);
+
+  useEffect(() => {
+    if (!noNetwork && !unreachable) {
+      setIsOffline(false);
+      return;
+    }
+    const timer = setTimeout(
+      () => setIsOffline(true),
+      noNetwork ? NO_NETWORK_DELAY_MS : UNREACHABLE_DELAY_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [noNetwork, unreachable]);
+
+  return isOffline;
 }
 
-/** One-off check, for code outside React (e.g. before starting a payment). */
+/**
+ * One-off check, for code outside React (e.g. before starting a payment).
+ * Only "no network at all" counts: a failed reachability probe can be a
+ * passing Wi-Fi handover, and a request that then fails still gets friendly
+ * error copy (and nothing is charged).
+ */
 export async function isOfflineNow(): Promise<boolean> {
   const state = await NetInfo.fetch();
-  return state.isConnected === false || state.isInternetReachable === false;
+  return state.isConnected === false;
 }
 
 /** Calls `callback` each time the device goes from offline back to online. */

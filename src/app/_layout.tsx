@@ -191,12 +191,20 @@ function ClerkLoadedWithTimeout({ children }: { children: React.ReactNode }) {
     console.log('Clerk isLoaded:', isLoaded);
   }, [isLoaded]);
 
+  // Only now is the app ready to draw its first screen: hide the splash here,
+  // not when the fonts finish. Hiding it earlier left an empty dark window on
+  // screen while Clerk loaded.
+  const ready = isLoaded || timedOut;
+  useEffect(() => {
+    if (ready) SplashScreen.hideAsync();
+  }, [ready]);
+
   // Render children if Clerk loaded OR if we timed out
-  if (isLoaded || timedOut) {
+  if (ready) {
     return <>{children}</>;
   }
 
-  // Return null while waiting (splash screen is still visible)
+  // Return null while waiting (the splash screen stays visible until `ready`)
   return null;
 }
 
@@ -209,12 +217,10 @@ export default function Layout() {
     'Philosopher-BoldItalic': require("../assets/app-fonts/Philosopher-BoldItalic.ttf"),
   });
 
+  // The splash is hidden by ClerkLoadedWithTimeout once Clerk is ready too.
   useEffect(() => {
     if (fontError) throw fontError;
-    if (fontsLoaded) {
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded, fontError]);
+  }, [fontError]);
 
   if (!fontsLoaded) {
     return null;
