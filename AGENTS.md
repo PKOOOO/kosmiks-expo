@@ -390,10 +390,10 @@ EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 ### 🟠 Correctness
 - [ ] **One token per user.** `pushToken` is a single column, but tokens identify a *device install*. Needs a `PushToken` table keyed by device.
 - [ ] **Push receipt checking.** `send-notification.ts` never fetches receipts, so dead tokens persist forever.
-- [ ] **Data repair** — `piis40060@gmail.com` still sits on a row whose `clerkId` is `service-admin`; the re-link deliberately skips that row, so that account still 401s. Simplest fix: let the cleanup script delete it.
+- [x] **Data repair — FIXED 26 Oct 2026.** `piis40060@gmail.com` sat on the `service-admin` row, so that account 401'd. `ensureServiceUser()` (`lib/service-auth.ts`) now resets the service row's email to `ADMIN_EMAIL` (or the fallback synthetic address) whenever it holds anything else; verified in production (service row now `…@cosmix.local`, no row holds the address).
 
 ### 🟡 Housekeeping
-- [ ] **Finish Cloudinary removal:** delete `cosmix/provider-documents` on Cloudinary account `dhedbjqza` (9 migrated documents **still publicly reachable**), close accounts `dhedbjqza`, `dzmrvngco`, `dguk4ks45`, remove `CLOUDINARY_*` env vars from Vercel
+- [ ] **Finish Cloudinary removal:** `CLOUDINARY_*` env vars **removed from Vercel (26 Oct 2026)**. Before deleting, verified: all 6 current provider documents exist in private R2, and nothing in the DB references Cloudinary. **Still to do (by hand — permanent deletion):** delete folder `cosmix/provider-documents` (and optionally `cosmix/salon-images`) on Cloudinary account `dhedbjqza` with CDN invalidation — the migrated documents are still publicly reachable there — then close accounts `dhedbjqza`, `dzmrvngco`, `dguk4ks45`
 - [ ] Mark `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` as **Sensitive** in Vercel
 - [ ] Update `scripts/cleanup-test-data.ts` keep-list; commit it
 - [ ] Set up a Neon dev branch so local work stops hitting production
