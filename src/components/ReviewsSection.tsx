@@ -7,7 +7,7 @@ import {
 } from "react-native";
 import { API_ENDPOINTS } from "@/config/constants";
 import ErrorState from "@/components/ErrorState";
-import { apiFetch, ApiError } from "@/lib/api";
+import { apiFetch, apiHeaders, ApiError } from "@/lib/api";
 
 const darkBrown = "#423120";
 
@@ -41,7 +41,9 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ saloonId }) => {
                 setLoading(true);
                 setError(null);
 
-                const response = await apiFetch(`${API_ENDPOINTS.REVIEWS}?saloonId=${saloonId}`);
+                const response = await apiFetch(`${API_ENDPOINTS.REVIEWS}?saloonId=${saloonId}`, {
+                    headers: apiHeaders(),
+                });
 
                 if (!response.ok) {
                     throw ApiError.http(response.status);

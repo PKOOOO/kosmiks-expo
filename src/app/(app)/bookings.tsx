@@ -22,6 +22,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import Header from "@/components/Header";
 import { useUser, useAuth } from "@clerk/clerk-expo";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { apiFetch, apiHeaders } from "@/lib/api";
 
 const beige = "#D9C7AF";
 const darkBrown = "#423120";
@@ -200,11 +201,11 @@ export default function BookingsScreen() {
       console.log(`Submitting rating ${selectedRating} for booking ${selectedBooking.id}`);
       console.log(`API URL: ${API_ENDPOINTS.REVIEWS}`);
 
-      const response = await fetch(API_ENDPOINTS.REVIEWS, {
+      // The review is tied to the signed-in customer who made the booking.
+      const token = await getToken();
+      const response = await apiFetch(API_ENDPOINTS.REVIEWS, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: apiHeaders(token),
         body: JSON.stringify({
           bookingId: selectedBooking.id,
           rating: selectedRating,

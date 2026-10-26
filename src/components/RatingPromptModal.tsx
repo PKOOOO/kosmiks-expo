@@ -15,6 +15,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Booking } from "../types";
 import { API_ENDPOINTS } from "@/config/constants";
+import { useAuth } from "@clerk/clerk-expo";
+import { apiFetch, apiHeaders } from "@/lib/api";
 
 const darkBrown = "#423120";
 
@@ -39,6 +41,7 @@ export const RatingPromptModal: React.FC<RatingPromptModalProps> = ({
     const [selectedRating, setSelectedRating] = useState(0);
     const [comment, setComment] = useState("");
     const [submittingRating, setSubmittingRating] = useState(false);
+    const { getToken } = useAuth();
 
     const submitRating = async () => {
         if (!booking || selectedRating === 0) return;
@@ -47,11 +50,11 @@ export const RatingPromptModal: React.FC<RatingPromptModalProps> = ({
         try {
             console.log(`Submitting rating ${selectedRating} for booking ${booking.id}`);
 
-            const response = await fetch(API_ENDPOINTS.REVIEWS, {
+            // The review is tied to the signed-in customer who made the booking.
+            const token = await getToken();
+            const response = await apiFetch(API_ENDPOINTS.REVIEWS, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                headers: apiHeaders(token),
                 body: JSON.stringify({
                     bookingId: booking.id,
                     rating: selectedRating,

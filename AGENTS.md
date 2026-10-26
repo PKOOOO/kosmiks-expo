@@ -181,14 +181,22 @@ const EXPO_PUSH_PROJECT_ID =
   Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
 ```
 
-**Live notifications:**
+**Live notifications** (`lib/send-notification.ts`: `sendPushNotification`, `notifyAdmins`, `notifyUser(userId, …)` which skips the service user, `formatWhen()` for "Mon 2 Jun at 14:00"):
 
-| ID | Trigger | Recipient | Message |
+| ID | Trigger | Recipient | Where |
 |---|---|---|---|
-| C1 | Payment confirmed | Customer | `Booking Confirmed ✓` |
-| P7 | Payment confirmed | Provider | `New Booking 🎉` |
+| P1 / A1 | Phase 1 submitted | Provider / admins | `provider/apply/phase1` |
+| P3 / A2 | Phase 2 submitted | Provider / admins | `provider/apply/phase2` |
+| P5 / A3 | Phase 3 done — salon live | Provider / admins | `provider/apply/phase3` |
+| P2 / P4 | Phase 1 / 2 approved | Provider | `admin/applications/[id]/approve` |
+| P6 | Application rejected (with reason) | Provider | `admin/applications/[id]/reject` |
+| C1 / P7 | Payment confirmed | Customer / provider | `checkout` (verified end-to-end 26 Oct 2026) |
+| P8 | New review | Provider | `reviews` POST (added 26 Oct 2026) |
+| C2 | Provider cancels a booking | Customer | `provider/bookings/[bookingId]` PUT (added 26 Oct 2026) |
+| C3 | Admin changes a booking's status | Customer | `bookings/[bookingId]` PATCH (added 26 Oct 2026) |
+| P9 | Payout sent | Provider | `admin/payouts/[id]` |
 
-Date format: `Mon 2 Jun at 14:00` (en-GB, 24h).
+Guest bookings are attached to the service user, so C2/C3 only reach customers who were signed in when they booked.
 
 ### Diagnostic technique
 
@@ -208,13 +216,7 @@ curl -X POST https://exp.host/--/api/v2/push/getReceipts \
 
 ### ⏳ Not yet implemented
 
-**Provider:** P1 Phase 1 received · P2 Phase 1 approved · P3 Phase 2 received · P4 Phase 2 approved · P5 Phase 3 / activated · P6 rejected (with reason) · P8 new review · P9 payout processed *(needs webhook)*
-
-**Admin:** A1 new Phase 1 application · A2 new Phase 2 documents · A3 Phase 3 setup submitted
-
-**Customer:** C2 cancelled by provider · C3 status updated by admin · C4 appointment reminder *(needs cron)*
-
-Suggested order: P2/P4/P5/P6 → A1/A2/A3 → P8 → C2/C3 → P9/C4
+- **C4** appointment reminder — needs a cron job.
 
 ---
 
@@ -374,6 +376,7 @@ EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 ### 🔴 Security
 - [x] **Bearer-key `isAdmin` fallback — FIXED 26 Oct 2026.** A request with only `EXPO_PUBLIC_ADMIN_API_KEY` (extractable from the APK) now resolves to the service user with **`isAdmin: false`** (`lib/admin-access.ts`). Admins are recognised only via a verified Clerk token + `users.isAdmin`; the app's admin screens already send `X-User-Token`. Same change: `GET /api/bookings` is scoped (admin → all; user → own by `userId` or `customerEmail`; key-only → 401) — it used to return every booking with customer names/emails; the unused `POST /api/bookings` (created confirmed, unpaid bookings) was removed; `/api/bookings/[id]` GET/PATCH/DELETE are admin-only; legacy `POST /api/upload` requires `getEndUser()`. Verified with key-only requests: admin routes 403, bookings 401/403, public routes 200.
 - [ ] Consider whether a client-side shared key is the right model at all before launch (it now only grants anonymous/public access)
+- [x] **Reviews — FIXED 26 Oct 2026.** The app sent no credentials, so every review submit and salon review list got 401 (0 reviews in the DB). `POST /api/reviews` had no identity check at all (anyone with the bearer key could write/overwrite any booking's review); it now requires `getEndUser()` and booking ownership (userId or customerEmail). `GET` returns the reviewer's first name only (it used to return their email and clerkId). App: `apiHeaders()` in `src/lib/api.ts`.
 - [ ] **Delete the unused original `sk_live` key** in Clerk → production → API keys (keep the one created 23 Oct that Vercel uses)
 - [ ] Delete `~/Desktop/kosmiks-secrets/client_secret_234539763868-….json` (no `_2_`) — it holds the revoked Google secret
 

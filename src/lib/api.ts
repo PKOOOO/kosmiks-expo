@@ -27,6 +27,23 @@ export class ApiError extends Error {
   }
 }
 
+const ADMIN_API_KEY = process.env.EXPO_PUBLIC_ADMIN_API_KEY || '';
+
+/**
+ * Headers for our API: the app's bearer key (lets the request past the
+ * middleware; on its own it only grants anonymous/public access) plus the
+ * signed-in user's Clerk token when there is one, which identifies them.
+ */
+export function apiHeaders(userToken?: string | null): Record<string, string> {
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  };
+  if (ADMIN_API_KEY) headers.Authorization = `Bearer ${ADMIN_API_KEY}`;
+  if (userToken) headers['X-User-Token'] = userToken;
+  return headers;
+}
+
 const DEFAULT_TIMEOUT_MS = 15000;
 const RETRY_DELAYS_MS = [800, 2000];
 
