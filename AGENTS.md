@@ -239,7 +239,7 @@ curl -X POST https://exp.host/--/api/v2/push/getReceipts \
 - **Checkout** refuses to start offline (`isOfflineNow`), and the pre-payment failure alert says "Veloitusta ei tehty". Stripe's own payment-sheet messages (`UserFacingError`) are still shown as-is.
 - **Onboarding uploads** (Phase 2 documents, Phase 3 photos) refuse to start offline.
 - **Backend:** `GET /api/public/health` (`app/api/public/health/route.ts`, runs `SELECT 1`, `no-store`). `/api/public/categories` sends `Cache-Control: public, s-maxage=60, stale-while-revalidate=300`.
-- Not yet converted: the two crossfading `Animated.Image` salon slideshows (`services.tsx`, `salon-sector.tsx`); provider/admin screens still show some raw `e.message` alerts (internal users).
+- Fully converted (26 Oct 2026): the two crossfading salon slideshows (`services.tsx`, `salon-sector.tsx`) animate an `Animated.View` with a `RemoteImage` inside. Provider/admin screens (English) use `friendlyErrorEn(error, fallback)` from `src/lib/api.ts` — `adminRequest()` (`src/lib/admin-api.ts`) maps offline/timeout/401/403/404/5xx to friendly copy and keeps short server messages (e.g. "Rejection reason required"); `apiHeaders(userToken?)` builds app-key + user-token headers.
 - **Phase 2 (not started):** TanStack Query + AsyncStorage persister so lists show the last loaded data offline.
 
 ## 9. Infrastructure
@@ -354,6 +354,7 @@ R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY   # token "servey-api"
 R2_PUBLIC_BUCKET=kosmiks
 R2_PRIVATE_BUCKET=kosmiks-documents
 R2_PUBLIC_URL=https://media.kosmiks.com
+CRON_SECRET=...                     # Vercel sends it to cron routes; without it they 401
 ```
 Env var changes on Vercel need a **redeploy** to take effect.
 
@@ -395,8 +396,8 @@ EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 - [x] **Push receipt checking — FIXED 26 Oct 2026.** Successful tickets are stored in `push_tickets`; `DeviceNotRegistered` on send removes the token at once; the daily cron `/api/cron/push-receipts` (04:00 UTC, `vercel.json`) fetches receipts for tickets older than 15 min (Expo keeps them 24 h) and removes dead tokens (`removePushToken()`).
 - [x] **Data repair — FIXED 26 Oct 2026.** `piis40060@gmail.com` sat on the `service-admin` row, so that account 401'd. `ensureServiceUser()` (`lib/service-auth.ts`) now resets the service row's email to `ADMIN_EMAIL` (or the fallback synthetic address) whenever it holds anything else; verified in production (service row now `…@cosmix.local`, no row holds the address).
 
-- [ ] **`CRON_SECRET` is not set in Vercel** — both cron routes (`/api/cron/payouts`, weekly; `/api/cron/push-receipts`, daily) refuse every call without it, so the **Friday payout run has never executed**. Add it (Production, Sensitive, e.g. `openssl rand -hex 32`) and redeploy; Vercel then sends it automatically.
-- [ ] Unregister the device's push token on sign-out (a signed-out phone still receives the last account's notifications until another account signs in on it).
+- [x] **`CRON_SECRET` set in Vercel (Production, Sensitive) — 26 Oct 2026.** Both crons now run: `/api/cron/push-receipts` daily 04:00 UTC and **`/api/cron/payouts` every Friday 06:00 UTC — it had never run before**, so watch the first run (Vercel → Logs, `[CRON_PAYOUTS]`) and check the payouts it creates.
+- [x] **Push token unregistered on sign-out — 26 Oct 2026.** `unregisterPushToken(getToken)` (`src/lib/push.ts`) runs before every `signOut()` (side menu, profile, rejected screen) and calls `DELETE /api/user/push-token`, which only removes the token from the caller's own account. Best-effort, 5 s cap — never blocks sign-out.
 
 ### 🟡 Housekeeping
 - [ ] **Finish Cloudinary removal:** `CLOUDINARY_*` env vars **removed from Vercel (26 Oct 2026)**. Before deleting, verified: all 6 current provider documents exist in private R2, and nothing in the DB references Cloudinary. **Still to do (by hand — permanent deletion):** delete folder `cosmix/provider-documents` (and optionally `cosmix/salon-images`) on Cloudinary account `dhedbjqza` with CDN invalidation — the migrated documents are still publicly reachable there — then close accounts `dhedbjqza`, `dzmrvngco`, `dguk4ks45`
