@@ -391,9 +391,12 @@ EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 - [ ] Have the client review `/privacy` (draft; no legal entity name)
 
 ### 🟠 Correctness
-- [ ] **One token per user.** `pushToken` is a single column, but tokens identify a *device install*. Needs a `PushToken` table keyed by device.
-- [ ] **Push receipt checking.** `send-notification.ts` never fetches receipts, so dead tokens persist forever.
+- [x] **One token per user — FIXED 26 Oct 2026.** `push_tokens` table (one row per device, `token` unique; registering the same token from another account moves it). `POST /api/user/push-token` upserts it and also keeps the legacy `users.pushToken` column on the latest device. All senders go through `notifyUser(userId)` / `notifyAdmins()`, which send to every device + the legacy column.
+- [x] **Push receipt checking — FIXED 26 Oct 2026.** Successful tickets are stored in `push_tickets`; `DeviceNotRegistered` on send removes the token at once; the daily cron `/api/cron/push-receipts` (04:00 UTC, `vercel.json`) fetches receipts for tickets older than 15 min (Expo keeps them 24 h) and removes dead tokens (`removePushToken()`).
 - [x] **Data repair — FIXED 26 Oct 2026.** `piis40060@gmail.com` sat on the `service-admin` row, so that account 401'd. `ensureServiceUser()` (`lib/service-auth.ts`) now resets the service row's email to `ADMIN_EMAIL` (or the fallback synthetic address) whenever it holds anything else; verified in production (service row now `…@cosmix.local`, no row holds the address).
+
+- [ ] **`CRON_SECRET` is not set in Vercel** — both cron routes (`/api/cron/payouts`, weekly; `/api/cron/push-receipts`, daily) refuse every call without it, so the **Friday payout run has never executed**. Add it (Production, Sensitive, e.g. `openssl rand -hex 32`) and redeploy; Vercel then sends it automatically.
+- [ ] Unregister the device's push token on sign-out (a signed-out phone still receives the last account's notifications until another account signs in on it).
 
 ### 🟡 Housekeeping
 - [ ] **Finish Cloudinary removal:** `CLOUDINARY_*` env vars **removed from Vercel (26 Oct 2026)**. Before deleting, verified: all 6 current provider documents exist in private R2, and nothing in the DB references Cloudinary. **Still to do (by hand — permanent deletion):** delete folder `cosmix/provider-documents` (and optionally `cosmix/salon-images`) on Cloudinary account `dhedbjqza` with CDN invalidation — the migrated documents are still publicly reachable there — then close accounts `dhedbjqza`, `dzmrvngco`, `dguk4ks45`
