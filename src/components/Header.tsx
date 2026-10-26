@@ -3,6 +3,7 @@ import { View, TouchableOpacity, Dimensions, Text, Platform } from "react-native
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import KosmiksLogo from "@/components/KosmiksLogo";
 
 interface HeaderProps {
   title?: string;
@@ -120,17 +121,22 @@ export default function Header({
             activeOpacity={0.7}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Text
-              style={{
-                fontSize: 20,
-                fontFamily: "Philosopher-Bold",
-                fontWeight: "700",
-                color: darkBrown,
-                letterSpacing: 3,
-              }}
-            >
-              {title}
-            </Text>
+            {/* The brand title shows the real logo; page titles stay text. */}
+            {title === "KOSMIKS" ? (
+              <KosmiksLogo size={28} />
+            ) : (
+              <Text
+                style={{
+                  fontSize: 20,
+                  fontFamily: "Philosopher-Bold",
+                  fontWeight: "700",
+                  color: darkBrown,
+                  letterSpacing: 3,
+                }}
+              >
+                {title}
+              </Text>
+            )}
           </TouchableOpacity>
         </View>
 
