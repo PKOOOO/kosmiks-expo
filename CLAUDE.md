@@ -372,8 +372,8 @@ EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 ## 13. TODO — Outstanding Work
 
 ### 🔴 Security
-- [ ] **Bearer-key `isAdmin` fallback** (`admin-access.ts` ~131-136). `EXPO_PUBLIC_ADMIN_API_KEY` ships extractable inside the APK, and presenting it alone resolves to the service user **with `isAdmin: true`** on some routes. `/api/checkout` and `/api/bookings` depend on this fallback for anonymous checkout — needs separating "anonymous customer may book" from "caller is admin".
-- [ ] Consider whether a client-side shared key is the right model at all before launch
+- [x] **Bearer-key `isAdmin` fallback — FIXED 26 Oct 2026.** A request with only `EXPO_PUBLIC_ADMIN_API_KEY` (extractable from the APK) now resolves to the service user with **`isAdmin: false`** (`lib/admin-access.ts`). Admins are recognised only via a verified Clerk token + `users.isAdmin`; the app's admin screens already send `X-User-Token`. Same change: `GET /api/bookings` is scoped (admin → all; user → own by `userId` or `customerEmail`; key-only → 401) — it used to return every booking with customer names/emails; the unused `POST /api/bookings` (created confirmed, unpaid bookings) was removed; `/api/bookings/[id]` GET/PATCH/DELETE are admin-only; legacy `POST /api/upload` requires `getEndUser()`. Verified with key-only requests: admin routes 403, bookings 401/403, public routes 200.
+- [ ] Consider whether a client-side shared key is the right model at all before launch (it now only grants anonymous/public access)
 - [ ] **Delete the unused original `sk_live` key** in Clerk → production → API keys (keep the one created 23 Oct that Vercel uses)
 - [ ] Delete `~/Desktop/kosmiks-secrets/client_secret_234539763868-….json` (no `_2_`) — it holds the revoked Google secret
 
@@ -436,3 +436,4 @@ EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 22. **Many source files use CRLF or mixed line endings.** Python `open()` in text mode silently converts them to LF and turns a 3-line change into a whole-file diff. Edit with `open(p, newline='')`, or check `git diff --stat` after scripted edits.
 23. **New native modules need new builds.** `@react-native-community/netinfo` and `expo-image` (Oct 2026) mean dev clients and APKs built before them crash with "native module not found".
 24. **NetInfo must use the JS reachability probe** (`NetInfo.configure({ useNativeReachability: false })` at the top of `src/lib/network.ts`). With Android's native "validated" flag the offline banner stayed stuck after airplane mode was turned off (Samsung, Oct 2026). Keep the configure call above any NetInfo use.
+25. **The app's bearer key is public.** Anything reachable with `Authorization: Bearer <EXPO_PUBLIC_ADMIN_API_KEY>` alone is reachable by anyone. Never grant admin or per-user data on it: use `requireAdmin()` / `isAdmin` for admin, `getEndUser()` for anything owned by a person, and return 401 for the service user (`clerkId === ADMIN_EXTERNAL_ID`) on user data.
