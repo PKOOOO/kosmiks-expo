@@ -218,6 +218,28 @@ Suggested order: P2/P4/P5/P6 → A1/A2/A3 → P8 → C2/C3 → P9/C4
 
 ---
 
+## 8a. Networking, offline handling & images (Oct 2026)
+
+**Rule: screens never render `error.message`.** It can contain things like `java.net.UnknownHostException`. Store the caught error (`useState<unknown>`) and render `<ErrorState error={…} onRetry={…} />`.
+
+| Piece | File | What it does |
+|---|---|---|
+| `apiFetch` | `src/lib/api.ts` | `fetch` + 15 s timeout; retries GET/HEAD twice on network failure (never POST/PATCH — payments); network failures become `ApiError('offline' \| 'timeout')` |
+| `ApiError.http(status)` | `src/lib/api.ts` | What actions throw for non-OK responses (401/403 → `auth`, 404 → `notFound`, 5xx → `server`) |
+| `describeError` / `connectionProblemEn` | `src/lib/api.ts` | Finnish copy for customer screens / English copy for provider onboarding (returns null for non-connection errors so server validation messages still show) |
+| `useIsOffline`, `useOnReconnect`, `isOfflineNow` | `src/lib/network.ts` | `@react-native-community/netinfo`. `isInternetReachable === null` counts as online (avoids a banner flash at startup) |
+| `<OfflineBanner />` | `src/components/OfflineBanner.tsx` | Mounted once in `src/app/_layout.tsx`. "Ei internetyhteyttä" under the status bar; "Yhteys palautettu" for 2 s on reconnect. `pointerEvents="none"` |
+| `<ErrorState />` | `src/components/ErrorState.tsx` | Icon + Finnish title/message + "Yritä uudelleen". Auto-retries on reconnect. If the device is online but the request couldn't connect, it calls `GET /api/public/health` and switches to "Palvelussa on tilapäinen häiriö" when our backend is down |
+| `<RemoteImage />` | `src/components/RemoteImage.tsx` | `expo-image` with `cachePolicy="memory-disk"` (seen photos work offline) and a beige image-icon fallback on failure. Same props as `Image` (`source`, `style`, `resizeMode`, `onError`) plus NativeWind `className` via `cssInterop`. Use it for every remote image; bundled `require(...)` images can stay on `Image` |
+
+- All `src/actions/*` go through `apiFetch` and throw `ApiError`.
+- Screens using `ErrorState`: home categories, `categories.tsx`, `saloons.tsx`, `services.tsx`, `salon-sector.tsx`, search (`(tabs)/service.tsx` — popular + search results; "Ei löytynyt" only when data actually loaded), `MyBookings`, `ReviewsSection`. `map.tsx` keeps its own card but uses `describeError` + `useOnReconnect`.
+- **Checkout** refuses to start offline (`isOfflineNow`), and the pre-payment failure alert says "Veloitusta ei tehty". Stripe's own payment-sheet messages (`UserFacingError`) are still shown as-is.
+- **Onboarding uploads** (Phase 2 documents, Phase 3 photos) refuse to start offline.
+- **Backend:** `GET /api/public/health` (`app/api/public/health/route.ts`, runs `SELECT 1`, `no-store`). `/api/public/categories` sends `Cache-Control: public, s-maxage=60, stale-while-revalidate=300`.
+- Not yet converted: the two crossfading `Animated.Image` salon slideshows (`services.tsx`, `salon-sector.tsx`); provider/admin screens still show some raw `e.message` alerts (internal users).
+- **Phase 2 (not started):** TanStack Query + AsyncStorage persister so lists show the last loaded data offline.
+
 ## 9. Infrastructure
 
 ### Expo / EAS
@@ -411,3 +433,6 @@ EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 19. **Stripe RN ≥ 0.81 breaks Android release builds** without `plugins/with-stripe-android-fixes.js` (lint → `play-services-tapandpay` not found; R8 → missing `pushProvisioning` classes).
 20. **`/privacy` must stay public** — the Google OAuth consent screen links to it.
 21. **Local development uses Clerk production too.** There is only one backend and database (both production), so `.env` has `pk_live`. A `401` on `getBookings` with a `user_3J…`-style ID in the logs means a session still on the old dev instance (old `.env` or old dev client). Use the Kosmiks dev client (`com.kosmiks.app`, scheme `kosmiks`); **Expo Go can't sign in** — production only allowlists `kosmiks://oauth-native-callback`, not `exp://`.
+22. **Many source files use CRLF or mixed line endings.** Python `open()` in text mode silently converts them to LF and turns a 3-line change into a whole-file diff. Edit with `open(p, newline='')`, or check `git diff --stat` after scripted edits.
+23. **New native modules need new builds.** `@react-native-community/netinfo` and `expo-image` (Oct 2026) mean dev clients and APKs built before them crash with "native module not found".
+24. **NetInfo must use the JS reachability probe** (`NetInfo.configure({ useNativeReachability: false })` at the top of `src/lib/network.ts`). With Android's native "validated" flag the offline banner stayed stuck after airplane mode was turned off (Samsung, Oct 2026). Keep the configure call above any NetInfo use.

@@ -15,6 +15,9 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { API_BASE_URL } from '@/config/constants';
 import { uploadImage } from '@/lib/upload-image';
 import UploadProgress from '@/components/UploadProgress';
+import { connectionProblemEn } from '@/lib/api';
+import { isOfflineNow } from '@/lib/network';
+import RemoteImage from '@/components/RemoteImage';
 
 const ADMIN_API_KEY = process.env.EXPO_PUBLIC_ADMIN_API_KEY || '';
 
@@ -153,6 +156,10 @@ export default function Phase2Screen() {
   };
 
   const pickAndUploadDoc = async (slotIndex: number) => {
+    if (await isOfflineNow()) {
+      Alert.alert('No internet connection', 'Connect to the internet to upload.');
+      return;
+    }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: false,
@@ -176,7 +183,7 @@ export default function Phase2Screen() {
       setError('');
     } catch (err: any) {
       console.error('[UPLOAD] Error:', err?.message ?? err);
-      Alert.alert('Upload failed', err?.message ?? 'Please try again.');
+      Alert.alert('Upload failed', connectionProblemEn(err) ?? err?.message ?? 'Please try again.');
     } finally {
       setUploadingIndex(null);
     }
@@ -247,7 +254,7 @@ export default function Phase2Screen() {
       router.replace('/(onboarding)/pending' as any);
     } catch (err: any) {
       console.error('[SUBMIT] Error:', err?.message ?? err);
-      Alert.alert('Error', err?.message ?? 'Failed to submit. Please try again.');
+      Alert.alert('Error', connectionProblemEn(err) ?? err?.message ?? 'Failed to submit. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -377,7 +384,7 @@ export default function Phase2Screen() {
 
             {slot ? (
               <View style={{ borderRadius: 16, overflow: 'hidden', backgroundColor: lightBeige }}>
-                <Image source={{ uri: slot.preview }} style={{ width: '100%', aspectRatio: 4 / 3 }} resizeMode="cover" />
+                <RemoteImage source={{ uri: slot.preview }} style={{ width: '100%', aspectRatio: 4 / 3 }} resizeMode="cover" />
                 <View style={{
                   position: 'absolute', left: 12, bottom: 12,
                   flexDirection: 'row', alignItems: 'center', gap: 6,

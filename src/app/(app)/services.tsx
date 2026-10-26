@@ -1,5 +1,7 @@
 // src/app/(app)/services.tsx
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import ErrorState from "@/components/ErrorState";
+import { ApiError } from "@/lib/api";
 import { SafeAreaView, ScrollView, View, Text, TouchableOpacity, ActivityIndicator, Modal, Animated, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFonts } from 'expo-font';
@@ -42,7 +44,9 @@ export default function ServicesPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [hiuksetSub, setHiuksetSub] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
+  // Bumped by the retry button / reconnect to re-run the fetch effect
+  const [reloadKey, setReloadKey] = useState(0);
   const [dynamicCategoryName, setDynamicCategoryName] = useState<string>('');
   const [isMenuVisible, setMenuVisible] = useState(false);
 
@@ -320,7 +324,7 @@ export default function ServicesPage() {
           console.log('Category name:', categoryName || 'All');
         } catch (err) {
           console.error('Error fetching salon services:', err);
-          setError(err instanceof Error ? err.message : 'Failed to fetch salon services');
+          setError(err);
         } finally {
           setLoading(false);
         }
@@ -329,7 +333,7 @@ export default function ServicesPage() {
 
       // Normal flow - fetch services by category
       if (!categoryName) {
-        setError('No category selected');
+        setError(new ApiError('notFound'));
         setLoading(false);
         return;
       }
@@ -382,15 +386,15 @@ export default function ServicesPage() {
           }
         });
       } catch (err) {
-        console.error('Error fetching services:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch services');
+        console.warn('Error fetching services:', err);
+        setError(err);
       } finally {
         setLoading(false);
       }
     };
 
     fetchServices();
-  }, [categoryName, salonId]);
+  }, [categoryName, salonId, reloadKey]);
 
   useEffect(() => {
     if (uiVariant === 'hiukset' && typeof subCategory === 'string') {
@@ -1253,43 +1257,8 @@ export default function ServicesPage() {
           )}
 
           {/* Error State */}
-          {error && (
-            <View style={{ flex: 1, justifyContent: "center", alignItems: "center", marginTop: 50 }}>
-              <Text
-                style={{
-                  fontFamily: "Philosopher-Bold",
-                  fontSize: 16,
-                  color: "red",
-                  textAlign: "center",
-                  marginBottom: 20,
-                }}
-              >
-                Error: {error}
-              </Text>
-              <TouchableOpacity
-                style={{
-                  backgroundColor: lightBrown,
-                  paddingHorizontal: 20,
-                  paddingVertical: 10,
-                  borderRadius: 8,
-                }}
-                onPress={() => {
-                  // Retry fetching
-                  if (categoryName) {
-                    setError(null);
-                    setLoading(true);
-                    getServicesByCategory(categoryName)
-                      .then(setServices)
-                      .catch((err) => setError(err.message))
-                      .finally(() => setLoading(false));
-                  }
-                }}
-              >
-                <Text style={{ fontFamily: "Philosopher-Bold", color: darkBrown }}>
-                  Retry
-                </Text>
-              </TouchableOpacity>
-            </View>
+          {!loading && error != null && (
+            <ErrorState error={error} onRetry={() => setReloadKey((k) => k + 1)} style={{ marginTop: 40 }} />
           )}
 
           {/* SERVICE CATEGORIES */}

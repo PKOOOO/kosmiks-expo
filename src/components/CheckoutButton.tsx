@@ -6,6 +6,11 @@ import { SaloonService } from '@/types';
 import { useRouter } from 'expo-router';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useStripe } from '@/lib/stripe';
+import { describeError } from '@/lib/api';
+import { isOfflineNow } from '@/lib/network';
+
+/** Errors whose message is safe to show as-is (Stripe's payment sheet copy). */
+class UserFacingError extends Error {}
 
 interface CheckoutButtonProps {
   saloonServices: SaloonService[];
@@ -92,6 +97,12 @@ const CheckoutButtonInner: React.FC<CheckoutButtonProps> = ({
       return;
     }
 
+    // Don't start a payment we can't finish.
+    if (await isOfflineNow()) {
+      Alert.alert('Ei internetyhteyttä', 'Tarvitset internetyhteyden varauksen maksamiseen. Yritä uudelleen, kun yhteys palaa.');
+      return;
+    }
+
     // If not signed in, go to sign-in and then resume
     if (!isSignedIn) {
       router.push({
@@ -138,7 +149,7 @@ const CheckoutButtonInner: React.FC<CheckoutButtonProps> = ({
 
       if (initError) {
         console.error('Error initializing payment sheet:', initError);
-        throw new Error(initError.message || 'Maksulomakkeen alustus epäonnistui');
+        throw new UserFacingError(initError.message || 'Maksulomakkeen alustus epäonnistui');
       }
 
       console.log('Payment sheet initialized, presenting...');
@@ -153,7 +164,7 @@ const CheckoutButtonInner: React.FC<CheckoutButtonProps> = ({
           return;
         }
         console.error('Payment failed:', paymentError);
-        throw new Error(paymentError.message || 'Maksu epäonnistui');
+        throw new UserFacingError(paymentError.message || 'Maksu epäonnistui');
       }
 
       // Step 4: Payment successful - confirm the booking.
@@ -217,9 +228,12 @@ const CheckoutButtonInner: React.FC<CheckoutButtonProps> = ({
       await attemptConfirm();
     } catch (error) {
       console.error('Checkout error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Odottamaton virhe tapahtui';
-      Alert.alert('Varaus epäonnistui', errorMessage);
-      onError?.(error instanceof Error ? error : new Error(errorMessage));
+      // Before payment succeeded: nothing was charged. Stripe's messages are
+      // written for customers; anything else gets friendly copy, never the
+      // raw error text.
+      const message = error instanceof UserFacingError ? error.message : describeError(error).message;
+      Alert.alert('Varaus epäonnistui', `${message}\n\nVeloitusta ei tehty.`);
+      onError?.(error instanceof Error ? error : new Error(String(error)));
     } finally {
       setIsLoading(false);
     }

@@ -1,5 +1,6 @@
 import { Salon } from '@/types/salon';
 import { API_ENDPOINTS } from '@/config/constants';
+import { apiFetch, ApiError } from '@/lib/api';
 
 export interface MapSalonRequest {
   lat?: number;
@@ -25,7 +26,7 @@ export default async function getSaloonsMap(params?: MapSalonRequest): Promise<S
     console.log('Fetching salons from:', url);
     console.log('Map salons endpoint:', API_ENDPOINTS.SALONS_MAP);
 
-    const response = await fetch(url, {
+    const response = await apiFetch(url, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -39,7 +40,7 @@ export default async function getSaloonsMap(params?: MapSalonRequest): Promise<S
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Response error text:', errorText);
-      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      throw ApiError.http(response.status);
     }
 
     const data = await response.json();
@@ -49,7 +50,7 @@ export default async function getSaloonsMap(params?: MapSalonRequest): Promise<S
     if (data.length === 0 && params) {
       console.log('No nearby salons found, fetching all salons...');
       const allSalonsUrl = API_ENDPOINTS.SALONS_MAP;
-      const allResponse = await fetch(allSalonsUrl, {
+      const allResponse = await apiFetch(allSalonsUrl, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -60,7 +61,7 @@ export default async function getSaloonsMap(params?: MapSalonRequest): Promise<S
       if (!allResponse.ok) {
         const errorText = await allResponse.text();
         console.error('All salons response error text:', errorText);
-        throw new Error(`HTTP error! status: ${allResponse.status}, message: ${errorText}`);
+        throw ApiError.http(allResponse.status);
       }
 
       const allData = await allResponse.json();

@@ -1,5 +1,5 @@
 // src/app/(app)/saloons.tsx
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { SafeAreaView, View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Image, Modal, Animated, FlatList, Dimensions, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -9,7 +9,10 @@ import getSaloonsByService, { SaloonData } from "@/actions/get-saloons-by-servic
 import getSalonById from "@/actions/get-salon-by-id";
 import Header from "@/components/Header";
 import SideMenu from "@/components/SideMenu";
+import ErrorState from "@/components/ErrorState";
+import { ApiError } from "@/lib/api";
 import { MAPBOX_TOKEN, hasMapboxToken, MAP_UNAVAILABLE_HTML } from "@/config/constants";
+import RemoteImage from '@/components/RemoteImage';
 
 const darkBrown = "#3C2C1E";
 const beige = "#D9C7AF";
@@ -73,7 +76,7 @@ const SaloonImageCarousel = ({ images, saloonName }: { images: string[], saloonN
             }}
         >
             {images.map((img, index) => (
-                <Image
+                <RemoteImage
                     key={index}
                     source={{ uri: img }}
                     style={{
@@ -127,7 +130,7 @@ const Saloons = () => {
 
     const [saloons, setSaloons] = useState<SaloonData[]>([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError] = useState<unknown>(null);
     const [isMenuVisible, setMenuVisible] = useState(false);
     const [heroPageIndex, setHeroPageIndex] = useState(0); // 0 = title, 1 = map
     const flatListRef = useRef<FlatList>(null);
@@ -212,11 +215,10 @@ const Saloons = () => {
         `;
     };
 
-    // Fetch saloons when component mounts
-    useEffect(() => {
-        const fetchSaloons = async () => {
+    // Fetch saloons when component mounts; also used by retry / reconnect
+    const fetchSaloons = useCallback(async () => {
             if (!serviceId) {
-                setError('No service selected');
+                setError(new ApiError('notFound'));
                 setLoading(false);
                 return;
             }
@@ -237,17 +239,18 @@ const Saloons = () => {
                     console.log('Fetched saloons for service:', serviceId, 'workType:', workType, data);
                 }
             } catch (err) {
-                console.error('Error fetching saloons:', err);
-                setError(err instanceof Error ? err.message : 'Failed to fetch saloons');
+                console.warn('Error fetching saloons:', err);
+                setError(err);
             } finally {
                 setLoading(false);
             }
-        };
+    }, [serviceId, salonId, workType]);
 
+    useEffect(() => {
         if (serviceId) {
             fetchSaloons();
         }
-    }, [serviceId, salonId, workType]);
+    }, [serviceId, fetchSaloons]);
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: "white" }}>
@@ -484,42 +487,8 @@ const Saloons = () => {
                 )}
 
                 {/* Error State */}
-                {error && (
-                    <View style={{ alignItems: "center", marginTop: 80, paddingHorizontal: 16 }}>
-                        <Text
-                            style={{
-                                fontFamily: "Philosopher-Bold",
-                                fontSize: 16,
-                                color: "red",
-                                textAlign: "center",
-                                marginBottom: 20,
-                            }}
-                        >
-                            Error: {error}
-                        </Text>
-                        <TouchableOpacity
-                            style={{
-                                backgroundColor: beige,
-                                paddingHorizontal: 20,
-                                paddingVertical: 10,
-                                borderRadius: 8,
-                            }}
-                            onPress={() => {
-                                if (serviceId) {
-                                    setError(null);
-                                    setLoading(true);
-                                    getSaloonsByService(serviceId)
-                                        .then(setSaloons)
-                                        .catch((err) => setError(err.message))
-                                        .finally(() => setLoading(false));
-                                }
-                            }}
-                        >
-                            <Text style={{ fontFamily: "Philosopher-Bold", color: darkBrown }}>
-                                Retry
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
+                {!loading && error != null && (
+                    <ErrorState error={error} onRetry={fetchSaloons} style={{ marginTop: 40 }} />
                 )}
 
                 {/* Saloons List */}

@@ -17,6 +17,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { API_BASE_URL } from '@/config/constants';
 import useProviderServicesStore from '@/store/provider-services.store';
 import BrandHeader from '@/components/BrandHeader';
+import RemoteImage from '@/components/RemoteImage';
 
 const colors = {
   brown: '#423120',
@@ -107,7 +108,7 @@ function Avatar({ name, uri, size = 36 }: { name: string; uri?: string; size?: n
   return (
     <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}>
       {uri && !failed ? (
-        <Image source={{ uri }} onError={() => setFailed(true)} style={{ width: size, height: size, borderRadius: size / 2 }} />
+        <RemoteImage source={{ uri }} onError={() => setFailed(true)} style={{ width: size, height: size, borderRadius: size / 2 }} />
       ) : (
         <Text style={[styles.avatarInitials, { fontSize: size * 0.33 }]}>{initials(name)}</Text>
       )}

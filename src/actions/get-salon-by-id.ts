@@ -1,5 +1,6 @@
 // src/app/actions/get-salon-by-id.ts
 import { API_BASE_URL } from "@/config/constants";
+import { apiFetch, ApiError } from '@/lib/api';
 
 export interface SaloonImage {
   id: string;
@@ -66,7 +67,7 @@ const getSalonById = async (salonId: string, serviceId: string): Promise<SaloonD
     console.log('Fetching specific salon:', salonId, 'for service:', serviceId);
 
     // First get the salon details
-    const salonResponse = await fetch(`${API_BASE_URL}/public/saloons/${salonId}`, {
+    const salonResponse = await apiFetch(`${API_BASE_URL}/public/saloons/${salonId}`, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
@@ -75,7 +76,7 @@ const getSalonById = async (salonId: string, serviceId: string): Promise<SaloonD
     });
 
     if (!salonResponse.ok) {
-      throw new Error(`HTTP error! status: ${salonResponse.status}`);
+      throw ApiError.http(salonResponse.status);
     }
 
     const salonData = await salonResponse.json();

@@ -3,7 +3,8 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Image, ScrollView, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import AntDesign from "@expo/vector-icons/AntDesign";
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import RemoteImage from '@/components/RemoteImage';
 
 const { width } = Dimensions.get('window');
 
@@ -56,7 +57,7 @@ export default function ServiceCard({ service, isSelected, onSelect }: ServiceCa
             }}
           >
             {service.images.map((image: string, index: number) => (
-              <Image 
+              <RemoteImage 
                 key={index}
                 source={{ uri: image }}
                 style={{ width: width - 48 }}

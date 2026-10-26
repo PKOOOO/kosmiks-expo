@@ -1,5 +1,6 @@
 // src/app/actions/get-salon.ts
 import { API_BASE_URL } from "@/config/constants";
+import { apiFetch } from '@/lib/api';
 
 export interface SalonDetails {
   id: string;
@@ -25,7 +26,7 @@ export const getSalon = async (salonId: string, authToken?: string): Promise<Sal
         }
         
         // Try to fetch salon details - this endpoint might not exist yet
-        const res = await fetch(`${API_BASE_URL}/saloons/${salonId}`, {
+        const res = await apiFetch(`${API_BASE_URL}/saloons/${salonId}`, {
             method: 'GET',
             headers,
         });

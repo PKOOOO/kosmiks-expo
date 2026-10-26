@@ -1,12 +1,13 @@
 // src/app/actions/get-services-by-salon.ts
 import { Service } from "@/types";
 import { API_BASE_URL } from "@/config/constants";
+import { apiFetch, ApiError } from '@/lib/api';
 
 const getServicesBySalon = async (salonId: string): Promise<Service[]> => {
     try {
         console.log('Fetching services for salon:', salonId);
         
-        const res = await fetch(`${API_BASE_URL}/public/saloons/${salonId}/services`, {
+        const res = await apiFetch(`${API_BASE_URL}/public/saloons/${salonId}/services`, {
             method: 'GET',
             headers: {
                 'Accept': 'application/json',
@@ -15,7 +16,7 @@ const getServicesBySalon = async (salonId: string): Promise<Service[]> => {
         });
         
         if (!res.ok) {
-            throw new Error(`Failed to fetch salon services: ${res.status} ${res.statusText}`);
+            throw ApiError.http(res.status);
         }
         
         const data = await res.json();

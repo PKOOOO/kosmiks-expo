@@ -17,6 +17,8 @@ import { uploadImage } from '@/lib/upload-image';
 import StackedPhotos, { AddPhotoButton, MAX_PHOTOS } from '@/components/StackedPhotos';
 import { pickSalonPhoto, prepareForUpload } from '@/lib/pick-photo';
 import { forwardGeocode } from '@/lib/geocode';
+import { connectionProblemEn } from '@/lib/api';
+import { isOfflineNow } from '@/lib/network';
 
 const ADMIN_API_KEY = process.env.EXPO_PUBLIC_ADMIN_API_KEY || '';
 const PROVIDER_STATUS_KEY = 'providerStatus';
@@ -208,6 +210,10 @@ export default function Phase3Screen() {
       Alert.alert('Limit reached', `Maximum ${MAX_PHOTOS} photos allowed.`);
       return;
     }
+    if (await isOfflineNow()) {
+      Alert.alert('No internet connection', 'Connect to the internet to upload.');
+      return;
+    }
     const asset = await pickSalonPhoto();
     if (!asset) return;
 
@@ -226,8 +232,8 @@ export default function Phase3Screen() {
         ? [...prev, url]
         : prev.map((current, i) => (i === replaceIndex ? url : current)));
       setError('');
-    } catch {
-      Alert.alert('Upload failed', 'Please try again.');
+    } catch (err) {
+      Alert.alert('Upload failed', connectionProblemEn(err) ?? 'Please try again.');
     } finally {
       setUploading(null);
     }
@@ -279,7 +285,7 @@ export default function Phase3Screen() {
 
       router.replace('/(provider)/bookings' as any);
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Failed to submit. Please try again.');
+      Alert.alert('Error', connectionProblemEn(e) ?? e?.message ?? 'Failed to submit. Please try again.');
     } finally {
       setSubmitting(false);
     }

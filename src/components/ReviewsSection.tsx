@@ -1,11 +1,13 @@
 // src/app/components/ReviewsSection.tsx
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
     View,
     Text,
     ActivityIndicator,
 } from "react-native";
 import { API_ENDPOINTS } from "@/config/constants";
+import ErrorState from "@/components/ErrorState";
+import { apiFetch, ApiError } from "@/lib/api";
 
 const darkBrown = "#423120";
 
@@ -30,34 +32,34 @@ interface ReviewsSectionProps {
 export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ saloonId }) => {
     const [reviews, setReviews] = useState<Review[]>([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError] = useState<unknown>(null);
 
-    useEffect(() => {
-        const fetchReviews = async () => {
+    const fetchReviews = useCallback(async () => {
             if (!saloonId) return;
 
             try {
                 setLoading(true);
                 setError(null);
 
-                const response = await fetch(`${API_ENDPOINTS.REVIEWS}?saloonId=${saloonId}`);
+                const response = await apiFetch(`${API_ENDPOINTS.REVIEWS}?saloonId=${saloonId}`);
 
                 if (!response.ok) {
-                    throw new Error("Failed to fetch reviews");
+                    throw ApiError.http(response.status);
                 }
 
                 const data = await response.json();
                 setReviews(data);
             } catch (err) {
-                console.error("Error fetching reviews:", err);
-                setError(err instanceof Error ? err.message : "Failed to load reviews");
+                console.warn("Error fetching reviews:", err);
+                setError(err);
             } finally {
                 setLoading(false);
             }
-        };
-
-        fetchReviews();
     }, [saloonId]);
+
+    useEffect(() => {
+        fetchReviews();
+    }, [fetchReviews]);
 
     // Render star rating
     const renderStars = (rating: number) => {
@@ -110,14 +112,8 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ saloonId }) => {
         );
     }
 
-    if (error) {
-        return (
-            <View style={{ padding: 24, alignItems: "center" }}>
-                <Text style={{ color: "#999", fontFamily: "Philosopher-Regular" }}>
-                    Arvostelujen lataaminen epäonnistui
-                </Text>
-            </View>
-        );
+    if (error != null) {
+        return <ErrorState error={error} onRetry={fetchReviews} compact />;
     }
 
     if (reviews.length === 0) {

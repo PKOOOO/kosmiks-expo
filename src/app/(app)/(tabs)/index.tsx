@@ -1,7 +1,7 @@
 // Page.js
 import { SafeAreaView, ScrollView, View, Text, TouchableOpacity, Image, Modal, ActivityIndicator, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -13,6 +13,8 @@ import { Category, Booking } from '@/types';
 import Header from "@/components/Header";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { API_ENDPOINTS } from "@/config/constants";
+import ErrorState from "@/components/ErrorState";
+import RemoteImage from '@/components/RemoteImage';
 
 const DISMISSED_RATINGS_KEY = '@cosmix_dismissed_rating_bookings';
 
@@ -24,7 +26,7 @@ export default function Page() {
   const [isMenuVisible, setMenuVisible] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
   const [heroText, setHeroText] = useState("Palvelut nyt!");
 
   // Rating prompt modal state
@@ -69,7 +71,7 @@ export default function Page() {
           return salon.name || "Salon";
         }
       } catch (error) {
-        console.error("Error fetching salon details:", error);
+        console.warn("Error fetching salon details:", error);
       }
     }
     return "Salon";
@@ -114,7 +116,7 @@ export default function Page() {
           setRatingModalVisible(true);
         }
       } catch (error) {
-        console.error("Error checking unrated bookings:", error);
+        console.warn("Error checking unrated bookings:", error);
       }
     };
 
@@ -146,32 +148,30 @@ export default function Page() {
     setPendingRatingBooking(null);
   };
 
-  // Fetch categories on component mount
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await getCategories();
-        setCategories(data);
+  // Fetch categories on mount; also used by the retry button / reconnect
+  const fetchCategories = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await getCategories();
+      setCategories(data);
 
-        // Select 4 random categories
-        if (data.length > 0) {
-          const shuffled = [...data].sort(() => 0.5 - Math.random());
-          setRandomCategories(shuffled.slice(0, 4));
-        }
-
-        console.log('Fetched categories:', data);
-      } catch (err) {
-        console.error('Error fetching categories:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch categories');
-      } finally {
-        setLoading(false);
+      // Select 4 random categories
+      if (data.length > 0) {
+        const shuffled = [...data].sort(() => 0.5 - Math.random());
+        setRandomCategories(shuffled.slice(0, 4));
       }
-    };
-
-    fetchCategories();
+    } catch (err) {
+      console.warn('Error fetching categories:', err);
+      setError(err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
 
   // Alternate hero text every 3 seconds
   useEffect(() => {
@@ -252,7 +252,7 @@ export default function Page() {
               onPress={() => router.push("/map")}
               activeOpacity={0.8}
             >
-              <Image
+              <RemoteImage
                 source={{
                   uri: "https://media.kosmiks.com/static/home-hero.png",
                 }}
@@ -359,7 +359,7 @@ export default function Page() {
                   resizeMode="contain"
                 />
 
-                <Image
+                <RemoteImage
                   source={{ uri: "https://media.kosmiks.com/static/home-feature.png" }}
                   style={{
                     width: 127,
@@ -435,38 +435,12 @@ export default function Page() {
           )}
 
           {/* Error State */}
-          {error && (
-            <View style={{ alignItems: "center", justifyContent: "center", padding: 20 }}>
-              <Text style={{ color: "red", fontFamily: "Philosopher-Regular", textAlign: "center" }}>
-                Virhe: {error}
-              </Text>
-              <TouchableOpacity
-                style={{
-                  backgroundColor: lightBrown,
-                  paddingHorizontal: 20,
-                  paddingVertical: 10,
-                  borderRadius: 8,
-                  marginTop: 10,
-                }}
-                onPress={() => {
-                  // Retry fetching
-                  setError(null);
-                  setLoading(true);
-                  getCategories()
-                    .then(setCategories)
-                    .catch((err) => setError(err.message))
-                    .finally(() => setLoading(false));
-                }}
-              >
-                <Text style={{ fontFamily: "Philosopher-Bold", color: darkBrown }}>
-                  Yritä uudelleen
-                </Text>
-              </TouchableOpacity>
-            </View>
+          {!loading && error != null && (
+            <ErrorState error={error} onRetry={fetchCategories} compact />
           )}
 
           {/* Categories Grid */}
-          {!loading && !error && (
+          {!loading && error == null && (
             <View className="mt-4">
               {categoryRows.map((row, rowIdx) => (
                 <View key={rowIdx} style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 20, marginBottom: 16 }}>

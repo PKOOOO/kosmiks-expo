@@ -1,6 +1,7 @@
 // src/app/actions/get-bookings.ts
 import { Booking } from "@/types";
 import { API_ENDPOINTS } from "@/config/constants";
+import { apiFetch, ApiError } from '@/lib/api';
 
 const adminApiKey = process.env.EXPO_PUBLIC_ADMIN_API_KEY || '';
 
@@ -42,13 +43,13 @@ export const getBookings = async (authToken?: string, userId?: string, userEmail
             url += `?${params.join('&')}`;
         }
 
-        const res = await fetch(url, {
+        const res = await apiFetch(url, {
             method: 'GET',
             headers,
         });
 
         if (!res.ok) {
-            throw new Error(`Failed to fetch bookings: ${res.status} ${res.statusText}`);
+            throw ApiError.http(res.status);
         }
 
         const data = await res.json();

@@ -1,11 +1,12 @@
 import { Category } from "@/types";
 import { API_ENDPOINTS } from "@/config/constants";
+import { apiFetch, ApiError } from '@/lib/api';
 
 const getCategories = async (): Promise<Category[]> => {
     try {
         console.log('Fetching categories from:', API_ENDPOINTS.CATEGORIES);
         
-        const res = await fetch(API_ENDPOINTS.CATEGORIES, {
+        const res = await apiFetch(API_ENDPOINTS.CATEGORIES, {
             method: 'GET',
             headers: {
                 'Accept': 'application/json',
@@ -14,7 +15,7 @@ const getCategories = async (): Promise<Category[]> => {
         });
         
         if (!res.ok) {
-            throw new Error(`Failed to fetch categories: ${res.status} ${res.statusText}`);
+            throw ApiError.http(res.status);
         }
 
         const data = await res.json();

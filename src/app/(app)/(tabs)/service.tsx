@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { SafeAreaView, View, Text, TextInput, TouchableOpacity, ScrollView, Modal, Animated, Easing, ActivityIndicator, Image } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
@@ -11,6 +11,9 @@ import { Category, Service } from "@/types";
 import { Salon } from "@/types/salon";
 import getSaloonsMap from "@/actions/get-saloons-map";
 import { API_ENDPOINTS } from "@/config/constants";
+import ErrorState from "@/components/ErrorState";
+import { apiFetch, ApiError } from "@/lib/api";
+import RemoteImage from '@/components/RemoteImage';
 
 const normalizeString = (str: string) => {
   return str
@@ -94,44 +97,49 @@ export default function ServicesPage() {
   // All categories for search
   const [categories, setCategories] = useState<Category[]>([]);
   const [catLoading, setCatLoading] = useState<boolean>(false);
-  const [catError, setCatError] = useState<string | null>(null);
+  const [catError, setCatError] = useState<unknown>(null);
 
   // All services for search (including sub-services)
   const [allServices, setAllServices] = useState<Service[]>([]);
   const [servicesLoading, setServicesLoading] = useState<boolean>(false);
-  const [servicesError, setServicesError] = useState<string | null>(null);
+  const [servicesError, setServicesError] = useState<unknown>(null);
 
   // Salons for search
   const [salons, setSalons] = useState<Salon[]>([]);
   const [salonLoading, setSalonLoading] = useState<boolean>(false);
-  const [salonError, setSalonError] = useState<string | null>(null);
+  const [salonError, setSalonError] = useState<unknown>(null);
   const [searchType, setSearchType] = useState<'category' | 'salon' | 'service'>('category');
 
-  // Fetch popular categories
-  useEffect(() => {
-    const fetchPopular = async () => {
-      try {
-        setPopularLoading(true);
-        const res = await fetch(`${API_ENDPOINTS.CATEGORIES}?popular=true&global=true`);
-        const data = await res.json();
-        const categoriesData: Category[] = Array.isArray(data) ? data.filter(Boolean) : [];
-        setPopularCategories(categoriesData);
-      } catch (e) {
-        console.warn("Failed to load popular categories", e);
-      } finally {
-        setPopularLoading(false);
-      }
-    };
-    fetchPopular();
+  // Fetch popular categories; also used by retry / reconnect
+  const [popularError, setPopularError] = useState<unknown>(null);
+  const fetchPopular = useCallback(async () => {
+    try {
+      setPopularLoading(true);
+      setPopularError(null);
+      const res = await apiFetch(`${API_ENDPOINTS.CATEGORIES}?popular=true&global=true`);
+      if (!res.ok) throw ApiError.http(res.status);
+      const data = await res.json();
+      const categoriesData: Category[] = Array.isArray(data) ? data.filter(Boolean) : [];
+      setPopularCategories(categoriesData);
+    } catch (e) {
+      console.warn("Failed to load popular categories", e);
+      setPopularError(e);
+    } finally {
+      setPopularLoading(false);
+    }
   }, []);
 
-  // Fetch all services (including sub-services) for search
   useEffect(() => {
-    const loadAllServices = async () => {
+    fetchPopular();
+  }, [fetchPopular]);
+
+  // Search data: services (including sub-services), categories and salons.
+  // Loaded once on mount; retried together from the search error state.
+  const loadAllServices = useCallback(async () => {
       try {
         setServicesLoading(true);
         setServicesError(null);
-        const res = await fetch(API_ENDPOINTS.SERVICES, {
+        const res = await apiFetch(API_ENDPOINTS.SERVICES, {
           method: 'GET',
           headers: {
             'Accept': 'application/json',
@@ -140,53 +148,56 @@ export default function ServicesPage() {
         });
 
         if (!res.ok) {
-          throw new Error(`Failed to fetch services: ${res.status} ${res.statusText}`);
+          throw ApiError.http(res.status);
         }
 
         const data = await res.json();
         setAllServices(data);
       } catch (err) {
-        setServicesError(err instanceof Error ? err.message : 'Failed to fetch services');
+        setServicesError(err);
       } finally {
         setServicesLoading(false);
       }
-    };
-    loadAllServices();
   }, []);
 
-  // Fetch all categories for search
-  useEffect(() => {
-    const loadCategories = async () => {
+  const loadCategories = useCallback(async () => {
       try {
         setCatLoading(true);
         setCatError(null);
         const data = await getCategories();
         setCategories(data);
       } catch (err) {
-        setCatError(err instanceof Error ? err.message : 'Failed to fetch categories');
+        setCatError(err);
       } finally {
         setCatLoading(false);
       }
-    };
-    loadCategories();
   }, []);
 
-  // Fetch all salons for search
-  useEffect(() => {
-    const loadSalons = async () => {
+  const loadSalons = useCallback(async () => {
       try {
         setSalonLoading(true);
         setSalonError(null);
         const data = await getSaloonsMap();
         setSalons(data);
       } catch (err) {
-        setSalonError(err instanceof Error ? err.message : 'Failed to fetch salons');
+        setSalonError(err);
       } finally {
         setSalonLoading(false);
       }
-    };
-    loadSalons();
   }, []);
+
+  const reloadSearchData = useCallback(
+    () => Promise.all([loadAllServices(), loadCategories(), loadSalons()]),
+    [loadAllServices, loadCategories, loadSalons],
+  );
+
+  useEffect(() => {
+    reloadSearchData();
+  }, [reloadSearchData]);
+
+  // The error (if any) behind the current search type's results.
+  const searchError =
+    searchType === 'salon' ? salonError : searchType === 'service' ? servicesError : catError;
 
   const onChipPress = (name: string) => {
     router.push({ pathname: "/services", params: { categoryName: name } });
@@ -431,6 +442,8 @@ export default function ServicesPage() {
                     <Chip key={name} label={name} onPress={() => onChipPress(name)} color={chipBeige} textColor={darkBrown} fullWidth={true} />
                   ))}
                 </View>
+              ) : searchError != null ? (
+                <ErrorState error={searchError} onRetry={reloadSearchData} compact />
               ) : (
                 <View style={{ alignItems: 'center', marginTop: 10 }}>
                   <Text style={{ fontFamily: 'Philosopher-Bold', color: darkBrown, fontSize: 16 }}>
@@ -452,6 +465,8 @@ export default function ServicesPage() {
                   <View style={{ alignItems: 'center', justifyContent: 'center', padding: 20 }}>
                     <ActivityIndicator size="large" color={darkBrown} />
                   </View>
+                ) : popularError != null ? (
+                  <ErrorState error={popularError} onRetry={fetchPopular} compact />
                 ) : popularCategories.length > 0 ? (
                   <>
                     {/* First row - 2 categories */}
@@ -559,7 +574,7 @@ export default function ServicesPage() {
                   </>
                 ) : (
                   <Text style={{ color: darkBrown, fontFamily: 'Philosopher-Regular', textAlign: 'center', marginTop: 10 }}>
-                    No popular categories available
+                    Suosittuja palveluita ei ole vielä
                   </Text>
                 )}
               </View>
@@ -610,7 +625,7 @@ function SalonCard({
         }}
       >
         {salon.images && salon.images.length > 0 && salon.images[0].url ? (
-          <Image
+          <RemoteImage
             source={{ uri: salon.images[0].url }}
             style={{
               width: "100%",

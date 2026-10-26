@@ -1,5 +1,7 @@
 // src/app/(app)/salon-sector.tsx
 import React, { useState, useEffect, useRef } from "react";
+import ErrorState from "@/components/ErrorState";
+import { ApiError } from "@/lib/api";
 import { SafeAreaView, View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Image, Modal, Animated, Easing } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -28,7 +30,9 @@ const SalonSector = () => {
     const [services, setServices] = useState<Service[]>([]);
     const [allCategories, setAllCategories] = useState<Category[]>([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError] = useState<unknown>(null);
+    // Bumped by the retry button / reconnect to re-run the fetch effect
+    const [reloadKey, setReloadKey] = useState(0);
     const [isMenuVisible, setMenuVisible] = useState(false);
 
     // Hero box carousel state: 0 = title, 1+ = images
@@ -99,7 +103,7 @@ const SalonSector = () => {
     useEffect(() => {
         const fetchSalonData = async () => {
             if (!salonId) {
-                setError('No salon selected');
+                setError(new ApiError('notFound'));
                 setLoading(false);
                 return;
             }
@@ -113,7 +117,7 @@ const SalonSector = () => {
                 const foundSalon = allSalons.find(s => s.id === salonId);
 
                 if (!foundSalon) {
-                    throw new Error('Salon not found');
+                    throw new ApiError('notFound');
                 }
 
                 setSalon(foundSalon);
@@ -132,8 +136,8 @@ const SalonSector = () => {
                 console.log('Fetched salon:', foundSalon);
                 console.log('Fetched services:', salonServices);
             } catch (err) {
-                console.error('Error fetching salon data:', err);
-                setError(err instanceof Error ? err.message : 'Failed to fetch salon data');
+                console.warn('Error fetching salon data:', err);
+                setError(err);
             } finally {
                 setLoading(false);
             }
@@ -142,7 +146,7 @@ const SalonSector = () => {
         if (salonId) {
             fetchSalonData();
         }
-    }, [salonId]);
+    }, [salonId, reloadKey]);
 
     // Group services by category, or use all categories if no services
     const getCategoriesFromServices = () => {
@@ -322,33 +326,8 @@ const SalonSector = () => {
                 )}
 
                 {/* Error State */}
-                {error && (
-                    <View style={{ alignItems: "center", marginTop: 80, paddingHorizontal: 16 }}>
-                        <Text
-                            style={{
-                                fontFamily: "Philosopher-Bold",
-                                fontSize: 16,
-                                color: "red",
-                                textAlign: "center",
-                                marginBottom: 20,
-                            }}
-                        >
-                            Error: {error}
-                        </Text>
-                        <TouchableOpacity
-                            style={{
-                                backgroundColor: beige,
-                                paddingHorizontal: 20,
-                                paddingVertical: 10,
-                                borderRadius: 8,
-                            }}
-                            onPress={() => router.back()}
-                        >
-                            <Text style={{ fontFamily: "Philosopher-Bold", color: darkBrown }}>
-                                Go Back
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
+                {!loading && error != null && (
+                    <ErrorState error={error} onRetry={() => setReloadKey((k) => k + 1)} style={{ marginTop: 40 }} />
                 )}
 
                 {/* Salon Card and Categories */}

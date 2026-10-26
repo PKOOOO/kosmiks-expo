@@ -13,6 +13,7 @@ import {
   SubpageHeader, Card, SectionLabel, InfoRow, ListRow, Chip, EmptyState, shortArea, colors, relativeDay,
 } from '@/components/admin/AdminUI';
 import { usePageBottomSpace } from '@/lib/layout';
+import RemoteImage from '@/components/RemoteImage';
 
 type SaloonDetail = {
   id: string;
@@ -111,7 +112,7 @@ export default function AdminSaloonDetailScreen() {
               contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}
             >
               {saloon.images.map(img => (
-                <Image key={img.id} source={{ uri: img.url }} style={{ width: PHOTO_W, height: Math.round(PHOTO_W * 0.62), borderRadius: 18, backgroundColor: colors.white }} />
+                <RemoteImage key={img.id} source={{ uri: img.url }} style={{ width: PHOTO_W, height: Math.round(PHOTO_W * 0.62), borderRadius: 18, backgroundColor: colors.white }} />
               ))}
             </ScrollView>
           ) : (

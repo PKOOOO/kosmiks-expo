@@ -1,12 +1,13 @@
 // src/app/actions/get-services.ts
 import { Service } from "@/types";
 import { API_ENDPOINTS } from "@/config/constants";
+import { apiFetch, ApiError } from '@/lib/api';
 
 const getServicesByCategory = async (categoryName: string): Promise<Service[]> => {
     try {
         console.log('Fetching services for category:', categoryName);
         
-        const res = await fetch(`${API_ENDPOINTS.SERVICES}?category=${encodeURIComponent(categoryName)}`, {
+        const res = await apiFetch(`${API_ENDPOINTS.SERVICES}?category=${encodeURIComponent(categoryName)}`, {
             method: 'GET',
             headers: {
                 'Accept': 'application/json',
@@ -15,7 +16,7 @@ const getServicesByCategory = async (categoryName: string): Promise<Service[]> =
         });
         
         if (!res.ok) {
-            throw new Error(`Failed to fetch services: ${res.status} ${res.statusText}`);
+            throw ApiError.http(res.status);
         }
         
         const data = await res.json();

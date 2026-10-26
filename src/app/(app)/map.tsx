@@ -12,6 +12,9 @@ import getSaloonsMap from "@/actions/get-saloons-map";
 import getServices from "@/actions/get-services";
 import { Saloon, Service } from "@/types";
 import { MAPBOX_TOKEN, hasMapboxToken, MAP_UNAVAILABLE_HTML } from "@/config/constants";
+import { describeError } from "@/lib/api";
+import { useIsOffline, useOnReconnect } from "@/lib/network";
+import RemoteImage from '@/components/RemoteImage';
 
 // Extended interface for map salon data
 interface MapSalon extends Saloon {
@@ -37,7 +40,8 @@ export default function MapScreen() {
   const [salons, setSalons] = useState<MapSalon[]>([]);
   const [salonsLoading, setSalonsLoading] = useState(false);
   const [salonsFetchAttempted, setSalonsFetchAttempted] = useState(false);
-  const [salonsError, setSalonsError] = useState<string | null>(null);
+  const [salonsError, setSalonsError] = useState<unknown>(null);
+  const isOffline = useIsOffline();
   const [selectedSalon, setSelectedSalon] = useState<MapSalon | null>(null);
   const [isMenuVisible, setMenuVisible] = useState(false);
   const [isSearchVisible, setSearchVisible] = useState(false);
@@ -165,8 +169,8 @@ export default function MapScreen() {
       setSalons(validSalons);
       setDisplayedSalons(validSalons);
     } catch (error) {
-      console.error('Error fetching salons from API:', error);
-      setSalonsError('Unable to load salons.');
+      console.warn('Error fetching salons from API:', error);
+      setSalonsError(error);
       setSalons([]);
       setDisplayedSalons([]);
       setServices([]);
@@ -730,7 +734,13 @@ export default function MapScreen() {
 
   const activeSearchLabel = debouncedSearchQuery.replace(/\s+/g, ' ').trim();
   const hasActiveSearch = normalizeSearchText(debouncedSearchQuery).length > 0;
-  const showFetchError = salonsFetchAttempted && !salonsLoading && !!salonsError;
+  const showFetchError = salonsFetchAttempted && !salonsLoading && salonsError != null;
+  const fetchErrorCopy = describeError(salonsError, isOffline);
+
+  // Reload pins automatically once the connection comes back.
+  useOnReconnect(() => {
+    if (salonsError != null) fetchSalons();
+  });
   const showPlatformEmpty = salonsFetchAttempted && !salonsLoading && !salonsError && salons.length === 0;
   const showNoSearchResults = salonsFetchAttempted
     && !salonsLoading
@@ -845,15 +855,15 @@ export default function MapScreen() {
         {showFetchError && (
           <View style={[styles.mapStatePanel, { bottom: 150 + insets.bottom }]}>
             <Ionicons name="cloud-offline-outline" size={22} color={darkBrown} style={styles.mapStateIcon} />
-            <Text style={styles.mapStateTitle}>Unable to load salons</Text>
-            <Text style={styles.mapStateMessage}>Check your connection and try again.</Text>
+            <Text style={styles.mapStateTitle}>{fetchErrorCopy.title}</Text>
+            <Text style={styles.mapStateMessage}>{fetchErrorCopy.message}</Text>
             <TouchableOpacity
               style={styles.mapStateAction}
               onPress={() => fetchSalons()}
               accessibilityRole="button"
             >
               <Ionicons name="refresh" size={17} color={white} />
-              <Text style={styles.mapStateActionText}>Try again</Text>
+              <Text style={styles.mapStateActionText}>Yritä uudelleen</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -862,10 +872,10 @@ export default function MapScreen() {
           <View pointerEvents="none" style={[styles.mapStatePanel, { bottom: 150 + insets.bottom }]}>
             <Ionicons name="location-outline" size={22} color={darkBrown} style={styles.mapStateIcon} />
             <Text style={styles.mapStateTitle}>
-              No salons available yet
+              Ei vielä salonkeja
             </Text>
             <Text style={styles.mapStateMessage}>
-              Check back soon — new salons appear here as they join.
+              Uudet salongit näkyvät täällä, kun ne liittyvät palveluun.
             </Text>
           </View>
         )}
@@ -873,15 +883,15 @@ export default function MapScreen() {
         {showNoSearchResults && (
           <View style={[styles.mapStatePanel, { bottom: 150 + insets.bottom }]}>
             <Ionicons name="search-outline" size={22} color={darkBrown} style={styles.mapStateIcon} />
-            <Text style={styles.mapStateTitle}>No results for '{activeSearchLabel}'</Text>
-            <Text style={styles.mapStateMessage}>Check the spelling or try a different search.</Text>
+            <Text style={styles.mapStateTitle}>Ei tuloksia haulle '{activeSearchLabel}'</Text>
+            <Text style={styles.mapStateMessage}>Tarkista kirjoitusasu tai kokeile toista hakua.</Text>
             <TouchableOpacity
               style={styles.mapStateAction}
               onPress={clearSearch}
               accessibilityRole="button"
             >
               <Ionicons name="close" size={17} color={white} />
-              <Text style={styles.mapStateActionText}>Clear search</Text>
+              <Text style={styles.mapStateActionText}>Tyhjennä haku</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -928,7 +938,7 @@ export default function MapScreen() {
                   onPress={() => handleSalonCardPress(salon)}
                 >
                   {/* Thumbnail Image */}
-                  <Image
+                  <RemoteImage
                     source={{
                       uri: salon.images && salon.images.length > 0
                         ? salon.images[0].url
@@ -1150,7 +1160,7 @@ export default function MapScreen() {
                 {/* Salon Image */}
                 <View style={styles.salonDetailImageContainer}>
                   {selectedSalonForDetail.images && selectedSalonForDetail.images.length > 0 ? (
-                    <Image
+                    <RemoteImage
                       source={{ uri: selectedSalonForDetail.images[0].url }}
                       style={styles.salonDetailImage}
                       resizeMode="cover"

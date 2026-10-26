@@ -1,5 +1,6 @@
 // src/app/actions/get-saloons-by-service.ts
 import { API_BASE_URL } from "@/config/constants";
+import { apiFetch, ApiError } from '@/lib/api';
 
 export interface SaloonImage {
   id: string;
@@ -69,7 +70,7 @@ const getSaloonsByService = async (serviceId: string, workType?: string): Promis
       url += `?workType=${encodeURIComponent(workType)}`;
     }
 
-    const response = await fetch(url, {
+    const response = await apiFetch(url, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
@@ -78,7 +79,7 @@ const getSaloonsByService = async (serviceId: string, workType?: string): Promis
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw ApiError.http(response.status);
     }
 
     const data: ServiceWithSaloons = await response.json();

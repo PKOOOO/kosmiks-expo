@@ -9,6 +9,7 @@ import { reverseGeocode } from '@/lib/geocode';
 import { Card, EmptyState, SearchBar, shortArea, colors } from '@/components/admin/AdminUI';
 import BrandHeader from '@/components/BrandHeader';
 import { useTabBarSpace } from '@/lib/layout';
+import RemoteImage from '@/components/RemoteImage';
 
 type Saloon = {
   id: string;
@@ -100,7 +101,7 @@ export default function AdminSaloonsScreen() {
               <TouchableOpacity activeOpacity={0.85} onPress={() => router.push(`/(admin)/saloons/${item.id}` as any)}>
                 <Card style={{ padding: 12, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
                   {cover ? (
-                    <Image source={{ uri: cover }} style={{ width: 72, height: 72, borderRadius: 14, backgroundColor: colors.sand }} />
+                    <RemoteImage source={{ uri: cover }} style={{ width: 72, height: 72, borderRadius: 14, backgroundColor: colors.sand }} />
                   ) : (
                     <View style={{ width: 72, height: 72, borderRadius: 14, backgroundColor: colors.sand, alignItems: 'center', justifyContent: 'center' }}>
                       <Ionicons name="storefront-outline" size={26} color={colors.muted} />

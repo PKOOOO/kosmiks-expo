@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import {
-  Animated, View, Text, Image, TouchableOpacity, StyleSheet,
+  Animated, View, Text, TouchableOpacity, StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import UploadProgress from '@/components/UploadProgress';
+import RemoteImage from '@/components/RemoteImage';
 
 // Full-width landscape photos that stack while the page scrolls: each photo
 // pins near the top of the scroll view and the next one slides up over it,
@@ -88,7 +89,7 @@ export default function StackedPhotos({
             onPress={() => onReplace(index)}
             style={StyleSheet.absoluteFill}
           >
-            <Image source={{ uri: url }} style={styles.image} />
+            <RemoteImage source={{ uri: url }} style={styles.image} />
           </TouchableOpacity>
           {index === 0 && (
             <View pointerEvents="none" style={styles.coverBadge}>

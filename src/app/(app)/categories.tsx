@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, SafeAreaView, Modal } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -8,12 +8,13 @@ import { Category } from "@/types";
 import Header from "@/components/Header";
 import SideMenu from "@/components/SideMenu";
 import CategoryCardGrid from "@/components/CategoryCardGrid";
+import ErrorState from "@/components/ErrorState";
 
 const Categories: React.FC = () => {
   const router = useRouter();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
   const [isMenuVisible, setMenuVisible] = useState(false);
 
   const baseButtonColor = "#D7C3A7";
@@ -24,25 +25,24 @@ const Categories: React.FC = () => {
     PhilosopherBold: require("../../assets/app-fonts/Philosopher-Bold.ttf"),
   });
 
-  // Fetch categories from backend
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await getCategories();
-        setCategories(data);
-        console.log('Fetched categories:', data);
-      } catch (err) {
-        console.error('Error fetching categories:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch categories');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchCategories();
+  // Fetch categories from backend; also used by retry / reconnect
+  const fetchCategories = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await getCategories();
+      setCategories(data);
+    } catch (err) {
+      console.warn('Error fetching categories:', err);
+      setError(err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
 
   if (!fontsLoaded) {
     return null;
@@ -82,44 +82,8 @@ const Categories: React.FC = () => {
         )}
 
         {/* Error State */}
-        {error && (
-          <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-            <Text
-              style={{
-                fontFamily: "PhilosopherBold",
-                fontSize: 16,
-                color: "red",
-                textAlign: "center",
-                marginBottom: 20,
-              }}
-            >
-              Error: {error}
-            </Text>
-            <TouchableOpacity
-              style={{
-                backgroundColor: baseButtonColor,
-                paddingHorizontal: 20,
-                paddingVertical: 10,
-                borderRadius: 8,
-              }}
-              onPress={async () => {
-                setError(null);
-                setLoading(true);
-                try {
-                  const data = await getCategories();
-                  setCategories(data);
-                } catch (err) {
-                  setError(err instanceof Error ? err.message : 'Failed to fetch categories');
-                } finally {
-                  setLoading(false);
-                }
-              }}
-            >
-              <Text style={{ fontFamily: "PhilosopherBold", color: baseTextColor }}>
-                Retry
-              </Text>
-            </TouchableOpacity>
-          </View>
+        {!loading && error != null && (
+          <ErrorState error={error} onRetry={fetchCategories} style={{ flex: 1 }} />
         )}
 
         {/* Categories List with Custom Layout */}
@@ -145,7 +109,7 @@ const Categories: React.FC = () => {
                 textAlign: "center",
               }}
             >
-              No categories found
+              Kategorioita ei löytynyt
             </Text>
           </View>
         )}

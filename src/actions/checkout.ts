@@ -1,6 +1,7 @@
 // src/app/actions/checkout.ts
 import { API_ENDPOINTS } from "@/config/constants";
 import { SaloonService } from "@/types";
+import { apiFetch, ApiError } from '@/lib/api';
 
 export interface CustomerInfo {
   userId?: string;
@@ -59,7 +60,7 @@ const createCheckoutSession = async (
     
     console.log('Request URL:', API_ENDPOINTS.CHECKOUT);
     
-    const response = await fetch(API_ENDPOINTS.CHECKOUT, {
+    const response = await apiFetch(API_ENDPOINTS.CHECKOUT, {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -71,7 +72,7 @@ const createCheckoutSession = async (
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Checkout API error:', response.status, errorText);
-      throw new Error(`Checkout failed: ${response.status} ${errorText}`);
+      throw ApiError.http(response.status);
     }
     
     const data = await response.json();
@@ -131,7 +132,7 @@ export const confirmBooking = async (
       headers['X-User-Token'] = authToken;
     }
     
-    const response = await fetch(API_ENDPOINTS.CHECKOUT, {
+    const response = await apiFetch(API_ENDPOINTS.CHECKOUT, {
       method: 'PATCH',
       headers,
       body: JSON.stringify({

@@ -7,6 +7,7 @@ import getBookings from '../actions/get-bookings';
 import { getSalon, SalonDetails } from '../actions/get-salon';
 import useAuthStore from '@/store/auth.store';
 import { useAuth } from '@clerk/clerk-expo';
+import ErrorState from '@/components/ErrorState';
 
 interface MyBookingsProps {
   onBookingPress?: (booking: Booking) => void;
@@ -15,7 +16,7 @@ interface MyBookingsProps {
 const MyBookings: React.FC<MyBookingsProps> = ({ onBookingPress }) => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
   const [salonDetails, setSalonDetails] = useState<Record<string, SalonDetails>>({});
   const { user } = useAuthStore();
   const { getToken } = useAuth();
@@ -80,8 +81,8 @@ const MyBookings: React.FC<MyBookingsProps> = ({ onBookingPress }) => {
       
       setSalonDetails(salonDetailsMap);
     } catch (err) {
-      console.error('Error fetching bookings:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch bookings');
+      console.warn('Error fetching bookings:', err);
+      setError(err);
     } finally {
       setLoading(false);
     }
@@ -164,58 +165,8 @@ const MyBookings: React.FC<MyBookingsProps> = ({ onBookingPress }) => {
     );
   }
 
-  if (error) {
-    return (
-      <View style={{ 
-        backgroundColor: '#FFFFFF', 
-        borderRadius: 16, 
-        padding: 24, 
-        marginHorizontal: 24,
-        marginBottom: 24,
-        shadowColor: '#423120',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 2,
-        borderWidth: 1,
-        borderColor: '#E0D7CA',
-        alignItems: 'center'
-      }}>
-        <Ionicons name="alert-circle" size={48} color="#EF4444" />
-        <Text style={{ 
-          fontSize: 18, 
-          fontWeight: '600', 
-          color: '#423120', 
-          marginTop: 12,
-          textAlign: 'center'
-        }}>
-          Unable to load bookings
-        </Text>
-        <Text style={{ 
-          fontSize: 14, 
-          color: '#423120', 
-          marginTop: 8,
-          opacity: 0.7,
-          textAlign: 'center'
-        }}>
-          {error}
-        </Text>
-        <TouchableOpacity
-          onPress={fetchBookings}
-          style={{
-            backgroundColor: '#423120',
-            paddingHorizontal: 20,
-            paddingVertical: 10,
-            borderRadius: 8,
-            marginTop: 16
-          }}
-        >
-          <Text style={{ color: '#FFFFFF', fontWeight: '600' }}>
-            Try Again
-          </Text>
-        </TouchableOpacity>
-      </View>
-    );
+  if (error != null) {
+    return <ErrorState error={error} onRetry={fetchBookings} />;
   }
 
   console.log('Rendering MyBookings - bookings array length:', bookings.length);

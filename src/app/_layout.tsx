@@ -5,6 +5,7 @@ import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import OfflineBanner from "@/components/OfflineBanner";
 import { ClerkProvider, useAuth } from "@clerk/clerk-expo";
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
@@ -231,6 +232,7 @@ export default function Layout() {
           <SafeAreaProvider>
             <GluestackUIProvider mode="light">
               <Slot />
+              <OfflineBanner />
             </GluestackUIProvider>
           </SafeAreaProvider>
         </StripeProvider>

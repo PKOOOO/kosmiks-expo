@@ -13,6 +13,7 @@ import {
   formInputStyle, colors, relativeDay,
 } from '@/components/admin/AdminUI';
 import { usePageBottomSpace } from '@/lib/layout';
+import RemoteImage from '@/components/RemoteImage';
 
 const DOC_TITLES = ['Diploma or certificate', 'Professional license', 'Government ID'];
 const DOC_HEIGHT = Math.round((Dimensions.get('window').width - 32) * 0.6);
@@ -214,7 +215,7 @@ export default function ApplicationDetailScreen() {
             {docs.map((url, i) => (
               <TouchableOpacity key={`${url}-${i}`} activeOpacity={0.85} onPress={() => setViewer(url)}>
                 <Card style={{ overflow: 'hidden' }}>
-                  <Image source={{ uri: url }} style={{ width: '100%', height: DOC_HEIGHT, backgroundColor: colors.light }} resizeMode="cover" />
+                  <RemoteImage source={{ uri: url }} style={{ width: '100%', height: DOC_HEIGHT, backgroundColor: colors.light }} resizeMode="cover" />
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 }}>
                     <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 15, color: colors.dark }}>{DOC_TITLES[i] ?? `Document ${i + 1}`}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -279,7 +280,7 @@ export default function ApplicationDetailScreen() {
       {/* Full-screen document viewer */}
       <Modal visible={viewer !== null} transparent animationType="fade" onRequestClose={() => setViewer(null)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center' }}>
-          {viewer && <Image source={{ uri: viewer }} style={{ width: '100%', height: '80%' }} resizeMode="contain" />}
+          {viewer && <RemoteImage source={{ uri: viewer }} style={{ width: '100%', height: '80%' }} resizeMode="contain" />}
           <TouchableOpacity
             onPress={() => setViewer(null)}
             accessibilityLabel="Close document"

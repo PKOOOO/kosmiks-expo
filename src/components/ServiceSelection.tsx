@@ -11,7 +11,8 @@ import {
 } from 'react-native';
 import AntDesign from '@expo/vector-icons/AntDesign';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { LinearGradient } from 'expo-linear-gradient';
+import RemoteImage from '@/components/RemoteImage';
 
 const { width } = Dimensions.get('window');
 
@@ -277,7 +278,7 @@ function ServiceCard({ service, isSelected, onSelect }: any) {
             }}
           >
             {service.images.map((image: string, index: number) => (
-              <Image 
+              <RemoteImage 
                 key={index}
                 source={{ uri: image }}
                 style={{ width: width - 43 }}
@@ -472,7 +473,7 @@ function PopularServicesQuickBook({ services, onSelect, selectedId }: any) {
                 : 'border-[#E0D7CA] bg-white'
             }`}
           >
-            <Image 
+            <RemoteImage 
               source={{ uri: service.images[0] }}
               className="w-full h-32 rounded-t-xl"
               resizeMode="cover"
