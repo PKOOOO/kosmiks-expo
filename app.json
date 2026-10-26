@@ -34,16 +34,21 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/icon.png",
+          "icon": "./assets/notification-icon.png",
           "color": "#423120"
         }
       ],
       "@react-native-community/datetimepicker",
       "expo-status-bar",
-      "./plugins/with-stripe-android-fixes"
+      "./plugins/with-stripe-android-fixes",
+      "expo-image"
     ],
     "android": {
       "package": "com.kosmiks.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#423120"
+      },
       "versionCode": 1,
       "googleServicesFile": "./google-services.json",
       "permissions": [
