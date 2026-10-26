@@ -1,16 +1,41 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, SafeAreaView, Linking, Modal } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, ScrollView, SafeAreaView, Linking, Modal, StyleSheet, TouchableOpacity } from 'react-native';
+import type { ScrollViewInstance } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import Header from '@/components/Header';
 import SideMenu from '@/components/SideMenu';
+import { SUPPORT_EMAIL } from '@/lib/earnings';
 
 const darkBrown = "#423120";
 const lightBrown = "#D7C3A7";
-const veryLightBeige = "#F4EDE5";
 const white = "#FFFFFF";
 
+const PRIVACY_POLICY_URL = "https://www.kosmiks.com/privacy";
+
 type TabType = 'faq' | 'about' | 'contact' | 'terms' | 'privacy';
+
+const sections: { id: TabType; name: string }[] = [
+    { id: 'faq', name: 'FAQ' },
+    { id: 'about', name: 'Tietoja meistä' },
+    { id: 'contact', name: 'Ota yhteyttä' },
+    { id: 'terms', name: 'Ehdot' },
+    { id: 'privacy', name: 'Yksityisyys' },
+];
+
+const faqs = [
+    {
+        q: 'Miten voin varata palvelun?',
+        a: 'Siirry Palvelut-sivulle, valitse kategoria ja palvelu, ja valitse sinulle sopiva ajankohta.',
+    },
+    {
+        q: 'Voinko peruuttaa varaukseni?',
+        a: 'Kyllä. Voit peruuttaa varauksesi profiilisi "Omat varaukset" -osiossa peruutusehtojen mukaisesti.',
+    },
+    {
+        q: 'Mitä maksutapoja hyväksytään?',
+        a: 'Hyväksymme yleisimmät maksukortit. Maksut käsitellään turvallisesti Stripen kautta.',
+    },
+];
 
 export default function InfoPage() {
     const router = useRouter();
@@ -24,83 +49,72 @@ export default function InfoPage() {
         }
     }, [params.tab]);
 
-    const tabs: { key: TabType; label: string }[] = [
-        { key: 'faq', label: 'FAQ' },
-        { key: 'about', label: 'Tietoja meistä' },
-        { key: 'contact', label: 'Ota yhteyttä' },
-        { key: 'terms', label: 'Ehdot' },
-        { key: 'privacy', label: 'Yksityisyys' },
-    ];
+    // Keep the selected pill in view when a deep link opens a later section.
+    const pillsRef = useRef<ScrollViewInstance>(null);
+    const pillX = useRef<Partial<Record<TabType, number>>>({});
+    useEffect(() => {
+        const x = pillX.current[activeTab];
+        if (x !== undefined) pillsRef.current?.scrollTo({ x: Math.max(0, x - 20), animated: true });
+    }, [activeTab]);
 
     const renderContent = () => {
         switch (activeTab) {
             case 'faq':
                 return (
-                    <View>
-                        <Text style={styles.sectionTitle}>Usein kysytyt kysymykset</Text>
-
-                        <View style={styles.faqItem}>
-                            <Text style={styles.question}>Miten voin varata palvelun?</Text>
-                            <Text style={styles.answer}>Voit varata palvelun siirtymällä Palvelut-sivulle, valitsemalla kategorian, valitsemalla palvelun ja valitsemalla ajankohdan.</Text>
-                        </View>
-
-                        <View style={styles.faqItem}>
-                            <Text style={styles.question}>Voinko peruuttaa varaukseni?</Text>
-                            <Text style={styles.answer}>Kyllä, voit peruuttaa varauksesi profiilisi "Omat varaukset" -osiossa peruutusehtojen mukaisesti.</Text>
-                        </View>
-
-                        <View style={styles.faqItem}>
-                            <Text style={styles.question}>Mitä maksutapoja hyväksytään?</Text>
-                            <Text style={styles.answer}>Hyväksymme yleisimmät luottokortit ja verkkopankkimaksut Paytrailin kautta.</Text>
-                        </View>
-                    </View>
+                    <>
+                        <Text style={styles.title}>Usein kysytyt kysymykset</Text>
+                        {faqs.map((item, i) => (
+                            <View key={item.q} style={[styles.block, i > 0 && styles.divider]}>
+                                <Text style={styles.subTitle}>{item.q}</Text>
+                                <Text style={styles.paragraph}>{item.a}</Text>
+                            </View>
+                        ))}
+                    </>
                 );
             case 'about':
                 return (
-                    <View>
-                        <Text style={styles.sectionTitle}>Tietoja meistä</Text>
+                    <>
+                        <Text style={styles.title}>Tietoja meistä</Text>
                         <Text style={styles.paragraph}>
-                            KOSMIKS on ensisijainen kauneus- ja hyvinvointipalveluiden kohteesi. Yhdistämme sinut huippuammattilaisiin hiusten, kynsien, hieronnan ja muiden alojen parissa.
+                            KOSMIKS on kauneus- ja hyvinvointipalveluiden kohteesi. Yhdistämme sinut alan huippuammattilaisiin hiusten, kynsien, hieronnan ja muiden palveluiden parissa.
                         </Text>
                         <Text style={styles.paragraph}>
-                            Missiomme on tehdä itsehoidosta helppoa ja helppoa kaikille. Tarvitsetpa sitten nopeaa siistimistä tai kokonaisen kylpyläpäivän, me hoidamme kaiken.
+                            Missiomme on tehdä itsehoidosta helppoa kaikille. Tarvitsetpa sitten nopean siistimisen tai kokonaisen kylpyläpäivän, me hoidamme kaiken.
                         </Text>
-                    </View>
+                    </>
                 );
             case 'contact':
                 return (
-                    <View>
-                        <Text style={styles.sectionTitle}>Ota yhteyttä</Text>
+                    <>
+                        <Text style={styles.title}>Ota yhteyttä</Text>
                         <Text style={styles.paragraph}>
                             Onko sinulla kysyttävää tai palautetta? Kuulemme mielellämme sinusta!
                         </Text>
-
-                        <View style={styles.contactItem}>
-                            <Ionicons name="mail-outline" size={24} color={darkBrown} />
-                            <Text style={styles.contactText}>support@kosmiks.com</Text>
+                        <View style={[styles.block, styles.divider]}>
+                            <Text style={styles.label}>Sähköposti</Text>
+                            <Text
+                                style={[styles.paragraph, styles.link]}
+                                onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`).catch(() => { })}
+                            >
+                                {SUPPORT_EMAIL}
+                            </Text>
                         </View>
-
-                        <View style={styles.contactItem}>
-                            <Ionicons name="call-outline" size={24} color={darkBrown} />
-                            <Text style={styles.contactText}>+358 40 123 4567</Text>
+                        <View style={[styles.block, styles.divider]}>
+                            <Text style={styles.label}>Sijainti</Text>
+                            <Text style={styles.paragraph}>Helsinki, Suomi</Text>
                         </View>
-
-                        <View style={styles.contactItem}>
-                            <Ionicons name="location-outline" size={24} color={darkBrown} />
-                            <Text style={styles.contactText}>Helsinki, Finland</Text>
-                        </View>
-                    </View>
+                    </>
                 );
             case 'terms':
                 return (
-                    <View>
-                        <Text style={styles.sectionTitle}>Käyttöehdot</Text>
+                    <>
+                        <Text style={styles.title}>Käyttöehdot</Text>
                         <Text style={styles.paragraph}>
                             Tervetuloa Kosmiksiin. Käyttämällä sovellustamme hyväksyt nämä ehdot.
                         </Text>
                         <Text style={styles.subTitle}>1. Käyttäjätilit</Text>
                         <Text style={styles.paragraph}>
-                            Olet vastuussa Google-/Apple-tilisi luottamuksellisuuden säilyttämisestä.
+                            Olet vastuussa Google-tilisi luottamuksellisuuden säilyttämisestä.
                         </Text>
                         <Text style={styles.subTitle}>2. Varaukset</Text>
                         <Text style={styles.paragraph}>
@@ -110,24 +124,30 @@ export default function InfoPage() {
                         <Text style={styles.paragraph}>
                             Peruutukset on tehtävä vähintään 24 tuntia etukäteen maksujen välttämiseksi.
                         </Text>
-                    </View>
+                    </>
                 );
             case 'privacy':
                 return (
-                    <View>
-                        <Text style={styles.sectionTitle}>Tietosuojalausunto</Text>
+                    <>
+                        <Text style={styles.title}>Tietosuojaseloste</Text>
                         <Text style={styles.paragraph}>
-                            Tietosuojasi on meille tärkeää. Tässä käytännössä selitetään, miten keräämme ja käytämme tietojasi.
+                            Tietosuojasi on meille tärkeää. Tässä kerromme lyhyesti, miten keräämme ja käytämme tietojasi.
                         </Text>
                         <Text style={styles.subTitle}>Tiedonkeruu</Text>
                         <Text style={styles.paragraph}>
                             Keräämme tietoja, jotka annat meille suoraan, esimerkiksi luodessasi tilin tai varatessasi palvelun.
                         </Text>
-                        <Text style={styles.subTitle}>Datan käyttö</Text>
+                        <Text style={styles.subTitle}>Tietojen käyttö</Text>
                         <Text style={styles.paragraph}>
                             Käytämme tietojasi palvelujemme tarjoamiseen ja parantamiseen, maksujen käsittelyyn ja viestintään kanssasi.
                         </Text>
-                    </View>
+                        <Text
+                            style={[styles.paragraph, styles.link]}
+                            onPress={() => Linking.openURL(PRIVACY_POLICY_URL).catch(() => { })}
+                        >
+                            Lue koko tietosuojaseloste
+                        </Text>
+                    </>
                 );
             default:
                 return null;
@@ -155,106 +175,110 @@ export default function InfoPage() {
                 <SideMenu onClose={() => setMenuVisible(false)} />
             </Modal>
 
-            <View style={{ height: 70, backgroundColor: white, paddingVertical: 10 }}>
+            {/* Section pills: same filled beige as the category cards, one swipeable row */}
+            <View>
                 <ScrollView
+                    ref={pillsRef}
                     horizontal
                     showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={{ paddingHorizontal: 16, alignItems: 'center', height: 50 }}
+                    contentContainerStyle={styles.pills}
                 >
-                    {tabs.map((tab) => (
-                        <TouchableOpacity
-                            key={tab.key}
-                            onPress={() => setActiveTab(tab.key)}
-                            activeOpacity={0.8}
-                            style={{
-                                paddingVertical: 10,
-                                paddingHorizontal: 20,
-                                marginRight: 10,
-                                borderRadius: 25,
-                                backgroundColor: activeTab === tab.key ? lightBrown : white,
-                                borderWidth: 2,
-                                borderColor: activeTab === tab.key ? lightBrown : darkBrown,
-                                height: 45,
-                                justifyContent: 'center',
-                                alignItems: 'center',
-                                shadowColor: '#000',
-                                shadowOffset: { width: 0, height: 1 },
-                                shadowOpacity: 0.1,
-                                shadowRadius: 2,
-                                elevation: 2,
-                            }}
-                        >
-                            <Text style={{
-                                color: darkBrown,
-                                fontFamily: 'Philosopher-Bold',
-                                fontSize: 15
-                            }}>
-                                {tab.label}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
+                    {sections.map((section) => {
+                        const selected = section.id === activeTab;
+                        return (
+                            <TouchableOpacity
+                                key={section.id}
+                                activeOpacity={0.8}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected }}
+                                onPress={() => setActiveTab(section.id)}
+                                onLayout={(e) => {
+                                    pillX.current[section.id] = e.nativeEvent.layout.x;
+                                }}
+                                style={[styles.pill, selected && styles.pillSelected]}
+                            >
+                                <Text style={[styles.pillText, selected && styles.pillTextSelected]}>
+                                    {section.name}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
                 </ScrollView>
             </View>
 
-            <ScrollView style={{ flex: 1, padding: 20 }}>
+            <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
                 {renderContent()}
-                <View style={{ height: 40 }} />
             </ScrollView>
         </SafeAreaView>
     );
 }
 
-const styles = {
-    sectionTitle: {
-        fontSize: 24,
+const styles = StyleSheet.create({
+    pills: {
+        paddingHorizontal: 20,
+        paddingTop: 6,
+        paddingBottom: 14,
+        gap: 8,
+    },
+    pill: {
+        height: 44,
+        paddingHorizontal: 20,
+        borderRadius: 22,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: lightBrown,
+    },
+    pillSelected: {
+        backgroundColor: darkBrown,
+    },
+    pillText: {
+        fontSize: 16,
         fontFamily: 'Philosopher-Bold',
         color: darkBrown,
-        marginBottom: 20,
+    },
+    pillTextSelected: {
+        color: white,
+    },
+    content: {
+        paddingHorizontal: 20,
+        paddingTop: 10,
+        paddingBottom: 48,
+    },
+    title: {
+        fontSize: 26,
+        fontFamily: 'Philosopher-Bold',
+        color: darkBrown,
+        marginBottom: 16,
     },
     subTitle: {
         fontSize: 18,
         fontFamily: 'Philosopher-Bold',
         color: darkBrown,
-        marginTop: 16,
-        marginBottom: 8,
+        marginTop: 8,
+        marginBottom: 6,
     },
     paragraph: {
-        fontSize: 18,
+        fontSize: 16,
         fontFamily: 'Philosopher-Regular',
         color: darkBrown,
         lineHeight: 24,
         marginBottom: 12,
     },
-    faqItem: {
-        marginBottom: 20,
-        backgroundColor: veryLightBeige,
-        padding: 16,
-        borderRadius: 12,
-    },
-    question: {
-        fontSize: 18,
+    label: {
+        fontSize: 14,
         fontFamily: 'Philosopher-Bold',
         color: darkBrown,
-        marginBottom: 8,
+        opacity: 0.6,
+        marginBottom: 4,
     },
-    answer: {
-        fontSize: 18,
-        fontFamily: 'Philosopher-Regular',
-        color: darkBrown,
-        lineHeight: 22,
+    link: {
+        textDecorationLine: 'underline',
     },
-    contactItem: {
-        flexDirection: 'row' as 'row',
-        alignItems: 'center' as 'center',
-        marginBottom: 16,
-        backgroundColor: veryLightBeige,
-        padding: 16,
-        borderRadius: 12,
+    block: {
+        paddingTop: 12,
     },
-    contactText: {
-        marginLeft: 12,
-        fontSize: 18,
-        fontFamily: 'Philosopher-Regular',
-        color: darkBrown,
+    divider: {
+        borderTopWidth: 1,
+        borderTopColor: lightBrown,
     },
-};
+});
