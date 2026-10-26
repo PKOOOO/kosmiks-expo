@@ -15,10 +15,11 @@ import { router } from "expo-router";
 import Header from "@/components/Header";
 import SideMenu from "@/components/SideMenu";
 import { useClerk, useAuth, useUser } from "@clerk/clerk-expo";
+import { unregisterPushToken } from "@/lib/push";
 
 export default function ProfilePage() {
   const { signOut } = useClerk();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, getToken } = useAuth();
   const { user } = useUser();
   const [isMenuVisible, setMenuVisible] = React.useState(false);
   const [isSigningOut, setIsSigningOut] = React.useState(false);
@@ -59,6 +60,7 @@ export default function ProfilePage() {
         if (isSigningOut) return;
         setIsSigningOut(true);
         try {
+          await unregisterPushToken(getToken);
           await signOut();
           Alert.alert("Onnistui", "Olet kirjautunut ulos");
           router.replace("/");

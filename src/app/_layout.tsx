@@ -6,6 +6,7 @@ import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import OfflineBanner from "@/components/OfflineBanner";
+import { PUSH_TOKEN_STORAGE_KEY } from "@/lib/push";
 import { ClerkProvider, useAuth } from "@clerk/clerk-expo";
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
@@ -22,7 +23,6 @@ const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreCl
 // getExpoPushTokenAsync throw on standalone builds). Expo's recommended pattern.
 const EXPO_PUSH_PROJECT_ID =
   Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
-const PUSH_TOKEN_STORAGE_KEY = "expoPushToken";
 
 // Registers the device for push notifications once the user is signed in,
 // and reports the Expo push token to the backend.

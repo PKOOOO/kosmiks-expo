@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { unregisterPushToken } from '@/lib/push';
 import { API_BASE_URL } from '@/config/constants';
 
 const ADMIN_API_KEY = process.env.EXPO_PUBLIC_ADMIN_API_KEY || '';
@@ -19,6 +20,7 @@ export default function RejectedScreen() {
   const { getToken, signOut } = useAuth();
 
   const handleSignOut = async () => {
+    await unregisterPushToken(getToken);
     await signOut();
     router.replace('/sign-in' as any);
   };

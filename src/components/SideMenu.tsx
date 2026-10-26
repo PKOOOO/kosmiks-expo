@@ -5,6 +5,7 @@ import { useFonts } from "expo-font";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useClerk, useAuth } from "@clerk/clerk-expo";
+import { unregisterPushToken } from "@/lib/push";
 
 // New color scheme based on provided HEX codes
 const darkBrown = "#423120"; // Main dark brown
@@ -18,7 +19,7 @@ interface SideMenuProps {
 export default function SideMenu({ onClose }: SideMenuProps) {
   const router = useRouter();
   const { signOut } = useClerk();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, getToken } = useAuth();
   const insets = useSafeAreaInsets();
   const [isSigningOut, setIsSigningOut] = React.useState(false);
 
@@ -36,6 +37,7 @@ export default function SideMenu({ onClose }: SideMenuProps) {
     
     setIsSigningOut(true);
     try {
+      await unregisterPushToken(getToken);
       await signOut();
       onClose();
       router.replace('/');
