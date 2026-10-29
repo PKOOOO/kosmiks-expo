@@ -428,6 +428,15 @@ EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 - [x] **`CRON_SECRET` set in Vercel (Production, Sensitive) — 26 Oct 2026.** Both crons now run: `/api/cron/push-receipts` daily 04:00 UTC and **`/api/cron/payouts` every Friday 06:00 UTC — it had never run before**, so watch the first run (Vercel → Logs, `[CRON_PAYOUTS]`) and check the payouts it creates.
 - [x] **Push token unregistered on sign-out — 26 Oct 2026.** `unregisterPushToken(getToken)` (`src/lib/push.ts`) runs before every `signOut()` (side menu, profile, rejected screen) and calls `DELETE /api/user/push-token`, which only removes the token from the caller's own account. Best-effort, 5 s cap — never blocks sign-out.
 
+### 🔴 Booking & payment logic (found 29 Oct 2026 — not started)
+- [ ] **Customer cancel is fake.** "Peruuta varaus" in `src/app/(app)/bookings.tsx` (`confirmCancel`) only removes the booking from the local list — nothing reaches the server, the salon still expects the customer, no refund. Needs a real endpoint + a **cancellation rule (client to decide, e.g. free until 24 h before, then no refund)**; reuse `refundBooking()` (`lib/refunds.ts`) and notify the provider.
+- [ ] **No Stripe webhook.** Bookings are confirmed only when the app calls `PATCH /api/checkout` after paying. If the app is closed/offline right after payment, the card is charged but the booking stays `pending` (provider never sees it, customer gets no confirmation). Add a Stripe webhook (`payment_intent.succeeded`) that runs the same confirmation, idempotent with the existing PATCH (`updateMany` on `pending` only).
+- [ ] **Abandoned `pending` bookings block slots forever.** `available-slots` excludes everything except `cancelled`, so an opened-then-abandoned checkout keeps the slot taken. Expire unpaid `pending` bookings after ~30 min (cron, e.g. alongside `push-receipts`; check the PaymentIntent status first so a late payment isn't lost).
+- [ ] **Double booking possible.** The time picker hides taken slots, but `POST /api/checkout` doesn't re-check, so two customers paying for the same time at the same moment both get it. Re-check overlap (same logic as `available-slots`) inside checkout before creating the bookings.
+- [ ] **Watch the first Friday payouts cron run** (06:00 UTC, Vercel → Logs `[CRON_PAYOUTS]`) and check the payouts it creates against the 10% fee.
+- [ ] **C4 appointment reminder** — push to the customer the day before / a few hours before (cron).
+- [ ] Recommended order: webhook + expiry + double-booking re-check together (all testable in Stripe test mode), then customer cancel once the rule is decided.
+
 ### 🟡 Housekeeping
 - [ ] **Finish Cloudinary removal:** `CLOUDINARY_*` env vars **removed from Vercel (26 Oct 2026)**. Before deleting, verified: all 6 current provider documents exist in private R2, and nothing in the DB references Cloudinary. **Still to do (by hand — permanent deletion):** delete folder `cosmix/provider-documents` (and optionally `cosmix/salon-images`) on Cloudinary account `dhedbjqza` with CDN invalidation — the migrated documents are still publicly reachable there — then close accounts `dhedbjqza`, `dzmrvngco`, `dguk4ks45`
 - [ ] Mark `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` as **Sensitive** in Vercel
@@ -435,7 +444,6 @@ EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 - [ ] Set up a Neon dev branch so local work stops hitting production
 - [ ] Uninstall `@clerk/nextjs` — zero importers remain
 - [ ] Likely-orphaned, not yet deleted: `components/settings/stripe-connect.tsx`, `hooks/billing/`, `components/main-nav.tsx`, `components/mobile-bottom-nav.tsx`, `components/loader.tsx`
-- [ ] Replace the mock salon fallback in `map.tsx` (fake Helsinki pins) with an empty state
 
 ### 🔵 Blocked on client
 - [ ] **Apple Developer account — $99/year.** Blocks iOS testing, App Store submission, APNs push, Apple Pay merchant cert, and Sign in with Apple.
