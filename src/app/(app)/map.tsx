@@ -16,6 +16,7 @@ import { describeError } from "@/lib/api";
 import { useIsOffline, useOnReconnect } from "@/lib/network";
 import RemoteImage from '@/components/RemoteImage';
 import { getOpeningStatus, TimeSlot } from '@/lib/opening-hours';
+import { MAPBOX_LOADER_JS, KOSMIKS_PIN_CSS, KOSMIKS_PIN_JS } from '@/lib/map-html';
 
 // Extended interface for map salon data
 interface MapSalon extends Saloon {
@@ -479,54 +480,7 @@ export default function MapScreen() {
           .popup-title { font-weight: bold; font-size: 16px; margin-bottom: 6px; color: #423120; }
           .popup-details { font-size: 14px; color: #5c4a38; margin-bottom: 4px; }
 
-          /* Kosmiks salon pin: name pill, round head with the arch-K, tip */
-          .kpin { display: flex; flex-direction: column; align-items: center; cursor: pointer; }
-          .kpin-label {
-            background: #FFFFFF;
-            color: #423120;
-            font-family: 'Philosopher', Georgia, serif;
-            font-weight: 700;
-            font-size: 13px;
-            padding: 4px 10px;
-            border-radius: 12px;
-            margin-bottom: 4px;
-            white-space: nowrap;
-            max-width: 140px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            box-shadow: 0 2px 6px rgba(66, 49, 32, 0.25);
-          }
-          .kpin-head {
-            position: relative;
-            width: 40px; height: 40px;
-            border-radius: 50%;
-            background: #423120;
-            border: 3px solid #FFFFFF;
-            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
-            display: flex; align-items: center; justify-content: center;
-            transition: transform 0.25s ease;
-          }
-          .kpin-tip {
-            width: 0; height: 0;
-            border-left: 7px solid transparent;
-            border-right: 7px solid transparent;
-            border-top: 9px solid #FFFFFF;
-            margin-top: -2px;
-          }
-          .kpin.selected .kpin-head { transform: scale(1.22); }
-          .kpin.selected .kpin-label { background: #423120; color: #FFFFFF; }
-          .kpin.selected .kpin-head::after {
-            content: '';
-            position: absolute;
-            inset: -10px;
-            border-radius: 50%;
-            border: 3px solid #D7C3A7;
-            animation: kpulse 1.8s ease-out infinite;
-          }
-          @keyframes kpulse {
-            0% { transform: scale(0.85); opacity: 0.9; }
-            100% { transform: scale(1.5); opacity: 0; }
-          }
+          ${KOSMIKS_PIN_CSS}
 
           /* You-are-here dot */
           .me { width: 16px; height: 16px; border-radius: 50%; background: #007AFF; border: 3px solid #FFFFFF; box-shadow: 0 0 0 6px rgba(0, 122, 255, 0.2); }
@@ -541,15 +495,10 @@ export default function MapScreen() {
           var SALONS = ${JSON.stringify(markers)};
           var BOTTOM_PAD = 420; // keeps the selected salon above the bottom card
 
-          // Mapbox GL JS v3 requires WebGL2.
-          var gl2 = (function () {
-            try { return !!document.createElement('canvas').getContext('webgl2'); } catch (e) { return false; }
-          })();
-          // 3D buildings are heavy: keep the map flat on weaker phones.
-          var use3d = gl2 && (navigator.hardwareConcurrency || 8) > 4;
+          ${MAPBOX_LOADER_JS}
+          ${KOSMIKS_PIN_JS}
           var PITCH = use3d ? 55 : 0;
           var BEARING = use3d ? -17 : 0;
-          var version = gl2 ? '3.32.0' : '2.15.0';
 
           var map = null;
           var markerEls = {};
@@ -560,31 +509,6 @@ export default function MapScreen() {
 
           function post(message) {
             if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(message));
-          }
-
-          // Light follows the device clock.
-          function lightPreset() {
-            var h = new Date().getHours();
-            if (h < 5 || h >= 21) return 'night';
-            if (h < 8) return 'dawn';
-            if (h < 17) return 'day';
-            return 'dusk';
-          }
-
-          // Arch with the petal K, white on the brown pin head.
-          var ARCH_ICON =
-            '<svg width="17" height="22" viewBox="48 40 104 132" aria-hidden="true">' +
-            '<path d="M48 168 Q48 172 52 172 H148 Q152 172 152 168 V92 A52 52 0 0 0 48 92 Z" fill="#FFFFFF"/>' +
-            '<g transform="translate(28 47) scale(0.7)" fill="#423120">' +
-            '<rect x="66" y="50" width="14" height="100" rx="7"/>' +
-            '<path d="M88 100 C 96 72 114 56 140 50 C 134 76 116 94 88 100 Z"/>' +
-            '<path d="M88 100 C 116 106 134 124 140 150 C 114 144 96 128 88 100 Z"/>' +
-            '</g></svg>';
-
-          function load(url, isCss, done) {
-            var el = document.createElement(isCss ? 'link' : 'script');
-            if (isCss) { el.rel = 'stylesheet'; el.href = url; } else { el.src = url; el.onload = done; }
-            document.head.appendChild(el);
           }
 
           // Screen-space centre of a building footprint.
@@ -674,7 +598,7 @@ export default function MapScreen() {
             mapboxgl.accessToken = TOKEN;
             var options = { container: 'map', center: CENTER, zoom: 14.5 };
             if (gl2) {
-              options.style = 'mapbox://styles/mapbox/standard';
+              options.style = MAPBOX_STYLE;
               options.config = {
                 basemap: {
                   lightPreset: lightPreset(),
@@ -688,7 +612,7 @@ export default function MapScreen() {
               options.pitch = PITCH;
               options.bearing = BEARING;
             } else {
-              options.style = 'mapbox://styles/mapbox/streets-v12';
+              options.style = MAPBOX_STYLE;
             }
             map = new mapboxgl.Map(options);
 
@@ -705,19 +629,7 @@ export default function MapScreen() {
             }
 
             SALONS.forEach(function (salon) {
-              var pin = document.createElement('div');
-              pin.className = 'kpin';
-              var label = document.createElement('div');
-              label.className = 'kpin-label';
-              label.textContent = salon.name;
-              var head = document.createElement('div');
-              head.className = 'kpin-head';
-              head.innerHTML = ARCH_ICON;
-              var tip = document.createElement('div');
-              tip.className = 'kpin-tip';
-              pin.appendChild(label);
-              pin.appendChild(head);
-              pin.appendChild(tip);
+              var pin = makeKosmiksPin(salon.name, false);
               pin.addEventListener('click', function (e) {
                 e.stopPropagation();
                 selectSalon(salon.id, true);
@@ -727,11 +639,10 @@ export default function MapScreen() {
               new mapboxgl.Marker({ element: pin, anchor: 'bottom' }).setLngLat([salon.lng, salon.lat]).addTo(map);
             });
 
-            map.on('load', function () { post({ type: 'mapReady', engine: version, threeD: use3d }); });
+            map.on('load', function () { post({ type: 'mapReady', engine: MAPBOX_VERSION, threeD: use3d }); });
           }
 
-          load('https://api.mapbox.com/mapbox-gl-js/v' + version + '/mapbox-gl.css', true);
-          load('https://api.mapbox.com/mapbox-gl-js/v' + version + '/mapbox-gl.js', false, init);
+          loadMapbox(init);
         </script>
       </body>
       </html>

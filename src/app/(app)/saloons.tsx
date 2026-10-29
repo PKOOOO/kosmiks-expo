@@ -12,6 +12,7 @@ import SideMenu from "@/components/SideMenu";
 import ErrorState from "@/components/ErrorState";
 import { ApiError } from "@/lib/api";
 import { MAPBOX_TOKEN, hasMapboxToken, MAP_UNAVAILABLE_HTML } from "@/config/constants";
+import { MAPBOX_LOADER_JS, KOSMIKS_PIN_CSS, KOSMIKS_PIN_JS } from "@/lib/map-html";
 import RemoteImage from '@/components/RemoteImage';
 
 const darkBrown = "#3C2C1E";
@@ -145,42 +146,16 @@ const Saloons = () => {
         }
     };
 
-    // Generate HTML for the mini map in the hero box
+    // Generate HTML for the mini map in the hero box: same engine, style and
+    // pins as the main map (src/lib/map-html.ts), non-interactive.
     const generateMiniMapHTML = (saloonsList: SaloonData[]) => {
         if (!hasMapboxToken()) return MAP_UNAVAILABLE_HTML;
 
-        // Default location (Helsinki, Finland)
-        let centerLat = 60.1699;
-        let centerLng = 24.9384;
-
-        // Filter saloons with valid location and limit to 10
-        const validSaloons = saloonsList.filter(s => s.latitude && s.longitude).slice(0, 10);
-
-        if (validSaloons.length > 0) {
-            centerLat = validSaloons[0].latitude!;
-            centerLng = validSaloons[0].longitude!;
-        }
-
-        const markersJS = validSaloons.map(s => `
-            (function() {
-                const el = document.createElement('div');
-                el.style.width = '32px';
-                el.style.height = '32px';
-                el.style.borderRadius = '50%';
-                el.style.backgroundColor = '#3C2C1E';
-                el.style.border = '3px solid white';
-                el.style.display = 'flex';
-                el.style.alignItems = 'center';
-                el.style.justifyContent = 'center';
-                el.style.fontSize = '16px';
-                el.innerHTML = '✂️';
-                el.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
-
-                new mapboxgl.Marker(el)
-                    .setLngLat([${s.longitude}, ${s.latitude}])
-                    .addTo(map);
-            })();
-        `).join('\n');
+        // Salons with a location, at most 10; default view is central Helsinki.
+        const points = saloonsList
+            .filter(s => s.latitude && s.longitude)
+            .slice(0, 10)
+            .map(s => [Number(s.longitude), Number(s.latitude)]);
 
         return `
 <!DOCTYPE html>
@@ -188,27 +163,60 @@ const Saloons = () => {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
-    <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
     <style>
-        body { margin: 0; padding: 0; }
+        html, body { margin: 0; padding: 0; height: 100%; }
         #map { width: 100%; height: 100vh; }
-        .mapboxgl-ctrl-logo, .mapboxgl-ctrl-attrib { display: none !important; }
+        ${KOSMIKS_PIN_CSS}
     </style>
 </head>
 <body>
     <div id='map'></div>
     <script>
-        mapboxgl.accessToken = '${MAPBOX_TOKEN}';
-        const map = new mapboxgl.Map({
-            container: 'map',
-            style: 'mapbox://styles/mapbox/streets-v12',
-            center: [${centerLng}, ${centerLat}],
-            zoom: 12,
-            interactive: false
-        });
+        var TOKEN = '${MAPBOX_TOKEN}';
+        var POINTS = ${JSON.stringify(points)};
+        ${MAPBOX_LOADER_JS}
+        ${KOSMIKS_PIN_JS}
 
-        ${markersJS}
+        loadMapbox(function () {
+            mapboxgl.accessToken = TOKEN;
+            var options = {
+                container: 'map',
+                style: MAPBOX_STYLE,
+                center: POINTS[0] || [24.9384, 60.1699],
+                zoom: 13,
+                interactive: false,
+                attributionControl: false
+            };
+            if (gl2) {
+                options.config = {
+                    basemap: {
+                        lightPreset: lightPreset(),
+                        theme: 'faded',
+                        showPointOfInterestLabels: false,
+                        show3dObjects: use3d
+                    }
+                };
+                options.pitch = use3d ? 45 : 0;
+            }
+            var map = new mapboxgl.Map(options);
+            // Mapbox's terms require the logo and attribution: keep them, compact.
+            map.addControl(new mapboxgl.AttributionControl({ compact: true }));
+
+            POINTS.forEach(function (point) {
+                new mapboxgl.Marker({ element: makeKosmiksPin('', true), anchor: 'bottom' })
+                    .setLngLat(point)
+                    .addTo(map);
+            });
+
+            // Frame every salon; a single salon gets a close-up instead.
+            if (POINTS.length > 1) {
+                var bounds = new mapboxgl.LngLatBounds(POINTS[0], POINTS[0]);
+                POINTS.forEach(function (point) { bounds.extend(point); });
+                map.fitBounds(bounds, { padding: 50, maxZoom: 15, duration: 0, pitch: options.pitch || 0 });
+            } else if (POINTS.length === 1) {
+                map.jumpTo({ center: POINTS[0], zoom: 15, pitch: options.pitch || 0 });
+            }
+        });
     </script>
 </body>
 </html>

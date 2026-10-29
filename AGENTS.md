@@ -254,7 +254,11 @@ curl -X POST https://exp.host/--/api/v2/push/getReceipts \
 - **Backend:** `GET /api/public/saloons/map` returns `timeSlots` (opening hours) and reviewers' first names only.
 - The Mapbox **Places API** (business details, busy times) was evaluated and **not used**: public preview, busyness only for North America/Western Europe, and providers already enter their own hours/photos.
 
-**Not yet redesigned:** the salon map in `saloons.tsx` and `AddressMapPicker.tsx` (Phase 3 location picker) are still on v2.15 + `streets-v12`. The picker should stay flat (no pitch) for precise pinning.
+**All three map pages share `src/lib/map-html.ts`** (29 Oct 2026): `MAPBOX_LOADER_JS` (WebGL2 check → v3.32.0 + Standard or v2.15.0 + `streets-v12`; defines `gl2`, `use3d`, `MAPBOX_STYLE`, `lightPreset()`, `loadMapbox(cb)`), `KOSMIKS_PIN_CSS` / `KOSMIKS_PIN_JS` (`makeKosmiksPin(name, small)`). Bump the GL JS version there, once.
+- **Salon list mini map** (`saloons.tsx`): non-interactive, Standard + light preset + faded theme, POI labels off, pitch 45 on capable phones, small Kosmiks pins, `fitBounds` around all salons (pass `pitch` — `fitBounds` resets it).
+- **Address picker** (`AddressMapPicker.tsx`, Phase 3 + provider salon screen): Standard, **always flat, `lightPreset: 'day'`, `show3dObjects: false`** for precise pinning; keeps its own green location pin. `window.setMarker/setMarkerLabel/setMarkerIcon` exist before the map loads (RN calls them on mount); an early `setMarker` is applied once ready.
+- All three keep the **Mapbox logo + compact attribution** (they used to be hidden with CSS — Mapbox's terms require them).
+- Verified in Chrome against real salons (3D, pins, building highlight, night preset, picker label/move).
 
 ## 9. Infrastructure
 

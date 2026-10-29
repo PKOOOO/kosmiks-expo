@@ -6,6 +6,7 @@ import { WebView } from '@/components/WebView';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { MAPBOX_TOKEN, hasMapboxToken, MAP_UNAVAILABLE_HTML } from '@/config/constants';
+import { MAPBOX_LOADER_JS } from '@/lib/map-html';
 import { forwardGeocode, reverseGeocode as lookupAddress } from '@/lib/geocode';
 
 
@@ -48,9 +49,18 @@ type Props = {
   onPinDrop?: () => void;
 };
 
+// Pin icons for the 'location' marker variant.
+const PIN_ICON_HOME = '<path d="M19 29L32 18L45 29V44H36V34H28V44H19V29Z" fill="none" stroke="#171411" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>';
+const PIN_ICON_GLOBE = '<path d="M14 31H50M32 13C25 19 22 25 22 31C22 38 25 44 32 49M32 13C39 19 42 25 42 31C42 38 39 44 32 49" fill="none" stroke="#171411" stroke-width="3" stroke-linecap="round"/>';
+
 // Build the Mapbox HTML once. The marker is draggable and the map is tappable;
 // both post the new {lat,lng} back to React Native. `window.setMarker` lets RN
 // move the marker after a text search resolves to coordinates.
+//
+// Same engine and style as the other maps (src/lib/map-html.ts), but always
+// flat and in daylight: providers need to place the pin precisely. The window.*
+// functions exist before the map has loaded (RN calls them on mount); early
+// calls are applied once it is ready.
 const buildHTML = (
   lat: number,
   lng: number,
@@ -63,17 +73,26 @@ const buildHTML = (
   // No token: show a static notice rather than a map whose accessToken
   // would be the literal string 'undefined'. hasMapboxToken() logs once.
   if (!hasMapboxToken()) return MAP_UNAVAILABLE_HTML;
+
+  const locationMarkerHTML = `
+    <div class="salon-marker-label" style="display:${showMarkerLabel && markerLabel ? 'flex' : 'none'}">
+      <span class="salon-marker-label-icon"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 3L10.2 13.8M21 3L14.2 21L10.2 13.8M21 3L3 9.8L10.2 13.8" stroke="#423120" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <span class="salon-marker-label-copy"><span class="salon-marker-label-title"></span><span class="salon-marker-label-subtitle"></span></span>
+    </div>
+    <svg viewBox="0 0 64 82" xmlns="http://www.w3.org/2000/svg">
+      <path d="M32 79C28 66 5 52 5 31C5 14 17 3 32 3C47 3 59 14 59 31C59 52 36 66 32 79Z" fill="#43D59E" stroke="#087A5D" stroke-width="5"/>
+      <circle cx="32" cy="31" r="18" fill="#FFFFFF" stroke="#171411" stroke-width="3"/>
+      <g class="salon-pin-icon">${markerIcon === 'home' ? PIN_ICON_HOME : PIN_ICON_GLOBE}</g>
+    </svg>`;
+
   return `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
-  <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
   <style>
     body, html, #map { margin: 0; padding: 0; height: 100%; width: 100%; }
-    .mapboxgl-ctrl-logo, .mapboxgl-ctrl-bottom-right { display: none !important; }
     .salon-location-marker { position: relative; width: 46px; height: 60px; overflow: visible; }
     .salon-location-marker > svg { width: 46px; height: 60px; display: block; filter: drop-shadow(0 2px 2px rgba(0,0,0,.20)); }
     .salon-marker-label {
@@ -134,43 +153,12 @@ const buildHTML = (
 <body>
   <div id="map"></div>
   <script>
-    mapboxgl.accessToken = '${MAPBOX_TOKEN}';
-    const map = new mapboxgl.Map({
-      container: 'map',
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: [${lng}, ${lat}],
-      zoom: 13,
-    });
+    ${MAPBOX_LOADER_JS}
 
-    const markerOptions = { color: '${darkBrown}', draggable: true };
-    if ('${markerVariant}' === 'location') {
-      const markerElement = document.createElement('div');
-      markerElement.className = 'salon-location-marker';
-      markerElement.innerHTML = \`
-        <div class="salon-marker-label" style="display:${showMarkerLabel && markerLabel ? 'flex' : 'none'}">
-          <span class="salon-marker-label-icon"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 3L10.2 13.8M21 3L14.2 21L10.2 13.8M21 3L3 9.8L10.2 13.8" stroke="#423120" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-          <span class="salon-marker-label-copy"><span class="salon-marker-label-title"></span><span class="salon-marker-label-subtitle"></span></span>
-        </div>
-        <svg viewBox="0 0 64 82" xmlns="http://www.w3.org/2000/svg">
-          <path d="M32 79C28 66 5 52 5 31C5 14 17 3 32 3C47 3 59 14 59 31C59 52 36 66 32 79Z" fill="#43D59E" stroke="#087A5D" stroke-width="5"/>
-          <circle cx="32" cy="31" r="18" fill="#FFFFFF" stroke="#171411" stroke-width="3"/>
-          <g class="salon-pin-icon">${markerIcon === 'home'
-            ? '<path d="M19 29L32 18L45 29V44H36V34H28V44H19V29Z" fill="none" stroke="#171411" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>'
-            : '<path d="M14 31H50M32 13C25 19 22 25 22 31C22 38 25 44 32 49M32 13C39 19 42 25 42 31C42 38 39 44 32 49" fill="none" stroke="#171411" stroke-width="3" stroke-linecap="round"/>'}</g>
-        </svg>\`;
-      markerElement.querySelector('.salon-marker-label-title').textContent = ${JSON.stringify(compactMarkerLabel(markerLabel))};
-      markerElement.querySelector('.salon-marker-label-subtitle').textContent = ${JSON.stringify(markerSubtitle)};
-      markerElement.addEventListener('click', function (event) {
-        event.stopPropagation();
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'marker-press' }));
-      });
-      markerOptions.element = markerElement;
-      markerOptions.anchor = 'bottom';
-    }
-
-    const marker = new mapboxgl.Marker(markerOptions)
-      .setLngLat([${lng}, ${lat}])
-      .addTo(map);
+    var START = [${lng}, ${lat}];
+    var map = null;
+    var marker = null;
+    var pending = null; // a setMarker call that arrived before the map loaded
 
     function post(lngLat, source) {
       window.ReactNativeWebView.postMessage(JSON.stringify({
@@ -178,38 +166,76 @@ const buildHTML = (
       }));
     }
 
-    marker.on('dragend', () => post(marker.getLngLat(), 'marker-drag-end'));
-    let mapIsDragging = false;
-    map.on('dragstart', () => { mapIsDragging = true; });
-    map.on('move', () => {
-      if (mapIsDragging) marker.setLngLat(map.getCenter());
-    });
-    map.on('dragend', () => {
-      mapIsDragging = false;
-      const center = map.getCenter();
-      marker.setLngLat(center);
-      post(center, 'map-drag-end');
-    });
+    // The custom pin needs no map, so build it now: RN can update its label and
+    // icon straight away.
+    var markerElement = null;
+    if (${JSON.stringify(markerVariant)} === 'location') {
+      markerElement = document.createElement('div');
+      markerElement.className = 'salon-location-marker';
+      markerElement.innerHTML = ${JSON.stringify(locationMarkerHTML)};
+      markerElement.querySelector('.salon-marker-label-title').textContent = ${JSON.stringify(compactMarkerLabel(markerLabel))};
+      markerElement.querySelector('.salon-marker-label-subtitle').textContent = ${JSON.stringify(markerSubtitle)};
+      markerElement.addEventListener('click', function (event) {
+        event.stopPropagation();
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'marker-press' }));
+      });
+    }
 
     // Called from React Native when a text search resolves to coordinates.
     window.setMarker = function (lat, lng) {
+      if (!map) { pending = [lng, lat]; return; }
       marker.setLngLat([lng, lat]);
       map.easeTo({ center: [lng, lat], zoom: 15 });
     };
     window.setMarkerLabel = function (title, subtitle) {
-      const label = marker.getElement().querySelector('.salon-marker-label');
+      var label = markerElement && markerElement.querySelector('.salon-marker-label');
       if (!label) return;
       label.style.display = title ? 'flex' : 'none';
       label.querySelector('.salon-marker-label-title').textContent = title || '';
       label.querySelector('.salon-marker-label-subtitle').textContent = subtitle || '';
     };
     window.setMarkerIcon = function (icon) {
-      const target = marker.getElement().querySelector('.salon-pin-icon');
+      var target = markerElement && markerElement.querySelector('.salon-pin-icon');
       if (!target) return;
-      target.innerHTML = icon === 'home'
-        ? '<path d="M19 29L32 18L45 29V44H36V34H28V44H19V29Z" fill="none" stroke="#171411" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>'
-        : '<path d="M14 31H50M32 13C25 19 22 25 22 31C22 38 25 44 32 49M32 13C39 19 42 25 42 31C42 38 39 44 32 49" fill="none" stroke="#171411" stroke-width="3" stroke-linecap="round"/>';
+      target.innerHTML = icon === 'home' ? ${JSON.stringify(PIN_ICON_HOME)} : ${JSON.stringify(PIN_ICON_GLOBE)};
     };
+
+    loadMapbox(function () {
+      mapboxgl.accessToken = '${MAPBOX_TOKEN}';
+      var options = { container: 'map', style: MAPBOX_STYLE, center: START, zoom: 13, attributionControl: false };
+      if (gl2) {
+        options.config = {
+          basemap: {
+            lightPreset: 'day',      // always readable for precise pinning
+            theme: 'faded',
+            show3dObjects: false     // flat: buildings must not hide the pin
+          }
+        };
+      }
+      map = new mapboxgl.Map(options);
+      // Mapbox's terms require the logo and attribution: keep them, compact.
+      map.addControl(new mapboxgl.AttributionControl({ compact: true }));
+
+      var markerOptions = markerElement
+        ? { element: markerElement, anchor: 'bottom', draggable: true }
+        : { color: '${darkBrown}', draggable: true };
+      marker = new mapboxgl.Marker(markerOptions).setLngLat(START).addTo(map);
+
+      marker.on('dragend', function () { post(marker.getLngLat(), 'marker-drag-end'); });
+      var mapIsDragging = false;
+      map.on('dragstart', function () { mapIsDragging = true; });
+      map.on('move', function () {
+        if (mapIsDragging) marker.setLngLat(map.getCenter());
+      });
+      map.on('dragend', function () {
+        mapIsDragging = false;
+        var center = map.getCenter();
+        marker.setLngLat(center);
+        post(center, 'map-drag-end');
+      });
+
+      if (pending) { window.setMarker(pending[1], pending[0]); pending = null; }
+    });
   </script>
 </body>
 </html>`;
