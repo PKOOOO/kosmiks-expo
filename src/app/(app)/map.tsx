@@ -15,6 +15,7 @@ import { MAPBOX_TOKEN, hasMapboxToken, MAP_UNAVAILABLE_HTML } from "@/config/con
 import { describeError } from "@/lib/api";
 import { useIsOffline, useOnReconnect } from "@/lib/network";
 import RemoteImage from '@/components/RemoteImage';
+import { getOpeningStatus, TimeSlot } from '@/lib/opening-hours';
 
 // Extended interface for map salon data
 interface MapSalon extends Saloon {
@@ -22,7 +23,12 @@ interface MapSalon extends Saloon {
   longitude: number;
   averageRating: number;
   reviewCount: number;
+  timeSlots?: TimeSlot[];
 }
+
+// Bottom salon cards: one card per screen width, with a peek of the next.
+const CARD_WIDTH = Dimensions.get('window').width - 48;
+const CARD_GAP = 12;
 
 const normalizeSearchText = (value: string) => (value || '')
   .normalize('NFC')
@@ -247,22 +253,6 @@ export default function MapScreen() {
     }
   }, [selectedSalon?.id, displayedSalons]);
 
-  const onMarkerPress = (salon: MapSalon) => {
-    setSelectedSalon(salon);
-    const services = (salon.saloonServices ?? [])
-      .map(s => s.service?.name)
-      .filter(Boolean)
-      .join(', ');
-    Alert.alert(
-      salon.name,
-      `Palvelut: ${services}\nArvio: ${salon.averageRating.toFixed(1)}/5 (${salon.reviewCount} arvostelua)\nOsoite: ${salon.address || 'Ei määritelty'}`,
-      [
-        { text: 'Peruuta', style: 'cancel' },
-        { text: 'Varaa aika', onPress: () => router.push('/bookings') },
-      ]
-    );
-  };
-
   const centerOnUserLocation = () => {
     if (userLocation) {
       // Send message to WebView to center on user location
@@ -275,15 +265,10 @@ export default function MapScreen() {
     }
   };
 
-  // Just center the map on salon (used by search button)
+  // Fly the map to a salon and highlight it (pin + 3D building).
   const centerMapOnSalon = (salon: MapSalon) => {
     if (webViewRef) {
-      const message = JSON.stringify({
-        type: 'centerOnLocation',
-        latitude: salon.latitude,
-        longitude: salon.longitude,
-      });
-      webViewRef.postMessage(message);
+      webViewRef.postMessage(JSON.stringify({ type: 'selectSalon', salonId: salon.id }));
     }
     setSearchVisible(false);
   };
@@ -460,20 +445,18 @@ export default function MapScreen() {
     const centerLat = userLocation?.latitude || 60.1699;
     const centerLng = userLocation?.longitude || 24.9384;
 
-    const markers = displayedSalons.map(salon => ({
-      id: salon.id,
-      name: salon.name,
-      lat: salon.latitude,
-      lng: salon.longitude,
-      rating: salon.averageRating,
-      reviewCount: salon.reviewCount,
-      services: (salon.saloonServices ?? [])
-        .map(s => s.service?.name)
-        .filter(Boolean)
-        .join(', '),
-      address: salon.address || 'Ei määritelty'
-    }));
+    const markers = displayedSalons
+      .filter((salon) => Number.isFinite(Number(salon.latitude)) && Number.isFinite(Number(salon.longitude)))
+      .map((salon) => ({
+        id: salon.id,
+        name: salon.name,
+        lat: Number(salon.latitude),
+        lng: Number(salon.longitude),
+      }));
 
+    // Everything below runs inside the WebView. Mapbox GL JS v3 with the
+    // Standard style (3D buildings, light presets) when the device has WebGL2;
+    // otherwise the previous v2 + streets-v12 map, so it never goes blank.
     return `
       <!DOCTYPE html>
       <html>
@@ -481,215 +464,274 @@ export default function MapScreen() {
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <title>Map</title>
-        <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
-        <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link href="https://fonts.googleapis.com/css2?family=Philosopher:wght@700&display=swap" rel="stylesheet">
         <style>
-          body { margin: 0; padding: 0; }
+          html, body { margin: 0; padding: 0; height: 100%; }
           #map { width: 100%; height: 100vh; }
           a { pointer-events: none; }
-          * { -webkit-touch-callout: none; -webkit-user-select: none; }
+          * { -webkit-touch-callout: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
           .mapboxgl-popup-content {
-            border-radius: 12px;
-            padding: 16px;
+            border-radius: 14px;
+            padding: 14px 16px;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           }
-          .popup-title {
-            font-weight: bold;
-            font-size: 16px;
-            margin-bottom: 8px;
+          .popup-title { font-weight: bold; font-size: 16px; margin-bottom: 6px; color: #423120; }
+          .popup-details { font-size: 14px; color: #5c4a38; margin-bottom: 4px; }
+
+          /* Kosmiks salon pin: name pill, round head with the arch-K, tip */
+          .kpin { display: flex; flex-direction: column; align-items: center; cursor: pointer; }
+          .kpin-label {
+            background: #FFFFFF;
             color: #423120;
-          }
-          .popup-details {
-            font-size: 14px;
-            color: #666;
+            font-family: 'Philosopher', Georgia, serif;
+            font-weight: 700;
+            font-size: 13px;
+            padding: 4px 10px;
+            border-radius: 12px;
             margin-bottom: 4px;
-          }
-          .popup-button {
-            background-color: #D7C3A7;
-            color: #423120;
-            border: 2px solid #423120;
-            padding: 12px 16px;
-            border-radius: 8px;
-            margin-top: 8px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: bold;
-            transition: all 0.2s ease;
-          }
-          .popup-button:hover {
-            background-color: #423120;
-            color: #D7C3A7;
-          }
-          .salon-marker {
-            font-size: 30px;
-            cursor: pointer;
-            position: relative;
-            overflow: visible;
-          }
-          .salon-label {
-            pointer-events: none;
-            user-select: none;
-            
-            padding: 6px 10px;
-            border-radius: 15px;
-            font-size: 20px;
-            font-weight: bold;
-            color: #423120;
             white-space: nowrap;
-            max-width: 100px;
-            text-align: center;
-            
-            
-            margin-bottom: 2px;
+            max-width: 140px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            box-shadow: 0 2px 6px rgba(66, 49, 32, 0.25);
           }
-          .salon-marker-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            /* Ensure no weird positioning interferes */
-            transform: translate(-50%, -100%); /* Adjust visual centering if needed, but Mapbox handles anchor */
+          .kpin-head {
+            position: relative;
+            width: 40px; height: 40px;
+            border-radius: 50%;
+            background: #423120;
+            border: 3px solid #FFFFFF;
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+            display: flex; align-items: center; justify-content: center;
+            transition: transform 0.25s ease;
           }
+          .kpin-tip {
+            width: 0; height: 0;
+            border-left: 7px solid transparent;
+            border-right: 7px solid transparent;
+            border-top: 9px solid #FFFFFF;
+            margin-top: -2px;
+          }
+          .kpin.selected .kpin-head { transform: scale(1.22); }
+          .kpin.selected .kpin-label { background: #423120; color: #FFFFFF; }
+          .kpin.selected .kpin-head::after {
+            content: '';
+            position: absolute;
+            inset: -10px;
+            border-radius: 50%;
+            border: 3px solid #D7C3A7;
+            animation: kpulse 1.8s ease-out infinite;
+          }
+          @keyframes kpulse {
+            0% { transform: scale(0.85); opacity: 0.9; }
+            100% { transform: scale(1.5); opacity: 0; }
+          }
+
+          /* You-are-here dot */
+          .me { width: 16px; height: 16px; border-radius: 50%; background: #007AFF; border: 3px solid #FFFFFF; box-shadow: 0 0 0 6px rgba(0, 122, 255, 0.2); }
         </style>
       </head>
       <body>
         <div id='map'></div>
         <script>
-          mapboxgl.accessToken = '${MAPBOX_TOKEN}';
-          
-          const map = new mapboxgl.Map({
-            container: 'map',
-            style: 'mapbox://styles/mapbox/streets-v12',
-            center: [${centerLng}, ${centerLat}],
-            zoom: 13,
-            projection: { name: 'mercator' }
-          });
+          var TOKEN = '${MAPBOX_TOKEN}';
+          var CENTER = [${centerLng}, ${centerLat}];
+          var ME = ${userLocation ? JSON.stringify([userLocation.longitude, userLocation.latitude]) : 'null'};
+          var SALONS = ${JSON.stringify(markers)};
+          var BOTTOM_PAD = 420; // keeps the selected salon above the bottom card
 
-          // Prevent any default link behavior
-          document.addEventListener('click', function(e) {
-            if (e.target.tagName === 'A' || e.target.closest('a')) {
-              e.preventDefault();
-              e.stopPropagation();
-              return false;
+          // Mapbox GL JS v3 requires WebGL2.
+          var gl2 = (function () {
+            try { return !!document.createElement('canvas').getContext('webgl2'); } catch (e) { return false; }
+          })();
+          // 3D buildings are heavy: keep the map flat on weaker phones.
+          var use3d = gl2 && (navigator.hardwareConcurrency || 8) > 4;
+          var PITCH = use3d ? 55 : 0;
+          var BEARING = use3d ? -17 : 0;
+          var version = gl2 ? '3.32.0' : '2.15.0';
+
+          var map = null;
+          var markerEls = {};
+          var selectedId = null;
+          var selectedBuilding = null;
+          var byId = {};
+          SALONS.forEach(function (s) { byId[s.id] = s; });
+
+          function post(message) {
+            if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(message));
+          }
+
+          // Light follows the device clock.
+          function lightPreset() {
+            var h = new Date().getHours();
+            if (h < 5 || h >= 21) return 'night';
+            if (h < 8) return 'dawn';
+            if (h < 17) return 'day';
+            return 'dusk';
+          }
+
+          // Arch with the petal K, white on the brown pin head.
+          var ARCH_ICON =
+            '<svg width="17" height="22" viewBox="48 40 104 132" aria-hidden="true">' +
+            '<path d="M48 168 Q48 172 52 172 H148 Q152 172 152 168 V92 A52 52 0 0 0 48 92 Z" fill="#FFFFFF"/>' +
+            '<g transform="translate(28 47) scale(0.7)" fill="#423120">' +
+            '<rect x="66" y="50" width="14" height="100" rx="7"/>' +
+            '<path d="M88 100 C 96 72 114 56 140 50 C 134 76 116 94 88 100 Z"/>' +
+            '<path d="M88 100 C 116 106 134 124 140 150 C 114 144 96 128 88 100 Z"/>' +
+            '</g></svg>';
+
+          function load(url, isCss, done) {
+            var el = document.createElement(isCss ? 'link' : 'script');
+            if (isCss) { el.rel = 'stylesheet'; el.href = url; } else { el.src = url; el.onload = done; }
+            document.head.appendChild(el);
+          }
+
+          // Screen-space centre of a building footprint.
+          function footprintCentre(feature) {
+            var geom = feature.geometry || {};
+            var ring = geom.type === 'Polygon' ? geom.coordinates[0]
+              : geom.type === 'MultiPolygon' ? geom.coordinates[0][0] : null;
+            if (!ring || !ring.length) return null;
+            var x = 0, y = 0;
+            ring.forEach(function (c) { var pt = map.project(c); x += pt.x; y += pt.y; });
+            return { x: x / ring.length, y: y / ring.length };
+          }
+
+          // Colour the selected salon's 3D building. A salon's coordinate often
+          // sits on the pavement next to its building, so look within a small
+          // radius of the pin and take the building whose centre is nearest.
+          // The pulsing ring around the pin is the fallback.
+          function highlightBuilding(salon) {
+            if (!use3d) return;
+            try {
+              if (selectedBuilding) { map.setFeatureState(selectedBuilding, { select: false }); selectedBuilding = null; }
+              var p = map.project([salon.lng, salon.lat]);
+              var r = 45;
+              var found = map.queryRenderedFeatures(
+                [[p.x - r, p.y - r], [p.x + r, p.y + r]],
+                { target: { featuresetId: 'buildings', importId: 'basemap' } }
+              ) || [];
+              var best = null, bestDistance = Infinity;
+              found.forEach(function (feature) {
+                var c = footprintCentre(feature);
+                if (!c) return;
+                var d = Math.hypot(c.x - p.x, c.y - p.y);
+                if (d < bestDistance) { best = feature; bestDistance = d; }
+              });
+              if (best) {
+                selectedBuilding = best;
+                map.setFeatureState(selectedBuilding, { select: true });
+              }
+            } catch (e) { /* not supported here: the ring is enough */ }
+          }
+
+          function selectSalon(id, fly) {
+            var salon = byId[id];
+            if (!salon || !map) return;
+            if (selectedId && markerEls[selectedId]) markerEls[selectedId].classList.remove('selected');
+            selectedId = id;
+            if (markerEls[id]) markerEls[id].classList.add('selected');
+            if (fly) {
+              map.flyTo({ center: [salon.lng, salon.lat], zoom: 16.2, pitch: PITCH, bearing: BEARING, duration: 1400, padding: { bottom: BOTTOM_PAD } });
+              map.once('moveend', function () { highlightBuilding(salon); });
+            } else {
+              highlightBuilding(salon);
             }
+          }
+
+          function handleMessage(event) {
+            var data;
+            try { data = JSON.parse(event.data); } catch (e) { return; }
+            if (!map) return;
+            if (data.type === 'selectSalon') {
+              selectSalon(data.salonId, true);
+            } else if (data.type === 'centerOnLocation') {
+              map.flyTo({ center: [data.longitude, data.latitude], zoom: 15, pitch: PITCH, duration: 1600, padding: { bottom: BOTTOM_PAD } });
+            } else if (data.type === 'zoomToService') {
+              map.flyTo({ center: [data.center.longitude, data.center.latitude], zoom: 14, duration: 1600, padding: { bottom: BOTTOM_PAD } });
+              setTimeout(function () {
+                new mapboxgl.Popup({ closeButton: true, closeOnClick: false, offset: 25 })
+                  .setLngLat([data.center.longitude, data.center.latitude])
+                  .setHTML(
+                    '<div class="popup-title">' + data.serviceName + '</div>' +
+                    '<div class="popup-details">Löytyi ' + data.salons.length + ' salonkia tällä palvelulla</div>'
+                  )
+                  .addTo(map);
+              }, 1600);
+            }
+          }
+          // iOS delivers postMessage on window, Android on document.
+          window.addEventListener('message', handleMessage);
+          document.addEventListener('message', handleMessage);
+
+          // Prevent any default link behaviour (Mapbox attribution links).
+          document.addEventListener('click', function (e) {
+            if (e.target.tagName === 'A' || e.target.closest('a')) { e.preventDefault(); e.stopPropagation(); }
           }, true);
 
-          // Add user location marker
-          ${userLocation ? `
-          new mapboxgl.Marker({ color: '#007AFF' })
-            .setLngLat([${userLocation.longitude}, ${userLocation.latitude}])
-            .setPopup(new mapboxgl.Popup().setHTML('<div class="popup-title">Sinun sijaintisi</div>'))
-            .addTo(map);
-          ` : ''}
-
-          // Add salon markers
-          const markers = ${JSON.stringify(markers)};
-          
-          markers.forEach(salon => {
-            // Ensure numeric coordinates
-            const lat = parseFloat(salon.lat);
-            const lng = parseFloat(salon.lng);
-            
-            if (isNaN(lat) || isNaN(lng)) return;
-
-            // Simple container
-            const container = document.createElement('div');
-            container.className = 'salon-marker-container';
-            
-            // Label
-            const labelEl = document.createElement('div');
-            labelEl.className = 'salon-label';
-            labelEl.innerHTML = salon.name; // + ' (' + lat.toFixed(2) + ')'; // Debug info removed for cleanliness
-            
-            // Icon
-            const el = document.createElement('div');
-            el.className = 'salon-marker';
-            el.innerHTML = '✂️';
-            
-            container.appendChild(labelEl);
-            container.appendChild(el);
-            
-            // Create marker
-            new mapboxgl.Marker({
-              element: container,
-              anchor: 'bottom'
-            })
-            .setLngLat([lng, lat])
-            .addTo(map);
-          });
-
-          // Listen for messages from React Native
-          window.addEventListener('message', function(event) {
-            const data = JSON.parse(event.data);
-            if (data.type === 'centerOnLocation') {
-              map.flyTo({
-                center: [data.longitude, data.latitude],
-                zoom: 15,
-                duration: 2000,
-                padding: { bottom: 450 }
-              });
-            } else if (data.type === 'zoomToService') {
-              // Zoom to salons offering a specific service
-              map.flyTo({
-                center: [data.center.longitude, data.center.latitude],
-                zoom: 14,
-                duration: 2000,
-                padding: { bottom: 450 }
-              });
-              
-              // Show a popup with service info
-              setTimeout(() => {
-                const popup = new mapboxgl.Popup({ 
-                  closeButton: true,
-                  closeOnClick: false,
-                  offset: 25
-                })
-                .setLngLat([data.center.longitude, data.center.latitude])
-                .setHTML(
-                  '<div class="popup-title">' + data.serviceName + '</div>' +
-                  '<div class="popup-details">Löytyi ' + data.salons.length + ' salon tällä palvelulla</div>' +
-                  '<div class="popup-details">Salonit: ' + data.salons.map(s => s.name).join(', ') + '</div>'
-                )
-                .addTo(map);
-              }, 2000);
+          function init() {
+            mapboxgl.accessToken = TOKEN;
+            var options = { container: 'map', center: CENTER, zoom: 14.5 };
+            if (gl2) {
+              options.style = 'mapbox://styles/mapbox/standard';
+              options.config = {
+                basemap: {
+                  lightPreset: lightPreset(),
+                  theme: 'faded',
+                  showPointOfInterestLabels: false, // only Kosmiks salons stand out
+                  show3dObjects: use3d,
+                  colorBuildingSelect: '#423120',
+                  colorBuildingHighlight: '#D7C3A7'
+                }
+              };
+              options.pitch = PITCH;
+              options.bearing = BEARING;
+            } else {
+              options.style = 'mapbox://styles/mapbox/streets-v12';
             }
-          });
+            map = new mapboxgl.Map(options);
 
-          // Handle WebView messages
-          document.addEventListener('message', function(event) {
-            const data = JSON.parse(event.data);
-            if (data.type === 'centerOnLocation') {
-              map.flyTo({
-                center: [data.longitude, data.latitude],
-                zoom: 15,
-                duration: 2000,
-                padding: { bottom: 450 }
-              });
-            } else if (data.type === 'zoomToService') {
-              // Zoom to salons offering a specific service
-              map.flyTo({
-                center: [data.center.longitude, data.center.latitude],
-                zoom: 14,
-                duration: 2000,
-                padding: { bottom: 450 }
-              });
-              
-              // Show a popup with service info
-              setTimeout(() => {
-                const popup = new mapboxgl.Popup({ 
-                  closeButton: true,
-                  closeOnClick: false,
-                  offset: 25
-                })
-                .setLngLat([data.center.longitude, data.center.latitude])
-                .setHTML(
-                  '<div class="popup-title">' + data.serviceName + '</div>' +
-                  '<div class="popup-details">Löytyi ' + data.salons.length + ' salon tällä palvelulla</div>' +
-                  '<div class="popup-details">Salonit: ' + data.salons.map(s => s.name).join(', ') + '</div>'
-                )
-                .addTo(map);
-              }, 2000);
+            if (gl2) {
+              setInterval(function () {
+                try { map.setConfigProperty('basemap', 'lightPreset', lightPreset()); } catch (e) {}
+              }, 10 * 60 * 1000);
             }
-          });
+
+            if (ME) {
+              var me = document.createElement('div');
+              me.className = 'me';
+              new mapboxgl.Marker({ element: me }).setLngLat(ME).addTo(map);
+            }
+
+            SALONS.forEach(function (salon) {
+              var pin = document.createElement('div');
+              pin.className = 'kpin';
+              var label = document.createElement('div');
+              label.className = 'kpin-label';
+              label.textContent = salon.name;
+              var head = document.createElement('div');
+              head.className = 'kpin-head';
+              head.innerHTML = ARCH_ICON;
+              var tip = document.createElement('div');
+              tip.className = 'kpin-tip';
+              pin.appendChild(label);
+              pin.appendChild(head);
+              pin.appendChild(tip);
+              pin.addEventListener('click', function (e) {
+                e.stopPropagation();
+                selectSalon(salon.id, true);
+                post({ type: 'markerTap', salonId: salon.id });
+              });
+              markerEls[salon.id] = pin;
+              new mapboxgl.Marker({ element: pin, anchor: 'bottom' }).setLngLat([salon.lng, salon.lat]).addTo(map);
+            });
+
+            map.on('load', function () { post({ type: 'mapReady', engine: version, threeD: use3d }); });
+          }
+
+          load('https://api.mapbox.com/mapbox-gl-js/v' + version + '/mapbox-gl.css', true);
+          load('https://api.mapbox.com/mapbox-gl-js/v' + version + '/mapbox-gl.js', false, init);
         </script>
       </body>
       </html>
@@ -714,17 +756,15 @@ export default function MapScreen() {
             }
           });
         }
-      } else if (data.type === 'bookAppointment') {
-        // Handle booking appointment
+      } else if (data.type === 'mapReady') {
+        // The map finished loading after the first card was selected: show it now.
+        console.log('[MAP] ready, engine', data.engine, '3D:', data.threeD);
+        if (selectedSalon) centerMapOnSalon(selectedSalon);
+      } else if (data.type === 'markerTap' || data.type === 'salonSelected') {
+        // A pin was tapped: show that salon's card (the map already flew there).
         const salon = salons.find(s => s.id === data.salonId);
         if (salon) {
-          onMarkerPress(salon);
-        }
-      } else if (data.type === 'salonSelected') {
-        // Legacy support
-        const salon = salons.find(s => s.id === data.salonId);
-        if (salon) {
-          onMarkerPress(salon);
+          setSelectedSalon(salon);
         }
       }
     } catch (error) {
@@ -827,6 +867,112 @@ export default function MapScreen() {
           }}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 20}
         >
+          {/* Salon cards: swipe between salons; the map follows and highlights each one */}
+          {displayedSalons.length > 0 && (
+            <FlatList
+              ref={cardsFlatListRef}
+              data={displayedSalons}
+              keyExtractor={(item) => item.id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              snapToInterval={CARD_WIDTH + CARD_GAP}
+              snapToAlignment="start"
+              decelerationRate="fast"
+              contentContainerStyle={styles.cardsContentContainer}
+              bounces={false}
+              getItemLayout={(_, index) => ({
+                length: CARD_WIDTH + CARD_GAP,
+                offset: 20 + index * (CARD_WIDTH + CARD_GAP),
+                index,
+              })}
+              onViewableItemsChanged={({ viewableItems }) => {
+                const index = viewableItems[0]?.index;
+                if (index != null) {
+                  const salon = displayedSalons[index];
+                  setActiveCardIndex(index);
+                  setSelectedSalon(salon);
+                  centerMapOnSalon(salon);
+                }
+              }}
+              viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
+              renderItem={({ item: salon }) => {
+                const status = getOpeningStatus(salon.timeSlots);
+                const photoCount = salon.images?.length ?? 0;
+                const rating = salon.averageRating || salon.rating || 0;
+                return (
+                  <TouchableOpacity
+                    style={styles.card}
+                    activeOpacity={0.9}
+                    onPress={() => handleSalonCardPress(salon)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${salon.name}, näytä tiedot`}
+                  >
+                    <View>
+                      <RemoteImage
+                        source={{ uri: salon.images?.[0]?.url }}
+                        style={styles.cardPhoto}
+                        resizeMode="cover"
+                      />
+                      {photoCount > 1 && (
+                        <View style={styles.cardPhotoCount}>
+                          <Ionicons name="images-outline" size={13} color={white} />
+                          <Text style={styles.cardPhotoCountText}>{photoCount}</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    <View style={styles.cardBody}>
+                      <View style={styles.cardTitleRow}>
+                        <Text style={styles.cardName} numberOfLines={1}>{salon.name}</Text>
+                        <View style={styles.cardRatingPill}>
+                          <Ionicons name="star" size={13} color={darkBrown} />
+                          <Text style={styles.cardRatingText}>
+                            {salon.reviewCount > 0 ? `${rating.toFixed(1)} (${salon.reviewCount})` : 'Uusi'}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {status && (
+                        <View style={styles.cardInfoRow}>
+                          <View style={[styles.cardStatusDot, { backgroundColor: status.open ? '#2E7D4F' : '#B3261E' }]} />
+                          <Text style={[styles.cardInfoText, { color: status.open ? '#2E7D4F' : '#B3261E' }]} numberOfLines={1}>
+                            {status.label}
+                          </Text>
+                        </View>
+                      )}
+
+                      {!!salon.address && (
+                        <View style={styles.cardInfoRow}>
+                          <Ionicons name="location-outline" size={15} color={darkBrown} />
+                          <Text style={styles.cardInfoText} numberOfLines={1}>{salon.address}</Text>
+                        </View>
+                      )}
+
+                      <View style={styles.cardActions}>
+                        <TouchableOpacity
+                          style={[styles.cardButton, styles.cardButtonOutline]}
+                          onPress={() => handleDirections(salon)}
+                          accessibilityRole="button"
+                        >
+                          <Ionicons name="navigate-outline" size={16} color={darkBrown} />
+                          <Text style={[styles.cardButtonText, { color: darkBrown }]}>Reittiohjeet</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.cardButton, styles.cardButtonFilled]}
+                          onPress={() => handleViewServices(salon)}
+                          accessibilityRole="button"
+                        >
+                          <Ionicons name="calendar-outline" size={16} color={white} />
+                          <Text style={[styles.cardButtonText, { color: white }]}>Varaa</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          )}
+
           <View style={[styles.topSearchContainer, { paddingBottom: Platform.OS === 'ios' ? 55 + insets.bottom : 85 + insets.bottom }]}>
             <View style={styles.topSearchBar}>
               <Ionicons name="search" size={20} color={darkBrown} style={styles.topSearchIcon} />
@@ -896,77 +1042,6 @@ export default function MapScreen() {
           </View>
         )}
 
-        {/* Bottom Swipeable Cards */}
-        {displayedSalons.length > 0 && (
-          <View style={[styles.cardsContainer, { top: 10 }]}>
-            <FlatList
-              ref={cardsFlatListRef}
-              data={displayedSalons}
-              keyExtractor={(item) => item.id}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              pagingEnabled={false}
-              // One-swipe-per-card snapping
-              snapToInterval={Dimensions.get('window').width - 30} // cardWidth (W-50) + marginRight (20)
-              snapToAlignment="start"
-              decelerationRate="fast"
-              contentContainerStyle={styles.cardsContentContainer}
-              scrollEnabled={true}
-              bounces={false}
-              getItemLayout={(data, index) => {
-                const length = Dimensions.get('window').width - 30; // must match snapToInterval
-                const offset = 20 + index * length; // left padding 20 + index * itemLength
-                return { length, offset, index };
-              }}
-              onViewableItemsChanged={({ viewableItems }) => {
-                const index = viewableItems[0]?.index;
-                if (index != null) {
-                  const salon = displayedSalons[index];
-                  setActiveCardIndex(index);
-                  setSelectedSalon(salon);
-                  // Move map camera to the active card's salon
-                  centerMapOnSalon(salon);
-                }
-              }}
-              viewabilityConfig={{
-                itemVisiblePercentThreshold: 50,
-              }}
-              renderItem={({ item: salon, index }) => (
-                <TouchableOpacity
-                  style={styles.card}
-                  activeOpacity={0.8}
-                  onPress={() => handleSalonCardPress(salon)}
-                >
-                  {/* Thumbnail Image */}
-                  <RemoteImage
-                    source={{
-                      uri: salon.images && salon.images.length > 0
-                        ? salon.images[0].url
-                        : 'https://via.placeholder.com/80x80?text=No+Image'
-                    }}
-                    style={styles.cardThumbnail}
-                    resizeMode="cover"
-                  />
-
-                  {/* Card Content */}
-                  <View style={styles.cardContent}>
-                    <Text style={styles.cardName} numberOfLines={1}>
-                      {salon.name}
-                    </Text>
-
-                    {/* Rating Row */}
-                    <View style={styles.cardRatingRow}>
-                      <Text style={styles.cardRating}>
-                        {salon.averageRating ? salon.averageRating.toFixed(1) : salon.rating?.toFixed(1) || '0.0'}
-                      </Text>
-                      <Text style={styles.cardStar}>⭐ • Salonki</Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              )}
-            />
-          </View>
-        )}
       </View>
 
       {/* Modal for the side menu */}
@@ -1548,69 +1623,118 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   // Bottom Swipeable Cards Styles
-  cardsContainer: {
-    position: 'absolute',
-    top: 10, // Position at the top of the map
-    left: 0,
-    right: 0,
-    height: 120,
-  },
   cardsContentContainer: {
-    paddingLeft: 20,
-    paddingRight: 20, // Standard padding, will be adjusted per card
+    paddingHorizontal: 20,
+    paddingBottom: 4,
   },
   card: {
-    width: Dimensions.get('window').width - 50, // Smaller width to show peek of next card (reduced peek)
-    height: 90,
-    backgroundColor: '#D7C3A7',
-    borderRadius: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 20,
-    padding: 12,
+    width: CARD_WIDTH,
+    marginRight: CARD_GAP,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-    borderWidth: 1,
-    borderColor: '#423120',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 6,
   },
-  cardThumbnail: {
-    width: 76,
-    height: 76,
-    borderRadius: 12,
+  cardPhoto: {
+    width: '100%',
+    height: 118,
     backgroundColor: '#F4EDE5',
   },
-  cardContent: {
-    flex: 1,
-    marginLeft: 12,
-    justifyContent: 'center',
+  cardPhotoCount: {
+    position: 'absolute',
+    right: 10,
+    bottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    backgroundColor: 'rgba(66, 49, 32, 0.75)',
+  },
+  cardPhotoCountText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontFamily: 'Philosopher-Bold',
+  },
+  cardBody: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 14,
+    gap: 6,
+  },
+  cardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
   },
   cardName: {
-    fontSize: 18,
+    flex: 1,
+    fontSize: 20,
     fontFamily: 'Philosopher-Bold',
     color: '#423120',
-    marginBottom: 6,
   },
-  cardRatingRow: {
+  cardRatingPill: {
     flexDirection: 'row',
-    alignItems: 'flex-end', // Align rating number and star on the same baseline
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    backgroundColor: '#F4EDE5',
   },
-  cardRating: {
-    fontSize: 16,
+  cardRatingText: {
+    fontSize: 13,
     fontFamily: 'Philosopher-Bold',
     color: '#423120',
-    marginRight: 4,
   },
-  cardStar: {
-    fontSize: 16,
+  cardInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  cardStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginHorizontal: 3,
+  },
+  cardInfoText: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: 'Philosopher-Regular',
     color: '#423120',
+  },
+  cardActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 6,
+  },
+  cardButton: {
+    flex: 1,
+    height: 44,
+    borderRadius: 22,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  cardButtonOutline: {
+    borderWidth: 1.5,
+    borderColor: '#423120',
+    backgroundColor: '#FFFFFF',
+  },
+  cardButtonFilled: {
+    backgroundColor: '#423120',
+  },
+  cardButtonText: {
+    fontSize: 15,
     fontFamily: 'Philosopher-Bold',
-    marginBottom: 1, // Tiny adjustment so the star visually lines up with the number
   },
   // Salon Detail Modal Styles
   salonDetailOverlay: {

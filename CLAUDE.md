@@ -242,6 +242,20 @@ curl -X POST https://exp.host/--/api/v2/push/getReceipts \
 - Fully converted (26 Oct 2026): the two crossfading salon slideshows (`services.tsx`, `salon-sector.tsx`) animate an `Animated.View` with a `RemoteImage` inside. Provider/admin screens (English) use `friendlyErrorEn(error, fallback)` from `src/lib/api.ts` — `adminRequest()` (`src/lib/admin-api.ts`) maps offline/timeout/401/403/404/5xx to friendly copy and keeps short server messages (e.g. "Rejection reason required"); `apiHeaders(userToken?)` builds app-key + user-token headers.
 - **Phase 2 (not started):** TanStack Query + AsyncStorage persister so lists show the last loaded data offline.
 
+## 8b. Map (Mapbox) — redesigned Oct 2026
+
+**Main map (`src/app/(app)/map.tsx`)** — redesigned 29 Oct 2026, verified in Chrome against real salons:
+- **Mapbox GL JS v3.32.0 + Mapbox Standard style** (`mapbox://styles/mapbox/standard`), loaded dynamically inside the WebView. GL JS v3 **requires WebGL2**; the page checks for it and falls back to **v2.15.0 + `streets-v12`** so the map never goes blank.
+- Standard config (`config.basemap`): `lightPreset` from the device clock (night <5 / ≥21, dawn <8, day <17, dusk), re-applied every 10 min with `setConfigProperty`; `theme: 'faded'`; `showPointOfInterestLabels: false` (only Kosmiks salons stand out); `show3dObjects` + pitch 55 / bearing −17 only when `navigator.hardwareConcurrency > 4` (flat on weak phones); `colorBuildingSelect: '#423120'`.
+- **Branded pins:** HTML markers (name pill, brown round head with the arch-K, tip); selected = larger + pulsing beige ring.
+- **Selected building:** `queryRenderedFeatures([[x-45,y-45],[x+45,y+45]], { target: { featuresetId: 'buildings', importId: 'basemap' } })` around the pin, nearest footprint centre wins, then `setFeatureState(feature, { select: true })`. A salon's coordinate usually sits on the pavement, so an exact-point query misses. The ring is the fallback.
+- **Messages:** WebView → app `mapReady` (app re-sends the current selection), `markerTap`; app → WebView `selectSalon`, `centerOnLocation`, `zoomToService`. iOS delivers on `window`, Android on `document` — the page listens on both.
+- **Bottom cards** (swipe = select + fly + highlight): photo + count, name, rating ("Uusi" with no reviews), **open/closed** from the salon's opening hours (`getOpeningStatus()` in `src/lib/opening-hours.ts`, Finnish format "Avoinna nyt · sulkeutuu 18.00"), address, **Reittiohjeet** (native maps) and **Varaa** (→ `/services`). Card body opens the detail modal.
+- **Backend:** `GET /api/public/saloons/map` returns `timeSlots` (opening hours) and reviewers' first names only.
+- The Mapbox **Places API** (business details, busy times) was evaluated and **not used**: public preview, busyness only for North America/Western Europe, and providers already enter their own hours/photos.
+
+**Not yet redesigned:** the salon map in `saloons.tsx` and `AddressMapPicker.tsx` (Phase 3 location picker) are still on v2.15 + `streets-v12`. The picker should stay flat (no pitch) for precise pinning.
+
 ## 9. Infrastructure
 
 ### Expo / EAS
