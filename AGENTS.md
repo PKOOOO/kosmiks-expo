@@ -159,6 +159,10 @@ Verified on 23 Oct 2026: a provider account signed in on the Kosmiks build and k
 - **`paymentIntentId` is a column on `Booking`**, not Stripe metadata (metadata caps at 500 chars).
 - Legacy bookings (null `paymentIntentId`) fall back to the metadata check, then allow with a warning.
 
+**Refunds on cancel (29 Oct 2026):** `refundBooking()` (`lib/refunds.ts`) refunds a cancelled booking's online payment through Stripe **before** the status changes: only this booking's `totalAmount` (one PaymentIntent can pay for several bookings), idempotency key `booking-cancel-<id>` so retries never refund twice, refund id stored in `bookings.refundId`, reason in `bookings.cancelReason`. If Stripe fails, the booking is not cancelled (502). Used by the salon cancel (`PUT /api/provider/bookings/[id]`) and the admin cancel (`PATCH /api/bookings/[id]`). Verified in Stripe test mode (partial refund of 85 € out of a 130 € PaymentIntent, retry returned the same refund).
+
+**Provider booking actions** (`PUT /api/provider/bookings/[id]`, `{ status, reason? }`): `cancelled` (from confirmed/pending, before payout), `completed` / `no_show` (confirmed and start time passed), `confirmed` (undo completed/no_show before payout; no-op on an already confirmed booking for old APKs). Anything already in a payout → 409. `completed` and `no_show` still count as provider earnings (`EARNING_STATUSES`). The list endpoint never returns the internal service account as the customer (guest bookings) and adds `customerEmail`, `notes`, `paid`, `refunded`, `paidOut`, `cancelReason`, `durationMinutes`.
+
 **Client messaging** (`CheckoutButton.tsx`) distinguishes 402 / 403 / 404 / network, shows the payment reference (`Maksutunnus: pi_…`), and offers retry where safe. Checkout logging contains no PII.
 
 ---
@@ -192,7 +196,7 @@ const EXPO_PUSH_PROJECT_ID =
 | P6 | Application rejected (with reason) | Provider | `admin/applications/[id]/reject` |
 | C1 / P7 | Payment confirmed | Customer / provider | `checkout` (verified end-to-end 26 Oct 2026) |
 | P8 | New review | Provider | `reviews` POST (added 26 Oct 2026) |
-| C2 | Provider cancels a booking | Customer | `provider/bookings/[bookingId]` PUT (added 26 Oct 2026) |
+| C2 | Provider cancels a booking (includes the reason and "payment will be refunded") | Customer | `provider/bookings/[bookingId]` PUT (added 26 Oct 2026) |
 | C3 | Admin changes a booking's status | Customer | `bookings/[bookingId]` PATCH (added 26 Oct 2026) |
 | P9 | Payout sent | Provider | `admin/payouts/[id]` |
 

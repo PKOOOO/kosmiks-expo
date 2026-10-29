@@ -2,11 +2,15 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Image,
+  KeyboardAvoidingView,
+  Linking,
+  Modal,
   Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -32,7 +36,7 @@ const colors = {
 
 const dayColors = ['#CBB7D8', '#D5A0AA', '#8DCEC8', '#BED596', '#E4C47D'];
 
-type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled';
+type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'no_show' | 'cancelled';
 
 type Booking = {
   id: string;
@@ -45,6 +49,11 @@ type Booking = {
   customerEmail: string;
   customerAvatar?: string;
   notes?: string;
+  paymentMethod: string;
+  paid: boolean;
+  refunded: boolean;
+  paidOut: boolean;
+  cancelReason?: string;
   service: { name: string };
   user?: {
     name: string;
@@ -61,7 +70,7 @@ const normalizeApiBooking = (raw: Record<string, any>): Booking | null => {
   if (!raw.id || !bookingTime || Number.isNaN(+new Date(bookingTime))) return null;
 
   const rawStatus = String(raw.status || 'pending').toLowerCase();
-  const status: BookingStatus = ['pending', 'confirmed', 'completed', 'cancelled'].includes(rawStatus)
+  const status: BookingStatus = ['pending', 'confirmed', 'completed', 'no_show', 'cancelled'].includes(rawStatus)
     ? rawStatus as BookingStatus
     : 'pending';
   const rawUser = raw.user && typeof raw.user === 'object' ? raw.user : null;
@@ -78,6 +87,11 @@ const normalizeApiBooking = (raw: Record<string, any>): Booking | null => {
     customerEmail: raw.customerEmail || rawUser?.email || '',
     customerAvatar: raw.customerAvatar || raw.customerImageUrl || rawUser?.imageUrl || rawUser?.avatar,
     notes: raw.notes || undefined,
+    paymentMethod: raw.paymentMethod || 'online',
+    paid: Boolean(raw.paid),
+    refunded: Boolean(raw.refunded),
+    paidOut: Boolean(raw.paidOut),
+    cancelReason: raw.cancelReason || undefined,
     service: { name: service?.name || raw.serviceName || 'Service' },
     user: rawUser ? {
       name: rawUser.name || raw.customerName || 'Customer',
@@ -275,51 +289,173 @@ function DayView({ date, bookings, providerAvatar, providerName, bottomPadding, 
   );
 }
 
-function DetailView({ booking, providerAvatar, providerName, onClose, onStatusChange }: {
+const STATUS_DISPLAY: Record<BookingStatus, { icon: keyof typeof Ionicons.glyphMap; label: string }> = {
+  pending: { icon: 'time', label: 'AWAITING PAYMENT' },
+  confirmed: { icon: 'checkmark-circle', label: 'CONFIRMED' },
+  completed: { icon: 'checkmark-done-circle', label: 'COMPLETED' },
+  no_show: { icon: 'person-remove', label: "DIDN'T SHOW UP" },
+  cancelled: { icon: 'close-circle', label: 'CANCELLED' },
+};
+
+const paymentLabel = (booking: Booking) => {
+  if (booking.refunded) return 'REFUNDED';
+  if (booking.paymentMethod === 'pay_at_venue') return 'PAY AT THE SALON';
+  return booking.paid ? 'PAID ONLINE' : 'NOT PAID';
+};
+
+// "Fri 31 Oct · 14:00–15:00"
+const formatSlot = (booking: Booking) => {
+  const start = new Date(booking.bookingTime);
+  const end = new Date(+start + booking.durationMinutes * 60 * 1000);
+  const day = start.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  return `${day} · ${formatTime(start.toISOString())}–${formatTime(end.toISOString())}`;
+};
+
+function DetailView({ booking, onClose, onStatusChange, busy }: {
   booking: Booking;
-  providerAvatar?: string;
-  providerName: string;
   onClose: () => void;
-  onStatusChange: (status: BookingStatus) => void;
+  onStatusChange: (status: BookingStatus, reason?: string) => void;
+  busy: boolean;
 }) {
   const serviceTitle = booking.service.name.replace(/\s+(\([^)]*\))\s*$/, '\n$1');
+  const status = STATUS_DISPLAY[booking.status];
+  const started = new Date(booking.bookingTime) <= new Date();
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [reason, setReason] = useState('');
+  const phone = booking.customerPhone.replace(/[^\d+]/g, '');
+
+  const confirmCancel = () => {
+    setCancelOpen(false);
+    onStatusChange('cancelled', reason.trim() || undefined);
+  };
+
+  // Which actions make sense depends on where the booking is.
+  let footer: React.ReactNode = null;
+  if (booking.paidOut) {
+    footer = null;
+  } else if ((booking.status === 'confirmed' && !started) || booking.status === 'pending') {
+    footer = (
+      <TouchableOpacity disabled={busy} onPress={() => setCancelOpen(true)} style={styles.footerAction}>
+        <Text style={styles.footerActionText}>Cancel booking</Text>
+      </TouchableOpacity>
+    );
+  } else if (booking.status === 'confirmed') {
+    footer = (
+      <>
+        <TouchableOpacity disabled={busy} onPress={() => onStatusChange('completed')} style={[styles.footerAction, styles.confirmAction]}>
+          <Text style={styles.confirmText}>Completed</Text>
+        </TouchableOpacity>
+        <TouchableOpacity disabled={busy} onPress={() => onStatusChange('no_show')} style={styles.footerAction}>
+          <Text style={styles.footerActionText}>Didn't show up</Text>
+        </TouchableOpacity>
+      </>
+    );
+  } else if (booking.status === 'completed' || booking.status === 'no_show') {
+    footer = (
+      <TouchableOpacity disabled={busy} onPress={() => onStatusChange('confirmed')} style={styles.footerAction}>
+        <Text style={styles.footerActionText}>Undo</Text>
+      </TouchableOpacity>
+    );
+  }
 
   return (
     <View style={styles.detailPage}>
       <View style={styles.detailTopBar}>
-        <TouchableOpacity onPress={onClose} style={styles.darkIconButton}><Ionicons name="close" size={22} color={colors.brown} /></TouchableOpacity>
+        <TouchableOpacity onPress={onClose} style={styles.darkIconButton} accessibilityLabel="Close">
+          <Ionicons name="close" size={22} color={colors.brown} />
+        </TouchableOpacity>
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.detailScroll}>
         <View style={styles.detailCard}>
           <Text style={styles.detailTitle}>{serviceTitle}</Text>
+          <View style={styles.slotRow}>
+            <Ionicons name="calendar-outline" size={17} color={colors.brown} />
+            <Text style={styles.slotText}>{formatSlot(booking)}</Text>
+          </View>
+          <Text style={styles.detailDuration}>{booking.durationMinutes} min</Text>
+
           <View style={styles.detailTiles}>
             <View style={styles.detailTile}>
               <Text style={styles.tileSmall}>Booking status</Text>
-              <Ionicons name={booking.status === 'confirmed' ? 'checkmark-circle' : 'time'} size={34} color={colors.brown} />
-              <Text style={styles.tileUnit}>{booking.status.toUpperCase()}</Text>
+              <Ionicons name={status.icon} size={34} color={colors.brown} />
+              <Text style={styles.tileUnit}>{status.label}</Text>
             </View>
             <View style={styles.detailTile}>
-              <Text style={styles.tileSmall}>Total price</Text><Text style={styles.priceTile}>€{booking.totalAmount.toFixed(2)}</Text>
-              <Text style={styles.tileUnit}>AT THE SALON</Text>
+              <Text style={styles.tileSmall}>Total price</Text>
+              <Text style={styles.priceTile}>€{booking.totalAmount.toFixed(2)}</Text>
+              <Text style={styles.tileUnit}>{paymentLabel(booking)}</Text>
             </View>
           </View>
+
+          {booking.status === 'cancelled' && (booking.cancelReason || booking.refunded) ? (
+            <View style={styles.infoBox}>
+              {booking.cancelReason ? <Text style={styles.infoText}>Reason: {booking.cancelReason}</Text> : null}
+              {booking.refunded ? <Text style={styles.infoText}>The customer's payment was refunded to their card.</Text> : null}
+            </View>
+          ) : null}
+
           <Text style={styles.sectionTitle}>Customer</Text>
           <View style={styles.personRow}>
             <Avatar name={booking.customerName} uri={customerAvatar(booking)} size={42} />
             <View style={styles.personText}>
-              <Text style={styles.personName}>{booking.customerName}</Text><Text style={styles.personSub}>{booking.customerEmail}</Text>
-              <Text style={styles.personSub}>{booking.customerPhone}</Text>
+              <Text style={styles.personName}>{booking.customerName}</Text>
+              {booking.customerEmail ? <Text style={styles.personSub}>{booking.customerEmail}</Text> : null}
+              {booking.customerPhone ? <Text style={styles.personSub}>{booking.customerPhone}</Text> : null}
             </View>
-            <TouchableOpacity style={styles.contactButton}><Ionicons name="call" size={18} color={colors.brown} /></TouchableOpacity>
-            <TouchableOpacity style={styles.contactButton}><Ionicons name="chatbox" size={18} color={colors.brown} /></TouchableOpacity>
+            {phone ? (
+              <TouchableOpacity style={styles.contactButton} accessibilityLabel="Call the customer" onPress={() => Linking.openURL(`tel:${phone}`)}>
+                <Ionicons name="call" size={18} color={colors.brown} />
+              </TouchableOpacity>
+            ) : null}
+            {booking.customerEmail ? (
+              <TouchableOpacity style={styles.contactButton} accessibilityLabel="Email the customer" onPress={() => Linking.openURL(`mailto:${booking.customerEmail}`)}>
+                <Ionicons name="mail" size={18} color={colors.brown} />
+              </TouchableOpacity>
+            ) : null}
           </View>
+
+          {booking.notes ? (
+            <>
+              <Text style={styles.sectionTitle}>Customer's note</Text>
+              <Text style={styles.noteText}>{booking.notes}</Text>
+            </>
+          ) : null}
+
+          <Text style={styles.referenceText}>Booking reference {booking.id.slice(0, 8).toUpperCase()}</Text>
         </View>
       </ScrollView>
-      <View style={styles.detailFooter}>
-        <TouchableOpacity onPress={() => onStatusChange('confirmed')} style={[styles.footerAction, styles.confirmAction]}><Text style={styles.confirmText}>Confirm</Text></TouchableOpacity>
-        <TouchableOpacity onPress={() => onStatusChange('pending')} style={styles.footerAction}><Text style={styles.footerActionText}>Pending</Text></TouchableOpacity>
-        <TouchableOpacity onPress={() => onStatusChange('cancelled')} style={styles.footerAction}><Text style={styles.footerActionText}>Cancel</Text></TouchableOpacity>
-      </View>
+
+      {footer ? <View style={styles.detailFooter}>{footer}</View> : null}
+
+      <Modal visible={cancelOpen} transparent animationType="fade" onRequestClose={() => setCancelOpen(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Cancel this booking?</Text>
+            <Text style={styles.modalCopy}>
+              {booking.paid
+                ? `${booking.customerName} gets a notification and €${booking.totalAmount.toFixed(2)} is refunded to their card.`
+                : `${booking.customerName} gets a notification.`}
+            </Text>
+            <TextInput
+              value={reason}
+              onChangeText={setReason}
+              placeholder="Reason for the customer (optional)"
+              placeholderTextColor={colors.muted}
+              maxLength={300}
+              multiline
+              style={styles.modalInput}
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity onPress={() => setCancelOpen(false)} style={styles.footerAction}>
+                <Text style={styles.footerActionText}>Keep booking</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={confirmCancel} style={[styles.footerAction, styles.confirmAction]}>
+                <Text style={styles.confirmText}>Cancel booking</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -385,11 +521,10 @@ export default function ProviderBookingsScreen() {
   const openDay = (date: Date) => {
     setSelectedDate(date); setSelectedBookingId(null); setMode('day');
   };
-  const updateSelectedStatus = async (status: BookingStatus) => {
-    if (!selectedBookingId) return;
-    const previousStatus = selectedBooking?.status;
-    setBookings((current) => current.map((booking) => booking.id === selectedBookingId ? { ...booking, status } : booking));
-
+  const [updating, setUpdating] = useState(false);
+  const updateSelectedStatus = async (status: BookingStatus, reason?: string) => {
+    if (!selectedBookingId || updating) return;
+    setUpdating(true);
     try {
       const token = await getToken();
       const headers: Record<string, string> = {
@@ -397,26 +532,41 @@ export default function ProviderBookingsScreen() {
         Authorization: `Bearer ${token ?? ''}`,
       };
       if (token) headers['X-User-Token'] = token;
+      // Wait for the server: a cancel refunds the payment first and can fail.
       const response = await fetch(`${API_BASE_URL}/provider/bookings/${selectedBookingId}`, {
         method: 'PUT',
         headers,
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, reason }),
       });
-      if (!response.ok) throw new Error(`Status update failed: ${response.status}`);
-    } catch {
-      if (previousStatus) {
-        setBookings((current) => current.map((booking) =>
-          booking.id === selectedBookingId ? { ...booking, status: previousStatus } : booking
-        ));
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        Alert.alert('Could not update booking', typeof payload?.error === 'string' ? payload.error : 'Please try again.');
+        return;
       }
-      Alert.alert('Could not update booking', 'Please try again.');
+      setBookings((current) => current.map((booking) => booking.id === selectedBookingId
+        ? {
+            ...booking,
+            status,
+            ...(status === 'cancelled' && { cancelReason: reason, refunded: Boolean(payload?.refunded) }),
+          }
+        : booking));
+      if (status === 'cancelled') {
+        Alert.alert(
+          'Booking cancelled',
+          payload?.refunded ? 'The customer has been notified and their payment refunded.' : 'The customer has been notified.'
+        );
+      }
+    } catch {
+      Alert.alert('Could not update booking', 'Check your connection and try again.');
+    } finally {
+      setUpdating(false);
     }
   };
 
   if (mode === 'detail' && selectedBooking) {
     return (
       <SafeAreaView edges={['top', 'left', 'right']} style={styles.detailSafeArea}>
-        <DetailView booking={selectedBooking} providerAvatar={providerAvatar} providerName={providerName}
+        <DetailView booking={selectedBooking} busy={updating}
           onClose={() => setMode('day')} onStatusChange={updateSelectedStatus} />
       </SafeAreaView>
     );
@@ -525,4 +675,17 @@ const styles = StyleSheet.create({
   confirmAction: { backgroundColor: colors.brown, borderColor: colors.brown },
   confirmText: { fontFamily: 'Philosopher-Bold', color: colors.white, fontSize: 14 },
   footerActionText: { fontFamily: 'Philosopher-Bold', color: colors.brown, fontSize: 14 },
+  slotRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
+  slotText: { fontFamily: 'Philosopher-Bold', fontSize: 16, color: colors.brown },
+  detailDuration: { fontFamily: 'Philosopher-Regular', fontSize: 13, color: colors.muted, marginTop: 2, marginLeft: 25 },
+  infoBox: { marginTop: 12, padding: 12, borderRadius: 14, backgroundColor: colors.cream, borderWidth: 1, borderColor: colors.beige, gap: 4 },
+  infoText: { fontFamily: 'Philosopher-Regular', fontSize: 13, color: colors.brown },
+  noteText: { fontFamily: 'Philosopher-Regular', fontSize: 14, lineHeight: 20, color: colors.brown },
+  referenceText: { fontFamily: 'Philosopher-Regular', fontSize: 11, color: colors.muted, marginTop: 20 },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(40, 30, 23, 0.45)', justifyContent: 'center', padding: 20 },
+  modalCard: { backgroundColor: colors.white, borderRadius: 22, padding: 20 },
+  modalTitle: { fontFamily: 'Philosopher-Bold', fontSize: 20, color: colors.brown },
+  modalCopy: { fontFamily: 'Philosopher-Regular', fontSize: 14, lineHeight: 20, color: colors.brown, marginTop: 8 },
+  modalInput: { minHeight: 80, marginTop: 14, borderRadius: 12, borderWidth: 1.5, borderColor: colors.beige, padding: 12, textAlignVertical: 'top', fontFamily: 'Philosopher-Regular', fontSize: 14, color: colors.brown },
+  modalActions: { flexDirection: 'row', gap: 10, marginTop: 16, height: 48 },
 });
