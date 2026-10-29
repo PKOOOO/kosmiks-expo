@@ -29,6 +29,7 @@ import * as Haptics from 'expo-haptics';
 import { API_BASE_URL } from '@/config/constants';
 import useProviderServicesStore from '@/store/provider-services.store';
 import { ApiError, friendlyErrorEn } from '@/lib/api';
+import BrandHeader from '@/components/BrandHeader';
 
 const darkBrown = '#423120';
 const beige = '#D7C3A7';
@@ -713,10 +714,8 @@ export default function ProviderServicesScreen() {
       edges={Platform.OS === 'ios' ? ['top', 'left', 'right'] : undefined}
       style={styles.screen}
     >
-      <View
-        style={styles.header}
-      >
-        {browsingCategoryId ? (
+      <BrandHeader
+        left={browsingCategoryId ? (
           <TouchableOpacity
             accessibilityLabel="Back to service categories"
             onPress={() => (pickingService ? setPickingService(false) : setBrowsingCategoryId(null))}
@@ -724,11 +723,8 @@ export default function ProviderServicesScreen() {
           >
             <Ionicons name="arrow-back" size={25} color={darkBrown} />
           </TouchableOpacity>
-        ) : null}
-        <View style={styles.headerCopy}>
-          <Text style={styles.pageTitle}>kosmiks</Text>
-        </View>
-        {browsingCategory && categoryServiceItems.length > 0 && !pickingService ? (
+        ) : undefined}
+        right={browsingCategory && categoryServiceItems.length > 0 && !pickingService ? (
           <TouchableOpacity
             accessibilityLabel={`Add another ${browsingCategory.name} service`}
             onPress={() => openAdd(browsingCategory.id)}
@@ -737,8 +733,8 @@ export default function ProviderServicesScreen() {
           >
             <Ionicons name="add" size={27} color={darkBrown} />
           </TouchableOpacity>
-        ) : null}
-      </View>
+        ) : undefined}
+      />
 
       {error && (
         <View style={styles.errorBanner}>
@@ -1097,29 +1093,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  header: {
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 10,
-    minHeight: 62,
-  },
-  headerCopy: {
-    alignItems: 'center',
-  },
-  pageTitle: {
-    fontFamily: 'Philosopher-Bold',
-    fontSize: 22,
-    lineHeight: 28,
-    color: darkBrown,
-    textAlign: 'center',
-  },
   headerBackButton: {
-    position: 'absolute',
-    left: 20,
-    top: 9,
     width: 44,
     height: 44,
     alignItems: 'center',
@@ -1127,9 +1101,6 @@ const styles = StyleSheet.create({
     borderRadius: 22,
   },
   addButton: {
-    position: 'absolute',
-    right: 20,
-    top: 9,
     width: 44,
     height: 44,
     alignItems: 'center',
