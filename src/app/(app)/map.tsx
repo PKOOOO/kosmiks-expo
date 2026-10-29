@@ -605,7 +605,7 @@ export default function MapScreen() {
                   theme: 'faded',
                   showPointOfInterestLabels: false, // only Kosmiks salons stand out
                   show3dObjects: use3d,
-                  colorBuildingSelect: '#423120',
+                  colorBuildingSelect: '#D7C3A7', // pin ring beige: marks the building without hiding the pin
                   colorBuildingHighlight: '#D7C3A7'
                 }
               };
