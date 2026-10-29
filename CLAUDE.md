@@ -117,7 +117,7 @@ Read before touching any auth code.
 | Production instance | `ins_3L5vso8bNlwyOqDpK5xci7NNdzf`, domain **`kosmiks.com`** (primary), Frontend API `clerk.kosmiks.com` |
 | Development instance | `ideal-lacewing-71` (`pk_test_…`) — **no longer used.** The backend verifies with `sk_live`, so dev-instance tokens get 401. Local `.env` and all build profiles use `pk_live` since 24 Oct 2026. |
 | Social logins (prod) | **Google: custom credentials** (see §9 Google Cloud). **Apple: disabled** until the Apple Developer account exists. |
-| Native redirect allowlist (prod) | `kosmiks://oauth-native-callback` — **required**. Production rejects any redirect URL not on the list; dev accepts anything. |
+| Native redirect allowlist (prod) | `kosmiks://oauth-native-callback` — **required**. Production rejects any redirect URL not on the list; dev accepts anything. **Temporary (29 Oct 2026):** `exp://192.168.1.196:8081/--/oauth-native-callback` (id `ru_3LMyzXfH2bKDdDHO9bpy1pEH22O`) so Google sign-in works in Expo Go on the iPhone until an iOS dev client exists. It is tied to the dev machine's LAN IP — if the IP changes, add the new one. **Remove before launch.** |
 | Sign-up requirements | Identical to dev (no phone/username/legal-consent requirements). |
 
 Clerk users are **not** copied between instances — every user got a new Clerk ID in production. **`getOrCreateUserFromClerk()` re-links by verified email:** if no row has the incoming `clerkId` but a row has the same email *and* Clerk reports that email as `verified`, the row's `clerkId` is moved to the new ID. It never re-keys the synthetic `service-admin` row. This also fixes guest-checkout rows (`clerkId: temp_…` with a real email) that previously 401'd when the guest later signed in.
@@ -410,6 +410,7 @@ EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 - [ ] **Sign in with the admin account** on the Kosmiks build and confirm its row re-links with `isAdmin` intact
 - [ ] Update/delete the stale `pk_test` `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` in EAS's server-side preview environment
 - [ ] Apple sign-in for iOS (needs Apple Developer account — see §10)
+- [ ] **Remove the temporary Expo Go redirect URL** `exp://192.168.1.196:8081/--/oauth-native-callback` from Clerk production before launch: `clerk api /redirect_urls/ru_3LMyzXfH2bKDdDHO9bpy1pEH22O --instance prod -X DELETE`
 - [ ] Remove the old `com.servey.app` Android app from Firebase once no tester uses the old APK
 - [ ] Optional: Google brand verification + logo so the consent screen shows "Kosmiks" instead of "kosmiks.com"
 - [ ] Change consent-screen support email and the `/privacy` contact to `support@kosmiks.com` once that mailbox exists (privacy policy currently lists it already — mail bounces until it exists)
@@ -463,7 +464,7 @@ EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 18. **`npx clerk@latest` can hang indefinitely.** Wrap calls in `timeout 60`.
 19. **Stripe RN ≥ 0.81 breaks Android release builds** without `plugins/with-stripe-android-fixes.js` (lint → `play-services-tapandpay` not found; R8 → missing `pushProvisioning` classes).
 20. **`/privacy` must stay public** — the Google OAuth consent screen links to it.
-21. **Local development uses Clerk production too.** There is only one backend and database (both production), so `.env` has `pk_live`. A `401` on `getBookings` with a `user_3J…`-style ID in the logs means a session still on the old dev instance (old `.env` or old dev client). Use the Kosmiks dev client (`com.kosmiks.app`, scheme `kosmiks`); **Expo Go can't sign in** — production only allowlists `kosmiks://oauth-native-callback`, not `exp://`.
+21. **Local development uses Clerk production too.** There is only one backend and database (both production), so `.env` has `pk_live`. A `401` on `getBookings` with a `user_3J…`-style ID in the logs means a session still on the old dev instance (old `.env` or old dev client). Use the Kosmiks dev client (`com.kosmiks.app`, scheme `kosmiks`); **Expo Go can only sign in from an allowlisted `exp://<LAN IP>:8081/--/oauth-native-callback`** — one is allowlisted temporarily for the iPhone (§5a); a new LAN IP gives "redirect url … does not match" until it is added.
 22. **Many source files use CRLF or mixed line endings.** Python `open()` in text mode silently converts them to LF and turns a 3-line change into a whole-file diff. Edit with `open(p, newline='')`, or check `git diff --stat` after scripted edits.
 23. **New native modules need new builds.** `@react-native-community/netinfo` and `expo-image` (Oct 2026) mean dev clients and APKs built before them crash with "native module not found".
 24. **NetInfo must use the JS reachability probe** (`NetInfo.configure({ useNativeReachability: false })` at the top of `src/lib/network.ts`). With Android's native "validated" flag the offline banner stayed stuck after airplane mode was turned off (Samsung, Oct 2026). Keep the configure call above any NetInfo use.
