@@ -25,7 +25,32 @@ interface MapSalon extends Saloon {
   averageRating: number;
   reviewCount: number;
   timeSlots?: TimeSlot[];
+  phone?: string | null;
 }
+
+type RouteProfile = 'walking' | 'driving';
+type RouteState = {
+  salonId: string;
+  profile: RouteProfile;
+  from: [number, number];
+  status: 'loading' | 'ready' | 'error';
+  duration?: number; // seconds
+  distance?: number; // metres
+};
+
+// "12 min", "1 h 5 min"
+const formatDuration = (seconds: number) => {
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  if (minutes < 60) return `${minutes} min`;
+  const rest = minutes % 60;
+  return rest ? `${Math.floor(minutes / 60)} h ${rest} min` : `${minutes / 60} h`;
+};
+
+// "900 m", "1,2 km"
+const formatDistance = (metres: number) =>
+  metres < 1000
+    ? `${Math.round(metres / 10) * 10} m`
+    : `${(metres / 1000).toFixed(metres < 10000 ? 1 : 0).replace('.', ',')} km`;
 
 // Bottom salon cards: one card per screen width, with a peek of the next.
 const CARD_WIDTH = Dimensions.get('window').width - 48;
@@ -64,6 +89,7 @@ export default function MapScreen() {
   const [displayedSalons, setDisplayedSalons] = useState<MapSalon[]>([]); // Salons to display in cards
   const [webViewRef, setWebViewRef] = useState<WebView | null>(null);
   const [activeCardIndex, setActiveCardIndex] = useState(0);
+  const [route, setRoute] = useState<RouteState | null>(null);
   const cardsFlatListRef = useRef<FlatList>(null);
 
   // Color scheme
@@ -308,31 +334,81 @@ export default function MapScreen() {
     setSelectedSalonForDetail(null);
   };
 
-  // Handle directions button
-  const handleDirections = (salon: MapSalon) => {
-    const url = Platform.select({
-      ios: `maps://app?daddr=${salon.latitude},${salon.longitude}`,
-      android: `google.navigation:q=${salon.latitude},${salon.longitude}`,
-    });
+  // Directions: draw the route from the user to the salon on our own map.
+  const sendRoute = (next: RouteState, salon: MapSalon) => {
+    webViewRef?.postMessage(JSON.stringify({
+      type: 'showRoute',
+      from: next.from,
+      to: [Number(salon.longitude), Number(salon.latitude)],
+      profile: next.profile,
+    }));
+  };
 
-    if (url) {
-      Linking.openURL(url).catch(() => {
-        // Fallback to web maps
-        const webUrl = `https://www.google.com/maps/dir/?api=1&destination=${salon.latitude},${salon.longitude}`;
-        Linking.openURL(webUrl);
-      });
+  const handleDirections = async (salon: MapSalon, profile: RouteProfile = route?.profile ?? 'walking') => {
+    closeSalonDetailModal();
+    setSelectedSalon(salon);
+    try {
+      let { status } = await Location.getForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        ({ status } = await Location.requestForegroundPermissionsAsync());
+      }
+      if (status !== 'granted') {
+        Alert.alert(
+          'Sijainti tarvitaan',
+          'Salli sijainti, niin näytämme reitin salonkiin.',
+          [
+            { text: 'Peruuta', style: 'cancel' },
+            { text: 'Asetukset', onPress: () => Linking.openSettings() },
+          ]
+        );
+        return;
+      }
+      setRoute({ salonId: salon.id, profile, from: route?.from ?? [0, 0], status: 'loading' });
+      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const next: RouteState = {
+        salonId: salon.id,
+        profile,
+        from: [position.coords.longitude, position.coords.latitude],
+        status: 'loading',
+      };
+      setRoute(next);
+      sendRoute(next, salon);
+    } catch (error) {
+      console.warn('Directions failed:', error);
+      setRoute((current) => current && { ...current, status: 'error' });
     }
   };
 
-  // Handle call button
+  const changeRouteProfile = (profile: RouteProfile) => {
+    if (!route || route.profile === profile) return;
+    const salon = salons.find((s) => s.id === route.salonId);
+    if (!salon) return;
+    const next: RouteState = { ...route, profile, status: 'loading', duration: undefined, distance: undefined };
+    setRoute(next);
+    sendRoute(next, salon);
+  };
+
+  const clearRoute = () => {
+    setRoute(null);
+    webViewRef?.postMessage(JSON.stringify({ type: 'clearRoute' }));
+    if (selectedSalon) centerMapOnSalon(selectedSalon);
+  };
+
+  // Swiping to another salon ends the route to the previous one.
+  useEffect(() => {
+    if (route && selectedSalon && selectedSalon.id !== route.salonId) {
+      setRoute(null);
+      webViewRef?.postMessage(JSON.stringify({ type: 'clearRoute' }));
+    }
+  }, [selectedSalon?.id]);
+
+  // Call: open the phone's dialler with the salon's number.
   const handleCall = (salon: MapSalon) => {
-    // Check if salon has phone number - for now, show alert
-    // You can add phone field to MapSalon interface if available
-    Alert.alert(
-      'Puhelin',
-      'Puhelinnumero ei ole saatavilla tälle salonille.',
-      [{ text: 'OK' }]
-    );
+    const number = salon.phone?.replace(/[^\d+]/g, '');
+    if (!number) return;
+    Linking.openURL(`tel:${number}`).catch(() => {
+      Alert.alert('Puhelu ei onnistunut', `Soita numeroon ${salon.phone}`);
+    });
   };
 
   // Navigate to services
@@ -564,12 +640,74 @@ export default function MapScreen() {
             }
           }
 
+          // In-app route from the user to a salon (Mapbox Directions API).
+          var meMarker = null;
+          var routeRequest = 0;
+          function setMe(lngLat) {
+            if (!meMarker) {
+              var me = document.createElement('div');
+              me.className = 'me';
+              meMarker = new mapboxgl.Marker({ element: me });
+            }
+            meMarker.setLngLat(lngLat).addTo(map);
+          }
+
+          function clearRoute() {
+            routeRequest++;
+            if (map.getLayer('route-line')) map.removeLayer('route-line');
+            if (map.getLayer('route-casing')) map.removeLayer('route-casing');
+            if (map.getSource('route')) map.removeSource('route');
+          }
+
+          function routeLayer(id, color, width) {
+            var paint = { 'line-color': color, 'line-width': width };
+            if (gl2) paint['line-emissive-strength'] = 1; // stays bright at night
+            var layer = { id: id, type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: paint };
+            if (gl2) layer.slot = 'middle'; // above roads, below labels
+            return layer;
+          }
+
+          function showRoute(from, to, profile) {
+            var request = ++routeRequest;
+            setMe(from);
+            var url = 'https://api.mapbox.com/directions/v5/mapbox/' + profile + '/' +
+              from[0] + ',' + from[1] + ';' + to[0] + ',' + to[1] +
+              '?geometries=geojson&overview=full&access_token=' + TOKEN;
+            fetch(url).then(function (res) { return res.json(); }).then(function (json) {
+              if (request !== routeRequest) return; // a newer request replaced this one
+              var found = json && json.routes && json.routes[0];
+              if (!found) { post({ type: 'routeError' }); return; }
+              var data = { type: 'Feature', properties: {}, geometry: found.geometry };
+              if (map.getSource('route')) {
+                map.getSource('route').setData(data);
+              } else {
+                map.addSource('route', { type: 'geojson', data: data });
+                map.addLayer(routeLayer('route-casing', '#FFFFFF', 9));
+                map.addLayer(routeLayer('route-line', '#423120', 5));
+              }
+              var bounds = new mapboxgl.LngLatBounds(from, from);
+              found.geometry.coordinates.forEach(function (c) { bounds.extend(c); });
+              bounds.extend(to);
+              map.fitBounds(bounds, {
+                padding: { top: 150, bottom: 320, left: 50, right: 50 },
+                pitch: PITCH, bearing: BEARING, maxZoom: 16.5, duration: 1400
+              });
+              post({ type: 'routeReady', duration: found.duration, distance: found.distance });
+            }).catch(function () {
+              if (request === routeRequest) post({ type: 'routeError' });
+            });
+          }
+
           function handleMessage(event) {
             var data;
             try { data = JSON.parse(event.data); } catch (e) { return; }
             if (!map) return;
             if (data.type === 'selectSalon') {
               selectSalon(data.salonId, true);
+            } else if (data.type === 'showRoute') {
+              showRoute(data.from, data.to, data.profile);
+            } else if (data.type === 'clearRoute') {
+              clearRoute();
             } else if (data.type === 'centerOnLocation') {
               map.flyTo({ center: [data.longitude, data.latitude], zoom: 15, pitch: PITCH, duration: 1600, padding: MAP_PAD });
             } else if (data.type === 'zoomToService') {
@@ -622,11 +760,7 @@ export default function MapScreen() {
               }, 10 * 60 * 1000);
             }
 
-            if (ME) {
-              var me = document.createElement('div');
-              me.className = 'me';
-              new mapboxgl.Marker({ element: me }).setLngLat(ME).addTo(map);
-            }
+            if (ME) setMe(ME);
 
             SALONS.forEach(function (salon) {
               var pin = makeKosmiksPin(salon.name, false);
@@ -671,6 +805,13 @@ export default function MapScreen() {
         // The map finished loading after the first card was selected: show it now.
         console.log('[MAP] ready, engine', data.engine, '3D:', data.threeD);
         if (selectedSalon) centerMapOnSalon(selectedSalon);
+        // The page reloaded with a route showing: draw it again.
+        const routeSalon = route && salons.find((s) => s.id === route.salonId);
+        if (route && routeSalon && route.status !== 'error') sendRoute(route, routeSalon);
+      } else if (data.type === 'routeReady') {
+        setRoute((current) => current && { ...current, status: 'ready', duration: data.duration, distance: data.distance });
+      } else if (data.type === 'routeError') {
+        setRoute((current) => current && { ...current, status: 'error' });
       } else if (data.type === 'markerTap' || data.type === 'salonSelected') {
         // A pin was tapped: show that salon's card (the map already flew there).
         const salon = salons.find(s => s.id === data.salonId);
@@ -766,30 +907,71 @@ export default function MapScreen() {
           )}
         />
 
-        {/* Search bar, floating at the top of the map */}
-        <View style={styles.topSearchContainer}>
-          <View style={styles.topSearchBar}>
-            <Ionicons name="search" size={20} color={darkBrown} style={styles.topSearchIcon} />
-            <TextInput
-              style={[styles.topSearchText, { color: darkBrown, fontFamily: 'Philosopher-Bold' }]}
-              value={searchQuery}
-              onChangeText={handleSearchQuery}
-              placeholder="Etsi Salonki.."
-              placeholderTextColor="#999"
-              returnKeyType="search"
-            />
-            {searchQuery.length > 0 && (
+        {/* Search bar, floating at the top of the map; the route panel replaces it while a route shows */}
+        {route ? (
+          <View style={styles.topSearchContainer}>
+            <View style={styles.routePanel}>
+              {(['walking', 'driving'] as const).map((profile) => (
+                <TouchableOpacity
+                  key={profile}
+                  style={[styles.routeModeButton, route.profile === profile && { backgroundColor: darkBrown }]}
+                  onPress={() => changeRouteProfile(profile)}
+                  accessibilityRole="button"
+                  accessibilityLabel={profile === 'walking' ? 'Kävely' : 'Auto'}
+                  accessibilityState={{ selected: route.profile === profile }}
+                >
+                  <Ionicons name={profile === 'walking' ? 'walk' : 'car'} size={18} color={route.profile === profile ? white : darkBrown} />
+                </TouchableOpacity>
+              ))}
+              <View style={styles.routeInfo}>
+                {route.status === 'loading' ? (
+                  <Text style={styles.routeInfoMain}>Haetaan reittiä…</Text>
+                ) : route.status === 'error' ? (
+                  <Text style={styles.routeInfoMain}>Reittiä ei löytynyt</Text>
+                ) : (
+                  <Text style={styles.routeInfoMain} numberOfLines={1}>
+                    {formatDuration(route.duration ?? 0)} · {formatDistance(route.distance ?? 0)}
+                  </Text>
+                )}
+                <Text style={styles.routeInfoSub} numberOfLines={1}>
+                  {salons.find((s) => s.id === route.salonId)?.name ?? ''}
+                </Text>
+              </View>
               <TouchableOpacity
-                onPress={clearSearch}
+                onPress={clearRoute}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 accessibilityRole="button"
-                accessibilityLabel="Clear search"
+                accessibilityLabel="Sulje reitti"
               >
-                <Ionicons name="close-circle" size={22} color={darkBrown} />
+                <Ionicons name="close-circle" size={26} color={darkBrown} />
               </TouchableOpacity>
-            )}
+            </View>
           </View>
-        </View>
+        ) : (
+          <View style={styles.topSearchContainer}>
+            <View style={styles.topSearchBar}>
+              <Ionicons name="search" size={20} color={darkBrown} style={styles.topSearchIcon} />
+              <TextInput
+                style={[styles.topSearchText, { color: darkBrown, fontFamily: 'Philosopher-Bold' }]}
+                value={searchQuery}
+                onChangeText={handleSearchQuery}
+                placeholder="Etsi Salonki.."
+                placeholderTextColor="#999"
+                returnKeyType="search"
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity
+                  onPress={clearSearch}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear search"
+                >
+                  <Ionicons name="close-circle" size={22} color={darkBrown} />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
 
         {/* Salon cards along the bottom, clear of the Mapbox logo */}
         <View
@@ -1167,15 +1349,24 @@ export default function MapScreen() {
 
                   {/* Rating */}
                   <View style={styles.salonDetailRatingRow}>
-                    <Text style={[styles.salonDetailRating, { color: darkBrown, fontFamily: 'Philosopher-Bold' }]}>
-                      {selectedSalonForDetail.averageRating ? selectedSalonForDetail.averageRating.toFixed(1) : selectedSalonForDetail.rating?.toFixed(1) || '0.0'}
-                    </Text>
-                    <Text style={[styles.salonDetailStar, { color: darkBrown }]}>
-                      ⭐
-                    </Text>
-                    <Text style={[styles.salonDetailReviewCount, { color: '#666', fontFamily: 'Philosopher-Regular' }]}>
-                      • {selectedSalonForDetail.reviewCount || 0} arvostelua
-                    </Text>
+                    {selectedSalonForDetail.reviewCount > 0 ? (
+                      <>
+                        <Text style={[styles.salonDetailRating, { color: darkBrown, fontFamily: 'Philosopher-Bold' }]}>
+                          {selectedSalonForDetail.averageRating.toFixed(1)}
+                        </Text>
+                        <Text style={[styles.salonDetailStar, { color: darkBrown }]}>
+                          ⭐
+                        </Text>
+                        <Text style={[styles.salonDetailReviewCount, { color: '#666', fontFamily: 'Philosopher-Regular' }]}>
+                          • {selectedSalonForDetail.reviewCount} {selectedSalonForDetail.reviewCount === 1 ? 'arvostelu' : 'arvostelua'}
+                        </Text>
+                      </>
+                    ) : (
+                      // Same label as the map card while a salon has no reviews.
+                      <Text style={[styles.salonDetailRating, { color: darkBrown, fontFamily: 'Philosopher-Bold' }]}>
+                        ★ Uusi
+                      </Text>
+                    )}
                   </View>
 
                   {/* Short Intro */}
@@ -1198,7 +1389,8 @@ export default function MapScreen() {
                       </Text>
                     </TouchableOpacity>
 
-                    {/* Call Button */}
+                    {/* Call Button: opens the dialler with the salon's number */}
+                    {!!selectedSalonForDetail.phone && (
                     <TouchableOpacity
                       style={[styles.salonDetailActionButton, styles.salonDetailActionButtonSecondary]}
                       onPress={() => handleCall(selectedSalonForDetail)}
@@ -1208,6 +1400,7 @@ export default function MapScreen() {
                         Soita
                       </Text>
                     </TouchableOpacity>
+                    )}
                   </View>
 
                   {/* View Services Button */}
@@ -1382,6 +1575,47 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
+  },
+  routePanel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 25,
+    borderWidth: 1,
+    borderColor: '#423120',
+    width: 320,
+    height: 54,
+    paddingLeft: 6,
+    paddingRight: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  routeModeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#423120',
+  },
+  routeInfo: {
+    flex: 1,
+    marginLeft: 4,
+  },
+  routeInfoMain: {
+    fontFamily: 'Philosopher-Bold',
+    fontSize: 16,
+    color: '#423120',
+  },
+  routeInfoSub: {
+    fontFamily: 'Philosopher-Regular',
+    fontSize: 12,
+    color: '#8A7F75',
   },
   topSearchIcon: {
     marginRight: 12,

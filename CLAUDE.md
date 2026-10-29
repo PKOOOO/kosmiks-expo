@@ -253,6 +253,8 @@ curl -X POST https://exp.host/--/api/v2/push/getReceipts \
 - **Layout (29 Oct 2026):** search bar floats at the top of the map; cards sit at the bottom just above the Mapbox logo; camera padding `MAP_PAD = { top: 70, bottom: 300 }` keeps the selected salon between them.
 - **Bottom cards** (swipe = select + fly + highlight): photo + count, name, rating ("Uusi" with no reviews), **open/closed** from the salon's opening hours (`getOpeningStatus()` in `src/lib/opening-hours.ts`, Finnish format "Avoinna nyt · sulkeutuu 18.00"), address, **Reittiohjeet** (native maps) and **Varaa** (→ `/services`). Card body opens the detail modal.
 - **Backend:** `GET /api/public/saloons/map` returns `timeSlots` (opening hours) and reviewers' first names only.
+- **Route in the app (29 Oct 2026):** "Reitti" (detail sheet) and "Reittiohjeet" (card) no longer open Apple/Google Maps. They ask for location, then the page fetches the Mapbox **Directions API** (`walking`/`driving`, same token) and draws a brown line with a white casing (`slot: 'middle'` on v3). The search bar is replaced by a route panel (Kävely/Auto, "12 min · 900 m", ✕). Messages: app → page `showRoute {from, to, profile}`, `clearRoute`; page → app `routeReady {duration, distance}`, `routeError`. Swiping to another salon clears the route. No transit routes and no turn-by-turn (would need a native navigation SDK).
+- **"Soita"** opens the dialler (`tel:`) with `saloons.phone`; hidden when the salon has no phone. The detail sheet shows "★ Uusi" until the first review.
 - The Mapbox **Places API** (business details, busy times) was evaluated and **not used**: public preview, busyness only for North America/Western Europe, and providers already enter their own hours/photos.
 
 **All three map pages share `src/lib/map-html.ts`** (29 Oct 2026): `MAPBOX_LOADER_JS` (WebGL2 check → v3.32.0 + Standard or v2.15.0 + `streets-v12`; defines `gl2`, `use3d`, `MAPBOX_STYLE`, `lightPreset()`, `loadMapbox(cb)`), `KOSMIKS_PIN_CSS` / `KOSMIKS_PIN_JS` (`makeKosmiksPin(name, small)`). Bump the GL JS version there, once.
@@ -357,6 +359,7 @@ eas build --profile production --platform android   # Play Store
 - **No real Prisma migration history.** Use `npx prisma db push`. **Never `prisma migrate dev`** — it detects drift and offers to reset, which would wipe production. A fake baseline sits at `prisma/migrations/20240101000000_init`.
 - **⚠️ Local `.env` points at the production database.** There is no dev database. Every `db push`, script, and Prisma Studio edit hits the live system.
 - Before any `db push`, run `prisma migrate diff --from-schema-datasource --to-schema-datamodel --script` and confirm the output.
+- **`saloons.phone`** (added 29 Oct 2026 with `db push`) is the public number behind the map's "Soita" button. Existing salons were filled from their Phase 1 `ProviderApplication.phone`; new salons get it when created (`approve` route, `GET /api/provider/saloon`). Providers edit or clear it on the salon screen ("Phone shown to customers"); `PATCH /api/saloons/[id]` validates it (7–15 digits, empty = remove). The Phase 1 phone itself is never returned publicly.
 - A cleanup script exists at `scripts/cleanup-test-data.ts` — **untracked**, dry-run by default, `--execute` to run. **Update `KEEP_EMAILS` before running.**
 
 ---

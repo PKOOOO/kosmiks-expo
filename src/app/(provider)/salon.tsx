@@ -53,7 +53,15 @@ const BUILDING_TYPES = [
 type BuildingType = (typeof BUILDING_TYPES)[number]['label'];
 type AddressLabel = 'home' | 'custom';
 
-type SalonForm = { name: string; description: string; shortIntro: string; address: string };
+type SalonForm = { name: string; description: string; shortIntro: string; address: string; phone: string };
+
+// Empty is allowed (hides the call button); otherwise 7–15 digits.
+const isValidPhone = (phone: string) => {
+  const value = phone.trim();
+  if (!value) return true;
+  const digits = value.replace(/\D/g, '').length;
+  return /^\+?[\d\s()-]+$/.test(value) && digits >= 7 && digits <= 15;
+};
 type SalonCoordinates = { latitude: number | null; longitude: number | null };
 type LocationChoice = { address: string; latitude: number | null; longitude: number | null };
 
@@ -139,8 +147,8 @@ export default function ProviderSalonScreen() {
   // Drives the stacked-photos scroll effect.
   const scrollY = useRef(new Animated.Value(0)).current;
   const [photosCardY, setPhotosCardY] = useState(0);
-  const [form, setForm] = useState<SalonForm>({ name: '', description: '', shortIntro: '', address: '' });
-  const [savedForm, setSavedForm] = useState<SalonForm>({ name: '', description: '', shortIntro: '', address: '' });
+  const [form, setForm] = useState<SalonForm>({ name: '', description: '', shortIntro: '', address: '', phone: '' });
+  const [savedForm, setSavedForm] = useState<SalonForm>({ name: '', description: '', shortIntro: '', address: '', phone: '' });
   const [locationLabel, setLocationLabel] = useState('');
   const [providerCity, setProviderCity] = useState('');
   const [coordinates, setCoordinates] = useState<SalonCoordinates>({ latitude: null, longitude: null });
@@ -169,6 +177,7 @@ export default function ProviderSalonScreen() {
   const hasImageChanges = JSON.stringify(images) !== JSON.stringify(savedImages);
   const hasLocationChanges = JSON.stringify(coordinates) !== JSON.stringify(savedCoordinates);
   const hasChanges = hasFormChanges || hasImageChanges || hasLocationChanges;
+  const phoneValid = isValidPhone(form.phone);
   const selectedBuilding = BUILDING_TYPES.find(item => item.label === selectedBuildingType) ?? BUILDING_TYPES[0];
   const detailsAddress = addressDetailsCopy(draftLocation.address);
 
@@ -206,6 +215,7 @@ export default function ProviderSalonScreen() {
         const f: SalonForm = {
           name: salon.name ?? '', description: salon.description ?? '',
           shortIntro: salon.shortIntro ?? '', address: salon.address ?? '',
+          phone: salon.phone ?? '',
         };
         setForm(f); setSavedForm(f);
         const salonCoordinates = {
@@ -231,7 +241,7 @@ export default function ProviderSalonScreen() {
 
   // Every change saves itself — there is no save button.
   const handleSave = async () => {
-    if (!saloonId || !form.name.trim()) return;
+    if (!saloonId || !form.name.trim() || !isValidPhone(form.phone)) return;
     failedSaveRef.current = null;
     setSaving(true); setError(null); setSuccessMsg(null);
     const attempt = JSON.stringify({ form, images, coordinates });
@@ -245,6 +255,7 @@ export default function ProviderSalonScreen() {
             description: form.description.trim() || null,
             shortIntro: form.shortIntro.trim() || null,
             address: form.address.trim() || null,
+            phone: form.phone.trim(),
             latitude: coordinates.latitude,
             longitude: coordinates.longitude,
             ...(hasImageChanges && { images: images.map(url => ({ url })) }),
@@ -268,11 +279,11 @@ export default function ProviderSalonScreen() {
 
   // Save shortly after the last change, so quick edits go out as one request.
   useEffect(() => {
-    if (!hasChanges || saving || uploadingPhoto !== null) return;
+    if (!hasChanges || saving || uploadingPhoto !== null || !phoneValid) return;
     if (failedSaveRef.current === JSON.stringify({ form, images, coordinates })) return;
     const t = setTimeout(() => { void handleSaveRef.current(); }, 600);
     return () => clearTimeout(t);
-  }, [hasChanges, saving, uploadingPhoto, form, images, coordinates]);
+  }, [hasChanges, saving, uploadingPhoto, phoneValid, form, images, coordinates]);
 
   // Leaving the tab with an edit still waiting for its timer: save it right away.
   useEffect(() => {
@@ -610,6 +621,28 @@ export default function ProviderSalonScreen() {
                 Add a bright, clear photo that shows customers your salon.
               </Text>
             )}
+          </View>
+
+          {/* ══════════════════════════════════════
+              CARD: Phone shown to customers
+          ══════════════════════════════════════ */}
+          <View style={{ marginTop: 24 }}>
+            <Text style={addressDetailsFieldLabel}>Phone shown to customers</Text>
+            <TextInput
+              value={form.phone}
+              onChangeText={phone => setForm(current => ({ ...current, phone }))}
+              placeholder="+358 40 123 4567"
+              placeholderTextColor="#B5A898"
+              keyboardType="phone-pad"
+              autoComplete="tel"
+              textContentType="telephoneNumber"
+              style={[addressDetailsSmallInput, !phoneValid && { borderColor: '#c00' }]}
+            />
+            <Text style={[photoEmptyText, { textAlign: 'left', marginTop: 8, paddingHorizontal: 0 }, !phoneValid && { color: '#c00' }]}>
+              {phoneValid
+                ? 'Customers can call this number from the map. Leave it empty to hide the call button.'
+                : 'Enter a full phone number, e.g. +358 40 123 4567.'}
+            </Text>
           </View>
 
         </Animated.ScrollView>
