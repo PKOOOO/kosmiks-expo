@@ -6,7 +6,7 @@ import { WebView } from '@/components/WebView';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { MAPBOX_TOKEN, hasMapboxToken, MAP_UNAVAILABLE_HTML } from '@/config/constants';
-import { MAPBOX_LOADER_JS } from '@/lib/map-html';
+import { MAPBOX_LOADER_JS, BUILDING_HIGHLIGHT_JS } from '@/lib/map-html';
 import { forwardGeocode, reverseGeocode as lookupAddress } from '@/lib/geocode';
 
 
@@ -57,10 +57,11 @@ const PIN_ICON_GLOBE = '<path d="M14 31H50M32 13C25 19 22 25 22 31C22 38 25 44 3
 // both post the new {lat,lng} back to React Native. `window.setMarker` lets RN
 // move the marker after a text search resolves to coordinates.
 //
-// Same engine and style as the other maps (src/lib/map-html.ts), but always
-// flat and in daylight: providers need to place the pin precisely. The window.*
-// functions exist before the map has loaded (RN calls them on mount); early
-// calls are applied once it is ready.
+// Same engine, style and 3D view as the main map (src/lib/map-html.ts): the
+// building under the pin is highlighted so providers can see which building
+// they picked. The pin is an HTML marker, so 3D buildings never cover it. The
+// window.* functions exist before the map has loaded (RN calls them on mount);
+// early calls are applied once it is ready.
 const buildHTML = (
   lat: number,
   lng: number,
@@ -69,7 +70,11 @@ const buildHTML = (
   markerSubtitle: string,
   markerIcon: 'globe' | 'home',
   showMarkerLabel: boolean,
+  hasLocation: boolean,
 ) => {
+  // Building level when we know where the salon is; city level otherwise.
+  const initialZoom = hasLocation ? 16 : 13;
+
   // No token: show a static notice rather than a map whose accessToken
   // would be the literal string 'undefined'. hasMapboxToken() logs once.
   if (!hasMapboxToken()) return MAP_UNAVAILABLE_HTML;
@@ -154,6 +159,9 @@ const buildHTML = (
   <div id="map"></div>
   <script>
     ${MAPBOX_LOADER_JS}
+    ${BUILDING_HIGHLIGHT_JS}
+    var PITCH = use3d ? 45 : 0;
+    var BEARING = use3d ? -17 : 0;
 
     var START = [${lng}, ${lat}];
     var map = null;
@@ -185,7 +193,8 @@ const buildHTML = (
     window.setMarker = function (lat, lng) {
       if (!map) { pending = [lng, lat]; return; }
       marker.setLngLat([lng, lat]);
-      map.easeTo({ center: [lng, lat], zoom: 15 });
+      map.easeTo({ center: [lng, lat], zoom: 16, pitch: PITCH, bearing: BEARING });
+      map.once('moveend', function () { highlightBuilding(map, [lng, lat]); });
     };
     window.setMarkerLabel = function (title, subtitle) {
       var label = markerElement && markerElement.querySelector('.salon-marker-label');
@@ -202,13 +211,18 @@ const buildHTML = (
 
     loadMapbox(function () {
       mapboxgl.accessToken = '${MAPBOX_TOKEN}';
-      var options = { container: 'map', style: MAPBOX_STYLE, center: START, zoom: 13, attributionControl: false };
+      var options = {
+        container: 'map', style: MAPBOX_STYLE, center: START, attributionControl: false,
+        zoom: ${initialZoom}, pitch: PITCH, bearing: BEARING
+      };
       if (gl2) {
         options.config = {
           basemap: {
-            lightPreset: 'day',      // always readable for precise pinning
+            lightPreset: lightPreset(),
             theme: 'faded',
-            show3dObjects: false     // flat: buildings must not hide the pin
+            showPointOfInterestLabels: false,
+            show3dObjects: use3d,
+            colorBuildingSelect: '#D7C3A7' // same beige as the main map
           }
         };
       }
@@ -227,12 +241,18 @@ const buildHTML = (
       map.on('move', function () {
         if (mapIsDragging) marker.setLngLat(map.getCenter());
       });
+      map.on('dragstart', function () { highlightBuilding(map, null); });
       map.on('dragend', function () {
         mapIsDragging = false;
         var center = map.getCenter();
         marker.setLngLat(center);
         post(center, 'map-drag-end');
+        highlightBuilding(map, center);
       });
+      marker.on('dragstart', function () { highlightBuilding(map, null); });
+      marker.on('dragend', function () { highlightBuilding(map, marker.getLngLat()); });
+      // First full render: highlight the building under the starting pin.
+      map.once('idle', function () { if (!pending) highlightBuilding(map, marker.getLngLat()); });
 
       if (pending) { window.setMarker(pending[1], pending[0]); pending = null; }
     });
@@ -278,6 +298,7 @@ export default function AddressMapPicker({
       markerSubtitle,
       markerIcon,
       showMarkerLabel,
+      initialLat != null && initialLng != null,
     ),
     [], // eslint-disable-line react-hooks/exhaustive-deps
   );

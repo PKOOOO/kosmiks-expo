@@ -138,3 +138,48 @@ export const KOSMIKS_PIN_JS = `
     return pin;
   }
 `;
+
+/**
+ * Defines `highlightBuilding(map, lngLat)` in the page: colours the 3D
+ * building nearest to a point (feature state `select`, colour from the
+ * style's `colorBuildingSelect`) and un-colours the previous one. A pin's
+ * coordinate often sits on the pavement next to its building, so it looks
+ * within a small radius and takes the building whose centre is nearest.
+ * Needs `use3d` (MAPBOX_LOADER_JS); does nothing on flat maps.
+ */
+export const BUILDING_HIGHLIGHT_JS = `
+  var highlightedBuilding = null;
+  function footprintCentre(map, feature) {
+    var geom = feature.geometry || {};
+    var ring = geom.type === 'Polygon' ? geom.coordinates[0]
+      : geom.type === 'MultiPolygon' ? geom.coordinates[0][0] : null;
+    if (!ring || !ring.length) return null;
+    var x = 0, y = 0;
+    ring.forEach(function (c) { var pt = map.project(c); x += pt.x; y += pt.y; });
+    return { x: x / ring.length, y: y / ring.length };
+  }
+  function highlightBuilding(map, lngLat) {
+    if (!use3d) return;
+    try {
+      if (highlightedBuilding) { map.setFeatureState(highlightedBuilding, { select: false }); highlightedBuilding = null; }
+      if (!lngLat) return;
+      var p = map.project(lngLat);
+      var r = 45;
+      var found = map.queryRenderedFeatures(
+        [[p.x - r, p.y - r], [p.x + r, p.y + r]],
+        { target: { featuresetId: 'buildings', importId: 'basemap' } }
+      ) || [];
+      var best = null, bestDistance = Infinity;
+      found.forEach(function (feature) {
+        var c = footprintCentre(map, feature);
+        if (!c) return;
+        var d = Math.hypot(c.x - p.x, c.y - p.y);
+        if (d < bestDistance) { best = feature; bestDistance = d; }
+      });
+      if (best) {
+        highlightedBuilding = best;
+        map.setFeatureState(highlightedBuilding, { select: true });
+      }
+    } catch (e) { /* not supported here: the pin is enough */ }
+  }
+`;

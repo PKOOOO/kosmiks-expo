@@ -16,7 +16,7 @@ import { describeError } from "@/lib/api";
 import { useIsOffline, useOnReconnect } from "@/lib/network";
 import RemoteImage from '@/components/RemoteImage';
 import { getOpeningStatus, TimeSlot } from '@/lib/opening-hours';
-import { MAPBOX_LOADER_JS, KOSMIKS_PIN_CSS, KOSMIKS_PIN_JS } from '@/lib/map-html';
+import { MAPBOX_LOADER_JS, KOSMIKS_PIN_CSS, KOSMIKS_PIN_JS, BUILDING_HIGHLIGHT_JS } from '@/lib/map-html';
 
 // Extended interface for map salon data
 interface MapSalon extends Saloon {
@@ -573,57 +573,18 @@ export default function MapScreen() {
 
           ${MAPBOX_LOADER_JS}
           ${KOSMIKS_PIN_JS}
+          ${BUILDING_HIGHLIGHT_JS}
           var PITCH = use3d ? 55 : 0;
           var BEARING = use3d ? -17 : 0;
 
           var map = null;
           var markerEls = {};
           var selectedId = null;
-          var selectedBuilding = null;
           var byId = {};
           SALONS.forEach(function (s) { byId[s.id] = s; });
 
           function post(message) {
             if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(message));
-          }
-
-          // Screen-space centre of a building footprint.
-          function footprintCentre(feature) {
-            var geom = feature.geometry || {};
-            var ring = geom.type === 'Polygon' ? geom.coordinates[0]
-              : geom.type === 'MultiPolygon' ? geom.coordinates[0][0] : null;
-            if (!ring || !ring.length) return null;
-            var x = 0, y = 0;
-            ring.forEach(function (c) { var pt = map.project(c); x += pt.x; y += pt.y; });
-            return { x: x / ring.length, y: y / ring.length };
-          }
-
-          // Colour the selected salon's 3D building. A salon's coordinate often
-          // sits on the pavement next to its building, so look within a small
-          // radius of the pin and take the building whose centre is nearest.
-          // The pulsing ring around the pin is the fallback.
-          function highlightBuilding(salon) {
-            if (!use3d) return;
-            try {
-              if (selectedBuilding) { map.setFeatureState(selectedBuilding, { select: false }); selectedBuilding = null; }
-              var p = map.project([salon.lng, salon.lat]);
-              var r = 45;
-              var found = map.queryRenderedFeatures(
-                [[p.x - r, p.y - r], [p.x + r, p.y + r]],
-                { target: { featuresetId: 'buildings', importId: 'basemap' } }
-              ) || [];
-              var best = null, bestDistance = Infinity;
-              found.forEach(function (feature) {
-                var c = footprintCentre(feature);
-                if (!c) return;
-                var d = Math.hypot(c.x - p.x, c.y - p.y);
-                if (d < bestDistance) { best = feature; bestDistance = d; }
-              });
-              if (best) {
-                selectedBuilding = best;
-                map.setFeatureState(selectedBuilding, { select: true });
-              }
-            } catch (e) { /* not supported here: the ring is enough */ }
           }
 
           function selectSalon(id, fly) {
@@ -634,9 +595,9 @@ export default function MapScreen() {
             if (markerEls[id]) markerEls[id].classList.add('selected');
             if (fly) {
               map.flyTo({ center: [salon.lng, salon.lat], zoom: 16.2, pitch: PITCH, bearing: BEARING, duration: 1400, padding: MAP_PAD });
-              map.once('moveend', function () { highlightBuilding(salon); });
+              map.once('moveend', function () { highlightBuilding(map, [salon.lng, salon.lat]); });
             } else {
-              highlightBuilding(salon);
+              highlightBuilding(map, [salon.lng, salon.lat]);
             }
           }
 
@@ -663,7 +624,7 @@ export default function MapScreen() {
             var paint = { 'line-color': color, 'line-width': width };
             if (gl2) paint['line-emissive-strength'] = 1; // stays bright at night
             var layer = { id: id, type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: paint };
-            if (gl2) layer.slot = 'middle'; // above roads, below labels
+            if (gl2) layer.slot = 'top'; // 'middle' hides the line behind 3D buildings
             return layer;
           }
 
@@ -682,8 +643,8 @@ export default function MapScreen() {
                 map.getSource('route').setData(data);
               } else {
                 map.addSource('route', { type: 'geojson', data: data });
-                map.addLayer(routeLayer('route-casing', '#FFFFFF', 9));
-                map.addLayer(routeLayer('route-line', '#423120', 5));
+                map.addLayer(routeLayer('route-casing', '#FFFFFF', 10));
+                map.addLayer(routeLayer('route-line', '#423120', 6));
               }
               var bounds = new mapboxgl.LngLatBounds(from, from);
               found.geometry.coordinates.forEach(function (c) { bounds.extend(c); });
