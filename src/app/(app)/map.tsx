@@ -493,7 +493,7 @@ export default function MapScreen() {
           var CENTER = [${centerLng}, ${centerLat}];
           var ME = ${userLocation ? JSON.stringify([userLocation.longitude, userLocation.latitude]) : 'null'};
           var SALONS = ${JSON.stringify(markers)};
-          var BOTTOM_PAD = 420; // keeps the selected salon above the bottom card
+          var MAP_PAD = { top: 70, bottom: 300 }; // keeps the selected salon between the search bar and the cards
 
           ${MAPBOX_LOADER_JS}
           ${KOSMIKS_PIN_JS}
@@ -557,7 +557,7 @@ export default function MapScreen() {
             selectedId = id;
             if (markerEls[id]) markerEls[id].classList.add('selected');
             if (fly) {
-              map.flyTo({ center: [salon.lng, salon.lat], zoom: 16.2, pitch: PITCH, bearing: BEARING, duration: 1400, padding: { bottom: BOTTOM_PAD } });
+              map.flyTo({ center: [salon.lng, salon.lat], zoom: 16.2, pitch: PITCH, bearing: BEARING, duration: 1400, padding: MAP_PAD });
               map.once('moveend', function () { highlightBuilding(salon); });
             } else {
               highlightBuilding(salon);
@@ -571,9 +571,9 @@ export default function MapScreen() {
             if (data.type === 'selectSalon') {
               selectSalon(data.salonId, true);
             } else if (data.type === 'centerOnLocation') {
-              map.flyTo({ center: [data.longitude, data.latitude], zoom: 15, pitch: PITCH, duration: 1600, padding: { bottom: BOTTOM_PAD } });
+              map.flyTo({ center: [data.longitude, data.latitude], zoom: 15, pitch: PITCH, duration: 1600, padding: MAP_PAD });
             } else if (data.type === 'zoomToService') {
-              map.flyTo({ center: [data.center.longitude, data.center.latitude], zoom: 14, duration: 1600, padding: { bottom: BOTTOM_PAD } });
+              map.flyTo({ center: [data.center.longitude, data.center.latitude], zoom: 14, duration: 1600, padding: MAP_PAD });
               setTimeout(function () {
                 new mapboxgl.Popup({ closeButton: true, closeOnClick: false, offset: 25 })
                   .setLngLat([data.center.longitude, data.center.latitude])
@@ -766,17 +766,41 @@ export default function MapScreen() {
           )}
         />
 
-        {/* Search Bar - Now floating at the bottom */}
-        <KeyboardAvoidingView
-          behavior="padding"
+        {/* Search bar, floating at the top of the map */}
+        <View style={styles.topSearchContainer}>
+          <View style={styles.topSearchBar}>
+            <Ionicons name="search" size={20} color={darkBrown} style={styles.topSearchIcon} />
+            <TextInput
+              style={[styles.topSearchText, { color: darkBrown, fontFamily: 'Philosopher-Bold' }]}
+              value={searchQuery}
+              onChangeText={handleSearchQuery}
+              placeholder="Etsi Salonki.."
+              placeholderTextColor="#999"
+              returnKeyType="search"
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity
+                onPress={clearSearch}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityRole="button"
+                accessibilityLabel="Clear search"
+              >
+                <Ionicons name="close-circle" size={22} color={darkBrown} />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* Salon cards along the bottom, clear of the Mapbox logo */}
+        <View
           style={{
             position: 'absolute',
             bottom: 0,
             left: 0,
             right: 0,
             zIndex: 10,
+            paddingBottom: (Platform.OS === 'ios' ? 32 : 62) + insets.bottom,
           }}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 20}
         >
           {/* Salon cards: swipe between salons; the map follows and highlights each one */}
           {displayedSalons.length > 0 && (
@@ -883,31 +907,7 @@ export default function MapScreen() {
               }}
             />
           )}
-
-          <View style={[styles.topSearchContainer, { paddingBottom: Platform.OS === 'ios' ? 55 + insets.bottom : 85 + insets.bottom }]}>
-            <View style={styles.topSearchBar}>
-              <Ionicons name="search" size={20} color={darkBrown} style={styles.topSearchIcon} />
-              <TextInput
-                style={[styles.topSearchText, { color: darkBrown, fontFamily: 'Philosopher-Bold' }]}
-                value={searchQuery}
-                onChangeText={handleSearchQuery}
-                placeholder="Etsi Salonki.."
-                placeholderTextColor="#999"
-                returnKeyType="search"
-              />
-              {searchQuery.length > 0 && (
-                <TouchableOpacity
-                  onPress={clearSearch}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  accessibilityRole="button"
-                  accessibilityLabel="Clear search"
-                >
-                  <Ionicons name="close-circle" size={22} color={darkBrown} />
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-        </KeyboardAvoidingView>
+        </View>
 
         {showFetchError && (
           <View style={[styles.mapStatePanel, { bottom: 150 + insets.bottom }]}>
@@ -1354,6 +1354,10 @@ const styles = StyleSheet.create({
   },
   // Top Search Bar Styles (same as service.tsx)
   topSearchContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 20,

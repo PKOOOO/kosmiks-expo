@@ -20,8 +20,11 @@ export const MAPBOX_LOADER_JS = `
   var gl2 = (function () {
     try { return !!document.createElement('canvas').getContext('webgl2'); } catch (e) { return false; }
   })();
-  // 3D buildings are heavy: keep maps flat on weaker phones.
-  var use3d = gl2 && (navigator.hardwareConcurrency || 8) > 4;
+  // 3D buildings are heavy: keep maps flat on weaker phones. iOS caps
+  // hardwareConcurrency (privacy), so every iPhone would look weak; any iPhone
+  // with WebGL2 handles 3D, so only Android is judged by its core count.
+  var isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  var use3d = gl2 && (isIOS || (navigator.hardwareConcurrency || 8) > 4);
   var MAPBOX_VERSION = gl2 ? '${MAPBOX_GL_V3}' : '${MAPBOX_GL_V2_FALLBACK}';
   var MAPBOX_STYLE = gl2 ? 'mapbox://styles/mapbox/standard' : 'mapbox://styles/mapbox/streets-v12';
 
