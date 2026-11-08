@@ -1,13 +1,12 @@
 import { Stack } from 'expo-router';
 
-// Earnings tab: overview → payout detail / bank account, plus a
+// Earnings tab: overview → payout detail, plus a
 // "How payouts work" bottom sheet.
 export default function EarningsLayout() {
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#EDE3D8' } }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="[id]" />
-      <Stack.Screen name="bank" />
       <Stack.Screen
         name="how-it-works"
         options={{

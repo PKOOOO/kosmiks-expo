@@ -15,14 +15,19 @@ export default function HowPayoutsWorkSheet() {
       body: `Taken from each completed booking. You keep ${100 - feePct}%.`,
     },
     {
-      icon: 'calendar-outline',
-      title: 'Paid every Friday',
-      body: 'Your available balance is sent to your bank account by SEPA transfer.',
+      icon: 'card-outline',
+      title: 'Paid through Stripe',
+      body: 'Set up your free Stripe account once (ID and bank account). Stripe keeps your bank details — Kosmiks never sees them.',
+    },
+    {
+      icon: 'arrow-up-circle-outline',
+      title: 'Withdraw when you like',
+      body: 'Earnings become available after each appointment. Tap Withdraw to send them to your Stripe account.',
     },
     {
       icon: 'time-outline',
-      title: 'Arrives in 1–2 business days',
-      body: 'Depending on your bank.',
+      title: 'Stripe pays your bank',
+      body: 'Usually within a few business days; the first payout can take up to a week.',
     },
   ];
 

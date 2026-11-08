@@ -88,15 +88,17 @@ export type AdminPayout = {
   gross: number;
   fee: number;
   amount: number;
-  status: 'scheduled' | 'sent' | 'arrived' | 'failed';
+  // processing / transferred: Stripe Connect withdrawals; scheduled / sent / arrived: old manual SEPA.
+  status: 'processing' | 'transferred' | 'scheduled' | 'sent' | 'arrived' | 'failed';
   scheduledFor: string;
   sentAt: string | null;
   arrivedAt: string | null;
   failedAt: string | null;
   failureReason: string | null;
   reference: string | null;
-  iban: string;
+  iban: string | null;
   bankAccountName: string | null;
+  stripeAccountId: string | null;
   user: { id: string; name: string | null; email: string };
   _count: { bookings: number };
 };

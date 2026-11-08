@@ -1,15 +1,16 @@
 import React, { useCallback, useRef, useState } from 'react';
 import {
-  View, Text, ScrollView, RefreshControl, ActivityIndicator, TouchableOpacity, Platform,
+  View, Text, ScrollView, RefreshControl, ActivityIndicator, TouchableOpacity, Platform, Alert,
 } from 'react-native';
 import { useAuth } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import {
-  useEarningsStore, summarise, nextPayoutDate, totalsByMonth, formatEur, formatDay, formatDate,
-  maskIban, type EarningsBooking,
+  useEarningsStore, summarise, totalsByMonth, formatEur, formatDay, formatDate, type EarningsBooking,
 } from '@/lib/earnings';
+import { setUpStripePayouts, openStripeDashboard, refreshStripeStatus, withdrawEarnings } from '@/lib/stripe-payouts';
+import { friendlyErrorEn } from '@/lib/api';
 import { Card, SectionLabel, ListRow, StatusChip, colors } from '@/components/earnings/EarningsUI';
 import BrandHeader from '@/components/BrandHeader';
 import { useTabBarSpace } from '@/lib/layout';
@@ -70,7 +71,7 @@ export default function EarningsScreen() {
           <ErrorState message={error} onRetry={refresh} />
         ) : data ? (
           segment === 'payouts'
-            ? <PayoutsSection router={router} />
+            ? <PayoutsSection router={router} reload={() => load(() => getTokenRef.current())} />
             : <RevenueSection />
         ) : null}
       </ScrollView>
@@ -80,22 +81,79 @@ export default function EarningsScreen() {
 
 // ─── Payouts ─────────────────────────────────────────────────────────────────
 
-function PayoutsSection({ router }: { router: ReturnType<typeof useRouter> }) {
+function PayoutsSection({ router, reload }: { router: ReturnType<typeof useRouter>; reload: () => Promise<void> }) {
+  const { getToken } = useAuth();
   const data = useEarningsStore(s => s.data)!;
   const summary = summarise(data);
-  const next = nextPayoutDate();
-  const isToday = next.toDateString() === new Date().toDateString();
   const feePct = Math.round(data.feeRate * 100);
+  const [busy, setBusy] = useState<'setup' | 'withdraw' | 'dashboard' | null>(null);
   const recent = [...data.payouts]
     .sort((a, b) => b.scheduledFor.localeCompare(a.scheduledFor))
     .slice(0, 6);
+  const stripe = data.stripe;
+  // Payouts only come up once there's money to pay out (or on its way).
+  const hasEarnings = summary.available > 0 || summary.upcomingCount > 0 || data.payouts.length > 0;
+
+  const setUp = async () => {
+    setBusy('setup');
+    try {
+      await setUpStripePayouts(getToken);
+      await refreshStripeStatus(getToken).catch(() => undefined);
+      await reload();
+    } catch (e) {
+      Alert.alert('Stripe setup', friendlyErrorEn(e, "Couldn't open Stripe. Please try again."));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const openDashboard = async () => {
+    setBusy('dashboard');
+    try {
+      await openStripeDashboard(getToken);
+    } catch (e) {
+      Alert.alert('Stripe', friendlyErrorEn(e, "Couldn't open Stripe. Please try again."));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const withdraw = () => {
+    Alert.alert(
+      `Withdraw ${formatEur(summary.available)}?`,
+      'It goes to your Stripe account, and Stripe pays it out to your bank.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Withdraw',
+          onPress: async () => {
+            setBusy('withdraw');
+            try {
+              const result = await withdrawEarnings(getToken);
+              await reload();
+              Alert.alert(
+                'Sent to Stripe',
+                result.failed > 0
+                  ? `${formatEur(result.amount)} was sent. ${result.failed} booking(s) couldn't be sent yet and stay in your balance.`
+                  : `${formatEur(result.amount)} is on its way to your Stripe account.`,
+              );
+            } catch (e) {
+              Alert.alert('Withdrawal', friendlyErrorEn(e, "The withdrawal didn't go through. Please try again."));
+            } finally {
+              setBusy(null);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   return (
     <>
       {/* Hero: the one number that matters */}
       <View style={{ backgroundColor: colors.dark, borderRadius: 22, padding: 22 }}>
         <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: colors.beige }}>
-          Available for payout
+          Available to withdraw
         </Text>
         <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 42, color: colors.white, marginTop: 4 }}>
           {formatEur(summary.available)}
@@ -104,15 +162,44 @@ function PayoutsSection({ router }: { router: ReturnType<typeof useRouter> }) {
           flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 18,
           paddingTop: 14, borderTopWidth: 1, borderTopColor: 'rgba(215,195,167,0.25)',
         }}>
-          <Ionicons name="calendar-outline" size={16} color={colors.beige} />
+          <Ionicons name="card-outline" size={16} color={colors.beige} />
           <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 14, color: colors.white, flex: 1 }}>
-            Next payout {isToday ? 'today' : formatDay(next)}
+            Paid out through Stripe
           </Text>
           <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: colors.beige }}>
             after {feePct}% fee
           </Text>
         </View>
+
+        {stripe.payoutsEnabled ? (
+          <PrimaryButton
+            label={summary.available > 0 ? `Withdraw ${formatEur(summary.available)}` : 'Nothing to withdraw yet'}
+            icon="arrow-up-circle-outline"
+            disabled={summary.available <= 0 || busy !== null}
+            loading={busy === 'withdraw'}
+            onPress={withdraw}
+          />
+        ) : hasEarnings ? (
+          <PrimaryButton
+            label={stripe.connected ? 'Finish payout setup' : 'Set up payouts'}
+            icon="shield-checkmark-outline"
+            disabled={busy !== null}
+            loading={busy === 'setup'}
+            onPress={setUp}
+          />
+        ) : null}
       </View>
+
+      {hasEarnings && !stripe.payoutsEnabled && (
+        <Card style={{ marginTop: 12, padding: 16, flexDirection: 'row', gap: 12 }}>
+          <Ionicons name="information-circle-outline" size={22} color={colors.dark} />
+          <Text style={{ flex: 1, fontFamily: 'Philosopher-Regular', fontSize: 14, lineHeight: 20, color: colors.muted }}>
+            {stripe.detailsSubmitted
+              ? 'Stripe is checking your details. You can withdraw as soon as they are approved — pull down to refresh.'
+              : 'To receive your earnings, set up a free Stripe account once. Stripe asks for your ID and bank account; it takes about 5 minutes.'}
+          </Text>
+        </Card>
+      )}
 
       {summary.upcomingCount > 0 && (
         <Card style={{ marginTop: 12 }}>
@@ -137,7 +224,7 @@ function PayoutsSection({ router }: { router: ReturnType<typeof useRouter> }) {
           </View>
           <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 16, color: colors.dark }}>No payouts yet</Text>
           <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: colors.muted, textAlign: 'center', marginTop: 4, lineHeight: 20 }}>
-            Your payouts will show up here once they're sent.
+            Your withdrawals will show up here.
           </Text>
         </Card>
       ) : (
@@ -170,10 +257,10 @@ function PayoutsSection({ router }: { router: ReturnType<typeof useRouter> }) {
       <SectionLabel>Settings</SectionLabel>
       <Card>
         <ListRow
-          icon="business-outline"
-          title="Bank account"
-          subtitle={data.iban ? maskIban(data.iban) : 'Not added'}
-          onPress={() => router.push('/(provider)/payouts/bank' as any)}
+          icon="card-outline"
+          title="Stripe payout account"
+          subtitle={stripe.payoutsEnabled ? 'Active · open Stripe' : stripe.connected ? 'Setup not finished' : 'Not set up yet'}
+          onPress={stripe.detailsSubmitted ? openDashboard : setUp}
         />
         <ListRow
           icon="help-circle-outline"
@@ -266,6 +353,33 @@ function BookingRow({ booking, last }: { booking: EarningsBooking; last: boolean
 }
 
 // ─── Bits ────────────────────────────────────────────────────────────────────
+
+function PrimaryButton({ label, icon, disabled, loading, onPress }: {
+  label: string;
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  disabled?: boolean;
+  loading?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.85}
+      disabled={disabled}
+      onPress={onPress}
+      accessibilityRole="button"
+      style={{
+        marginTop: 16, height: 50, borderRadius: 25, flexDirection: 'row', gap: 8,
+        alignItems: 'center', justifyContent: 'center',
+        backgroundColor: colors.white, opacity: disabled && !loading ? 0.5 : 1,
+      }}
+    >
+      {loading
+        ? <ActivityIndicator color={colors.dark} />
+        : <Ionicons name={icon} size={19} color={colors.dark} />}
+      <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 16, color: colors.dark }}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
 
 function SegmentedControl({ value, onChange }: { value: Segment; onChange: (v: Segment) => void }) {
   const options: { key: Segment; label: string }[] = [

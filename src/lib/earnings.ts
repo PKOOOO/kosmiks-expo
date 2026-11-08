@@ -1,15 +1,15 @@
 import { create } from 'zustand';
 import { API_BASE_URL } from '@/config/constants';
 
-// Shared data + maths for the Earnings tab (overview, payout detail, bank
-// account, how-it-works). One fetch serves every page in the stack.
+// Shared data + maths for the Earnings tab (overview, payout detail,
+// how-it-works). One fetch serves every page in the stack. Earnings are paid
+// through the provider's own Stripe account (Stripe Connect, see
+// src/lib/stripe-payouts.ts).
 
 const ADMIN_API_KEY = process.env.EXPO_PUBLIC_ADMIN_API_KEY || '';
 
 /** Where questions about payouts go. */
 export const SUPPORT_EMAIL = 'support@kosmiks.com';
-/** Payout day, 0 = Sunday … 5 = Friday. */
-export const PAYOUT_WEEKDAY = 5;
 
 export type EarningsBooking = {
   id: string;
@@ -23,7 +23,8 @@ export type EarningsBooking = {
   user: { name: string; email: string } | null;
 };
 
-export type PayoutStatus = 'scheduled' | 'sent' | 'arrived' | 'failed';
+/** processing / transferred: Stripe withdrawals. scheduled / sent / arrived: old manual bank transfers. */
+export type PayoutStatus = 'processing' | 'transferred' | 'scheduled' | 'sent' | 'arrived' | 'failed';
 
 /** A payout to the provider, as returned by /provider/revenue. */
 export type Payout = {
@@ -38,8 +39,8 @@ export type Payout = {
   failedAt?: string | null;
   failureReason?: string | null;
   reference?: string | null;
-  /** The account this payout was sent to (captured when it was created). */
-  iban?: string;
+  /** The account this payout was sent to (old manual bank transfers only). */
+  iban?: string | null;
   bookingIds?: string[];
 };
 
@@ -61,6 +62,14 @@ export type EarningsData = {
   balance: ServerBalance | null;
   iban: string | null;
   bankAccountName: string | null;
+  /** The provider's Stripe payout account. */
+  stripe: StripeAccountStatus;
+};
+
+export type StripeAccountStatus = {
+  connected: boolean;        // account created
+  detailsSubmitted: boolean; // onboarding finished
+  payoutsEnabled: boolean;   // Kosmiks can send them money
 };
 
 type EarningsState = {
@@ -92,6 +101,11 @@ export const useEarningsStore = create<EarningsState>((set) => ({
           balance: json.balance && typeof json.balance.available === 'number' ? json.balance : null,
           iban: json.payout?.iban ?? null,
           bankAccountName: json.payout?.bankAccountName ?? null,
+          stripe: {
+            connected: !!json.stripe?.connected,
+            detailsSubmitted: !!json.stripe?.detailsSubmitted,
+            payoutsEnabled: !!json.stripe?.payoutsEnabled,
+          },
         },
         loading: false,
       });
@@ -162,12 +176,6 @@ export function summarise(data: EarningsData, now = new Date()) {
   };
 }
 
-export function nextPayoutDate(now = new Date()): Date {
-  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const diff = (PAYOUT_WEEKDAY - d.getDay() + 7) % 7;
-  d.setDate(d.getDate() + diff);
-  return d;
-}
 
 export type MonthTotal = { key: string; label: string; revenue: number; count: number };
 

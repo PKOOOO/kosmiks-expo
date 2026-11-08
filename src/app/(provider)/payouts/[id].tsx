@@ -3,16 +3,25 @@ import { View, Text, ScrollView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
-import { useEarningsStore, formatEur, formatDate, formatDay, maskIban, type Payout } from '@/lib/earnings';
+import { useEarningsStore, formatEur, formatDate, formatDay, maskIban, type Payout, type PayoutStatus } from '@/lib/earnings';
 import { Card, SectionLabel, AmountRow, StatusChip, SubpageHeader, colors } from '@/components/earnings/EarningsUI';
 import { usePageBottomSpace } from '@/lib/layout';
 
-const STEPS: { key: 'scheduled' | 'sent' | 'arrived'; label: string; dateOf: (p: Payout) => string | null | undefined }[] = [
+type Step = { key: PayoutStatus; label: string; dateOf: (p: Payout) => string | null | undefined };
+
+// Stripe withdrawals: requested → sent to the provider's Stripe account
+// (Stripe then pays it to their bank on its own schedule).
+const STRIPE_STEPS: Step[] = [
+  { key: 'processing', label: 'Withdrawal requested', dateOf: p => p.scheduledFor },
+  { key: 'transferred', label: 'Sent to your Stripe account', dateOf: p => p.sentAt },
+];
+// Old manual bank transfers.
+const BANK_STEPS: Step[] = [
   { key: 'scheduled', label: 'Scheduled', dateOf: p => p.scheduledFor },
   { key: 'sent', label: 'Sent to your bank', dateOf: p => p.sentAt },
   { key: 'arrived', label: 'Arrived', dateOf: p => p.arrivedAt },
 ];
-const ORDER = { scheduled: 0, sent: 1, arrived: 2, failed: -1 } as const;
+const ORDER: Record<PayoutStatus, number> = { processing: 0, transferred: 1, scheduled: 0, sent: 1, arrived: 2, failed: -1 };
 
 export default function PayoutDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -38,7 +47,7 @@ export default function PayoutDetailScreen() {
             <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 40, color: colors.dark }}>{formatEur(payout.amount)}</Text>
             <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: colors.muted, marginTop: 4, marginBottom: 10 }}>
               {formatDate(new Date(payout.scheduledFor))}
-              {(payout.iban || data?.iban) ? ` · to ${maskIban(payout.iban || data!.iban!)}` : ''}
+              {payout.iban ? ` · to ${maskIban(payout.iban)}` : ''}
             </Text>
             <StatusChip status={payout.status} />
           </View>
@@ -49,7 +58,7 @@ export default function PayoutDetailScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 15, color: colors.dark }}>This transfer didn't go through</Text>
                 <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, lineHeight: 20, color: colors.muted, marginTop: 3 }}>
-                  {payout.failureReason ? `${payout.failureReason}. ` : ''}The amount goes back to your balance and is included in the next payout.
+                  The amount went back to your balance, so you can withdraw it again.
                 </Text>
               </View>
             </Card>
@@ -57,10 +66,10 @@ export default function PayoutDetailScreen() {
           <>
           <SectionLabel>Progress</SectionLabel>
           <Card style={{ padding: 18 }}>
-            {STEPS.map((step, i) => {
+            {(payout.iban ? BANK_STEPS : STRIPE_STEPS).map((step, i, steps) => {
               const done = ORDER[payout.status] >= ORDER[step.key];
               const date = step.dateOf(payout);
-              const last = i === STEPS.length - 1;
+              const last = i === steps.length - 1;
               return (
                 <View key={step.key} style={{ flexDirection: 'row' }}>
                   <View style={{ alignItems: 'center', width: 26 }}>
@@ -87,6 +96,11 @@ export default function PayoutDetailScreen() {
               );
             })}
           </Card>
+          {!payout.iban && (
+            <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, lineHeight: 19, color: colors.muted, marginTop: 10, paddingHorizontal: 4 }}>
+              Stripe pays it out to your bank automatically. You can follow it in your Stripe account.
+            </Text>
+          )}
           </>
           )}
 

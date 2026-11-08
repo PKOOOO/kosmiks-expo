@@ -101,6 +101,8 @@ export function AmountRow({ label, value, strong }: { label: string; value: stri
 }
 
 const STATUS_STYLE: Record<PayoutStatus, { label: string; color: string; bg: string }> = {
+  processing: { label: 'Processing', color: colors.amber, bg: colors.amberBg },
+  transferred: { label: 'Sent to Stripe', color: colors.green, bg: colors.greenBg },
   scheduled: { label: 'Scheduled', color: colors.amber, bg: colors.amberBg },
   sent: { label: 'Sent', color: colors.dark, bg: colors.light },
   arrived: { label: 'Arrived', color: colors.green, bg: colors.greenBg },

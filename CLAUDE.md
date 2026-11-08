@@ -36,7 +36,7 @@
 | `cosmix-admin` | Next.js **API-only** backend on **Railway** since 8 Nov 2026 (plus `/`, `/privacy`, `/public/[category]`) — see §9 Railway |
 | Database | **Railway PostgreSQL 18** via Prisma (Neon until 8 Nov 2026) |
 | Auth | Clerk **production instance** on `kosmiks.com` (mobile SDK + `@clerk/backend` `verifyToken` server-side) — see §5a |
-| Payments | Stripe — customer checkout only, no Stripe Connect. **New account since 8 Nov 2026** (Finland, EUR, demo/test mode — `charges_enabled` false until activated). |
+| Payments | Stripe — customers pay the platform; providers are paid with **Stripe Connect** (separate charges and transfers, see §4). Platform account `acct_1UZR…` (Finland, EUR, **test mode**, marketplace + platform loss liability) since 8 Nov 2026. |
 | Images & files | **Cloudflare R2** — see §9 Storage |
 | Maps | **Mapbox GL JS inside a WebView** — `react-native-maps` is NOT installed |
 | Email | Resend |
@@ -76,7 +76,7 @@ PHASE2_PENDING → PHASE2_APPROVED → PHASE3_PENDING → ACTIVE
 
 **Phase 1 — Expression of Interest (8 steps):** First name → Last name → Phone → City → Neighbourhood → Address → Service categories → Transport mode
 
-**Phase 2 — Verification (6 steps):** Legal full name → IBAN (`FI## #### #### #### ##`) → Bank account holder → Date of birth (18+) → Qualification documents (up to 3) → Terms & Submit
+**Phase 2 — Verification (4 steps):** Legal full name → Date of birth (18+) → Qualification documents (up to 3) → Terms & Submit. IBAN and account holder were removed on 8 Nov 2026 — providers give their bank details to Stripe (§4). The backend still accepts them from old app builds.
 
 **Phase 3 — Salon Setup (step-by-step):** Salon name → Short intro → Description → **Mapbox map location picker** → Opening hours (7 days) → Photos (required, up to 6)
 
@@ -84,12 +84,17 @@ On Phase 3 submit → status becomes **ACTIVE** immediately, no admin review.
 
 ---
 
-## 4. Payout Model
+## 4. Payout Model — Stripe Connect (since 8 Nov 2026)
 
-- Manual SEPA bank transfers every Friday
-- Stripe Connect removed entirely
-- IBAN collected in Phase 2
-- **10% platform fee**
+- **10% platform fee.** Customers pay the **platform** (checkout unchanged). A provider's share (90%) is sent to **their own Stripe account**, which Stripe pays out to their bank.
+- **No Stripe until there are earnings.** The provider's payouts tab shows "Set up payouts" only once they have earnings. Stripe-hosted onboarding collects ID, address and bank account — Kosmiks never stores bank details.
+- **Provider pulls the money:** a **Withdraw** button sends the available balance (bookings paid online whose appointment has passed, not yet paid out). There is **no payout cron** and no admin payout run any more.
+- **Code:** `lib/stripe-connect.ts` (backend). `ensureStripeAccount()` creates the account with **Accounts v2** (`POST /v2/core/accounts`, `Stripe-Version: 2026-10-28.preview`): `configuration.recipient` with `stripe_balance.stripe_transfers`, `dashboard: "express"`, `defaults.responsibilities` `fees_collector`/`losses_collector` = `application`. This platform **must** use v2 — v1 `type: express` is rejected. Account links, login links, `accounts.retrieve` and transfers use v1 calls on the v2 account id (verified in test mode).
+- **Withdraw** (`withdrawBalance()`): claims the eligible bookings into one `processing` Payout (double taps can't pay twice), then **one transfer per booking** with that booking's charge as `source_transaction` (works while the charge's funds are still pending), idempotency key `booking-transfer-<bookingId>`, stored in `bookings.transferId`. A failed transfer releases its booking back to the balance. Payout ends `transferred` (or `failed`).
+- **Routes:** `POST /api/provider/stripe/onboard` → `{url}`; `GET /api/provider/stripe` → status (synced to `users.stripeDetailsSubmitted` / `stripePayoutsEnabled` = transfers capability active); `POST /api/provider/stripe/dashboard` → login link; `POST /api/provider/payouts/withdraw`. Onboarding returns to `/callback/stripe/success|refresh`, which open `kosmiks://stripe-return` (the app opens Stripe with `WebBrowser.openAuthSessionAsync`, `src/lib/stripe-payouts.ts`; `src/app/stripe-return.tsx` is the fallback route).
+- **Stripe platform settings this needs** (Connect → Platform setup): business model **"You collect payments and pay recipients"** (marketplace) and **platform negative-balance liability acknowledged**. The first Stripe account (`acct_1UWI…`) was set up as "merchants collect directly" and could not be changed, so it was replaced.
+- **Old manual SEPA payouts** (`scheduled → sent → arrived`, IBAN on the payout) still display; the admin can still move them along. `payouts.iban` is optional now.
+- **Costs:** Stripe Connect fees (per active account and per payout) come out of the platform's 10%.
 
 ---
 
@@ -198,7 +203,7 @@ const EXPO_PUSH_PROJECT_ID =
 | P8 | New review | Provider | `reviews` POST (added 26 Oct 2026) |
 | C2 | Provider cancels a booking (includes the reason and "payment will be refunded") | Customer | `provider/bookings/[bookingId]` PUT (added 26 Oct 2026) |
 | C3 | Admin changes a booking's status | Customer | `bookings/[bookingId]` PATCH (added 26 Oct 2026) |
-| P9 | Payout sent | Provider | `admin/payouts/[id]` |
+| P9 | Payout sent (old manual SEPA payouts only) | Provider | `admin/payouts/[id]` |
 
 Guest bookings are attached to the service user, so C2/C3 only reach customers who were signed in when they booked.
 
@@ -290,10 +295,9 @@ curl -X POST https://exp.host/--/api/v2/push/getReceipts \
 |---|---|---|
 | `cosmix-admin` | `2bbde094-0b79-4600-a025-733aab2ac209` | The API. Built by Railpack from GitHub `PKOOOO/cosmix-admin` `main` — **every push to main deploys**. Healthcheck `/api/public/health`, restart on failure. Domains: `www.kosmiks.com`, `kosmiks.com`, `cosmix-admin-production.up.railway.app` |
 | `Postgres` | `51a0abc7-f33b-4df8-a923-0608cda0c7d3` | PostgreSQL 18. **No public port** — the API reaches it over the private network (`DATABASE_URL=${{Postgres.DATABASE_URL}}`) |
-| `cron-payouts` | `cc67bfb6-9ea6-4490-899b-5a985989a550` | `alpine` + `wget` → `GET /api/cron/payouts`, schedule `0 6 * * 5` (UTC) |
-| `cron-push-receipts` | `0546d7ee-17fb-48bf-b2dc-fc1f211e00b1` | Same → `/api/cron/push-receipts`, `0 4 * * *` |
+| `cron-push-receipts` | `0546d7ee-17fb-48bf-b2dc-fc1f211e00b1` | `alpine` + `wget` → `GET /api/cron/push-receipts`, schedule `0 4 * * *` (UTC) |
 
-  Both crons read `CRON_SECRET=${{cosmix-admin.CRON_SECRET}}` and `API_HOST=${{cosmix-admin.RAILWAY_PUBLIC_DOMAIN}}`; logs are in each cron service.
+  (`cron-payouts` existed from 8 Nov until Stripe Connect replaced it the same day; deleted.) The cron reads `CRON_SECRET=${{cosmix-admin.CRON_SECRET}}` and `API_HOST=${{cosmix-admin.RAILWAY_PUBLIC_DOMAIN}}`; logs are in each cron service.
 - **Database access from this machine:** `railway ssh -p <project> -e production -s Postgres -- psql -U "$PGUSER" -d "$PGDATABASE"` (SSH key `kosmiks-laptop`, `~/.ssh/id_ed25519`, registered with Railway on 8 Nov 2026). For a one-off script, pipe SQL into `psql -f -`. Prisma CLI commands (`db push`, `migrate diff`) can't reach the private DB from here — run them through `railway ssh` into `cosmix-admin`, or temporarily add a TCP proxy (needs approval).
 - **Railway refuses to build dependencies with known high CVEs** (it blocked Next 14.2.30 → upgraded to 14.2.35). Keep `next` patched.
 - **Migration (8 Nov 2026):** `pg_dump` (v18, run inside the Railway Postgres container, Neon is PG 17) → `pg_restore`; all 14 tables matched row-for-row. Then the test bookings/payouts/reviews were deleted on Railway. **Neon (`ep-long-cloud-adg7mkpl`) still holds the pre-migration data as a backup** and Vercel project `cosmix-admin` (`prj_4MhmPJlCLL2IhgcYmF97fV6b2DO9`) still exists — see §13.
@@ -391,7 +395,9 @@ eas build --profile production --platform android   # Play Store
 ```
 CLERK_SECRET_KEY=sk_live_...        # Clerk PRODUCTION instance (kosmiks.com) since 23 Oct 2026
 DATABASE_URL=${{Postgres.DATABASE_URL}}   # Railway reference variable → private network
-STRIPE_SECRET_KEY=sk_test_...       # NEW Stripe account (8 Nov 2026), keys in ~/Desktop/new_stripe
+STRIPE_SECRET_KEY=sk_test_...       # Stripe platform acct_1UZR… (8 Nov 2026), keys in ~/Desktop/new_stripe
+STRIPE_WEBHOOK_SECRET=whsec_...     # endpoint we_1UZSW7… (payment_intent.succeeded/processing/canceled, refund.created)
+STRIPE_CONNECT_WEBHOOK_SECRET=whsec_...  # Connect endpoint we_1UZSW9… (account.updated); both → https://www.kosmiks.com/api/webhooks/stripe
 NEXT_PUBLIC_STRIPE_PUBLISH_KEY=pk_test_...   # NOTE: "PUBLISH" not "PUBLISHABLE" — typo, code matches. Returned by POST /api/checkout; the app uses it
 ADMIN_EMAIL=admin@cosmix.local      # must stay synthetic, never a real user's address
 R2_ACCOUNT_ID=a929da41595f86d4bca91509a6c28997
@@ -448,18 +454,21 @@ EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 
 ### 🔴 Booking & payment logic (found 29 Oct 2026 — not started)
 - [ ] **Customer cancel is fake.** "Peruuta varaus" in `src/app/(app)/bookings.tsx` (`confirmCancel`) only removes the booking from the local list — nothing reaches the server, the salon still expects the customer, no refund. Needs a real endpoint + a **cancellation rule (client to decide, e.g. free until 24 h before, then no refund)**; reuse `refundBooking()` (`lib/refunds.ts`) and notify the provider.
-- [ ] **No Stripe webhook.** Bookings are confirmed only when the app calls `PATCH /api/checkout` after paying. If the app is closed/offline right after payment, the card is charged but the booking stays `pending` (provider never sees it, customer gets no confirmation). Add a Stripe webhook (`payment_intent.succeeded`) that runs the same confirmation, idempotent with the existing PATCH (`updateMany` on `pending` only).
-- [ ] **Abandoned `pending` bookings block slots forever.** `available-slots` excludes everything except `cancelled`, so an opened-then-abandoned checkout keeps the slot taken. Expire unpaid `pending` bookings after ~30 min (cron, e.g. alongside `push-receipts`; check the PaymentIntent status first so a late payment isn't lost).
+- [x] **Stripe webhook — DONE 8 Nov 2026.** `POST /api/webhooks/stripe` (signature-verified, two endpoints): `payment_intent.succeeded`/`processing` confirm bookings through `confirmPendingBookings()` (`lib/booking-confirmation.ts`, shared with `PATCH /api/checkout`, notifications only from the call that flips the booking); `payment_intent.canceled` cancels its pending bookings; `refund.created` without `metadata.bookingId` (= made in the Stripe dashboard) cancels fully refunded bookings; `account.updated` syncs provider flags. **Verified end to end in test mode:** a booking paid with no app call became `confirmed`, and a dashboard-style refund cancelled it.
+- [ ] **Abandoned `pending` bookings block slots forever.** `available-slots` excludes everything except `cancelled`, so an opened-then-abandoned checkout keeps the slot taken. Expire unpaid `pending` bookings after ~30 min (cron, e.g. alongside `push-receipts`; check the PaymentIntent status first so a late payment isn't lost). The webhook only frees slots for PaymentIntents that are explicitly cancelled — Stripe never cancels an abandoned one by itself, so this is still needed.
 - [ ] **Double booking possible.** The time picker hides taken slots, but `POST /api/checkout` doesn't re-check, so two customers paying for the same time at the same moment both get it. Re-check overlap (same logic as `available-slots`) inside checkout before creating the bookings.
-- [x] **First Friday payouts cron run — 30 Oct 2026, correct.** It created two `scheduled` payouts with the 10% fee applied (85 € → 76.50 €, 25 € → 22.50 €); they were test data and were deleted on 8 Nov 2026. Watch the first run on Railway (`cron-payouts` logs, Friday 13 Nov 06:00 UTC).
+- [x] **First Friday payouts cron run — 30 Oct 2026, correct.** It created two `scheduled` payouts with the 10% fee applied (85 € → 76.50 €, 25 € → 22.50 €); they were test data and were deleted on 8 Nov 2026. Superseded by Stripe Connect withdrawals (no payout cron).
 - [ ] **C4 appointment reminder** — push to the customer the day before / a few hours before (cron).
-- [ ] Recommended order: webhook + expiry + double-booking re-check together (all testable in Stripe test mode), then customer cancel once the rule is decided.
+- [ ] Recommended order: expiry + double-booking re-check together, then customer cancel once the rule is decided.
 
 ### 🟠 Railway / Stripe migration follow-ups (8 Nov 2026)
 - [ ] **Pause, then delete the Vercel project** `cosmix-admin` (pausing via the API was blocked by the permission check — do it in the Vercel dashboard). It still auto-deploys every push to `main` (pointing at Neon), but no domain routes to it. Delete after ~1 week without problems.
 - [ ] **Delete the Neon project** after ~1 week (it holds the pre-migration backup, including the deleted test bookings). Remove the old Neon `DATABASE_URL` from `cosmix-admin/.env` then.
 - [ ] **Build a new APK** for testers: installed builds have the old Stripe publishable key built in and can't pay against the new account. Builds from `6c37c1c` on take the key from the server.
 - [ ] Test a full payment + provider cancel/refund on the new Stripe account (test card `4242 4242 4242 4242`).
+- [ ] **Test Stripe Connect end to end in the app:** a provider with earnings → Set up payouts → Stripe test onboarding (Stripe's test data: phone `000 000 0000`, SMS code `000000`, test IBAN `FI2112345600000785`) → Withdraw → transfer visible in Stripe. Not yet done — onboarding needs the hosted page. Also confirm the Express login link works for v2 accounts.
+- [ ] **Decide: delete the IBANs already stored** in `provider_applications` (no longer needed; asked 8 Nov 2026, not done — permanent).
+- [ ] The first Stripe account `acct_1UWI…` (keys replaced) is unused — can be closed.
 - [ ] Activate the new Stripe account (business details) before live mode — `charges_enabled` is false.
 - [ ] Optional: remove the SSH key `kosmiks-laptop` from Railway (account → SSH keys) if this machine shouldn't keep database access.
 

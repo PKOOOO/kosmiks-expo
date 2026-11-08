@@ -27,7 +27,7 @@ const lightBeige = '#F4EDE5';
 const white = '#FFFFFF';
 const red = '#c00';
 
-const TOTAL_STEPS = 6;
+const TOTAL_STEPS = 4;
 
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -45,35 +45,14 @@ const isAtLeast18 = (dob: Date): boolean => {
   return dob.getTime() <= cutoff.getTime();
 };
 
-const formatIban = (raw: string): string => {
-  const cleaned = raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 18);
-  let body = cleaned;
-  if (cleaned.length >= 1 && cleaned[0] !== 'F') {
-    body = 'FI' + cleaned.replace(/[^0-9]/g, '');
-  } else if (cleaned.length >= 2 && cleaned.slice(0, 2) !== 'FI') {
-    body = 'FI' + cleaned.slice(2).replace(/[^0-9]/g, '');
-  } else if (cleaned.length >= 2) {
-    body = 'FI' + cleaned.slice(2).replace(/[^0-9]/g, '');
-  }
-  body = body.slice(0, 18);
-  return body.replace(/(.{4})/g, '$1 ').trim();
-};
-
-const isValidFinnishIban = (formatted: string): boolean => {
-  const clean = formatted.replace(/\s+/g, '');
-  return /^FI\d{16}$/.test(clean);
-};
-
 const QUESTIONS = [
   { question: 'What is your full legal name?', hint: 'As it appears on your ID document' },
   { question: 'What is your date of birth?', hint: 'You must be 18 or older to register' },
-  { question: 'IBAN (Finnish bank account) *', hint: 'e.g. FI21 1234 5600 0007 85' },
-  { question: 'Bank account holder name *', hint: 'Full name as shown on bank account' },
   { question: 'Your qualifications', hint: 'Upload documents proving you are qualified to provide beauty and spa services' },
   { question: 'Almost done', hint: 'Accept the terms to submit your application' },
 ];
 
-// Step 5 asks for these one at a time. All three are required.
+// Step 3 asks for these one at a time. All three are required.
 const DOCS = [
   { title: 'Diploma or certificate', icon: 'school-outline' },
   { title: 'Professional license', icon: 'ribbon-outline' },
@@ -86,7 +65,7 @@ const TERMS = [
   'Maintain professional standards of service quality.',
   'Comply with all applicable Finnish laws and regulations.',
   'Allow Kosmiks to collect a platform fee of 10% on each completed booking.',
-  'Receive payouts via SEPA bank transfer to your provided IBAN.',
+  'Receive payouts through Stripe: you set up your Stripe account (ID and bank details) when you first withdraw earnings.',
 ];
 
 const bigInput = {
@@ -113,8 +92,6 @@ export default function Phase2Screen() {
   const [legalName, setLegalName] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [showDobPicker, setShowDobPicker] = useState(false);
-  const [iban, setIban] = useState('');
-  const [bankAccountName, setBankAccountName] = useState('');
   // `preview` is the local file shown in the slot; `url` is the private storage reference sent to the API.
   const [docSlots, setDocSlots] = useState<({ preview: string; url: string } | null)[]>([null, null, null]);
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
@@ -126,11 +103,9 @@ export default function Phase2Screen() {
   const [submitting, setSubmitting] = useState(false);
 
   const legalNameRef = useRef<TextInputInstance>(null);
-  const ibanRef = useRef<TextInputInstance>(null);
-  const bankAccountNameRef = useRef<TextInputInstance>(null);
 
   useEffect(() => {
-    const refs = [legalNameRef, null, ibanRef, bankAccountNameRef, null, null];
+    const refs = [legalNameRef, null, null, null];
     const ref = refs[step];
     if (ref) {
       const t = setTimeout(() => ref.current?.focus(), 100);
@@ -200,13 +175,11 @@ export default function Phase2Screen() {
       if (!dob) { setError('Please select your date of birth'); return false; }
       if (!isAtLeast18(dob)) { setError('You must be 18 or older to register'); return false; }
     }
-    if (step === 2 && !isValidFinnishIban(iban)) { setError('IBAN must start with FI and have 16 digits'); return false; }
-    if (step === 3 && !bankAccountName.trim()) { setError('Please enter the bank account holder name'); return false; }
-    if (step === 4 && !docSlots[docStep]) {
+    if (step === 2 && !docSlots[docStep]) {
       setError(`Please upload your ${DOCS[docStep].title.toLowerCase()}`);
       return false;
     }
-    if (step === 5 && !termsAccepted) { setError('You must accept the terms to continue'); return false; }
+    if (step === 3 && !termsAccepted) { setError('You must accept the terms to continue'); return false; }
     setError('');
     return true;
   };
@@ -219,14 +192,14 @@ export default function Phase2Screen() {
 
   const goNext = () => {
     if (!validate()) return;
-    if (step === 4) { advanceDoc(); return; }
+    if (step === 2) { advanceDoc(); return; }
     if (step === TOTAL_STEPS - 1) { handleSubmit(); return; }
     setStep(s => s + 1);
   };
 
   const goBack = () => {
     setError('');
-    if (step === 4 && docStep > 0) { setDocStep(d => d - 1); return; }
+    if (step === 2 && docStep > 0) { setDocStep(d => d - 1); return; }
     setStep(s => s - 1);
   };
 
@@ -240,8 +213,6 @@ export default function Phase2Screen() {
         body: JSON.stringify({
           legalName: legalName.trim(),
           dateOfBirth,
-          iban: iban.replace(/\s+/g, ''),
-          bankAccountName: bankAccountName.trim(),
           qualificationDocs: docSlots.flatMap(slot => (slot ? [slot.url] : [])),
           termsAccepted: true,
         }),
@@ -260,7 +231,7 @@ export default function Phase2Screen() {
     }
   };
 
-  const q = step === 4
+  const q = step === 2
     ? { question: DOCS[docStep].title, hint: `Document ${docStep + 1} of ${DOCS.length}` }
     : QUESTIONS[step];
 
@@ -332,38 +303,7 @@ export default function Phase2Screen() {
         );
       }
 
-      case 2:
-        return (
-          <TextInput
-            ref={ibanRef}
-            value={iban}
-            onChangeText={v => { setIban(formatIban(v)); setError(''); }}
-            placeholder="FI21 1234 5600 0007 85"
-            placeholderTextColor="#ccc"
-            autoCapitalize="characters"
-            autoCorrect={false}
-            keyboardType="default"
-            returnKeyType="next"
-            onSubmitEditing={goNext}
-            style={bigInput}
-            maxLength={22}
-          />
-        );
-
-      case 3:
-        return (
-          <TextInput
-            ref={bankAccountNameRef}
-            value={bankAccountName}
-            onChangeText={v => { setBankAccountName(v); setError(''); }}
-            autoCapitalize="words"
-            returnKeyType="next"
-            onSubmitEditing={goNext}
-            style={bigInput}
-          />
-        );
-
-      case 4: {
+      case 2: {
         const doc = DOCS[docStep];
         const slot = docSlots[docStep];
         return (
@@ -447,7 +387,7 @@ export default function Phase2Screen() {
         );
       }
 
-      case 5:
+      case 3:
         return (
           <View>
             <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 15, color: '#555', lineHeight: 23, marginBottom: 16 }}>

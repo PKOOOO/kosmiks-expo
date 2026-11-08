@@ -101,7 +101,11 @@ export default function AdminPayoutDetailScreen() {
         <SectionLabel>Send to</SectionLabel>
         <Card>
           <InfoRow label="Account holder" value={payout.bankAccountName || '—'} />
-          <InfoRow label="IBAN" value={formatIban(payout.iban)} right={<CopyButton value={payout.iban.replace(/\s+/g, '')} label="Copy IBAN" />} />
+          {payout.iban ? (
+            <InfoRow label="IBAN" value={formatIban(payout.iban)} right={<CopyButton value={payout.iban.replace(/\s+/g, '')} label="Copy IBAN" />} />
+          ) : (
+            <InfoRow label="Paid to" value={payout.stripeAccountId ? `Stripe ${payout.stripeAccountId}` : 'Stripe'} />
+          )}
           <InfoRow label="Amount" value={formatEur(payout.amount)} right={<CopyButton value={payout.amount.toFixed(2)} label="Copy amount" />} />
           <InfoRow label="Email" value={payout.user.email} last />
         </Card>
