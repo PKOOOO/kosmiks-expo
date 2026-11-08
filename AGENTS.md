@@ -39,7 +39,7 @@
 | Payments | Stripe — customers pay the platform; providers are paid with **Stripe Connect** (separate charges and transfers, see §4). Platform account `acct_1UZR…` (Finland, EUR, **test mode**, marketplace + platform loss liability) since 8 Nov 2026. |
 | Images & files | **Cloudflare R2** — see §9 Storage |
 | Maps | **Mapbox GL JS inside a WebView** — `react-native-maps` is NOT installed |
-| Email | Gmail SMTP via nodemailer (`lib/email.ts`) — **blocked on Railway Hobby** (outbound SMTP is Pro-only). Set `RESEND_API_KEY` (+ `EMAIL_FROM` on a verified domain) to send through Resend's HTTP API instead |
+| Email | **Resend** HTTP API from `notify.kosmiks.com` (EU region, domain id `c2b73f8c-7d82-405c-beef-9f45cf128dff`) when `RESEND_API_KEY` is set (`lib/email.ts`); otherwise Gmail SMTP via nodemailer, which **Railway Hobby blocks** (outbound SMTP is Pro-only). The Railway key is send-only; the Resend CLI (`~/.resend/bin/resend`) is logged in with full access |
 | Push | Expo Notifications + Firebase Cloud Messaging (FCM V1) |
 
 The repo *directories* are still named `cosmix-v2` / `cosmix-admin`, and the Expo slug / EAS project is still `servey` (see §9). Only user-visible branding was renamed.
@@ -332,6 +332,7 @@ curl -X POST https://exp.host/--/api/v2/push/getReceipts \
 | `clk2._domainkey.kosmiks.com` | `dkim2.zl2bvjw49d3q.clerk.services` |
 
 - `media.kosmiks.com` → R2 (proxied). `_dmarc` TXT exists.
+- Resend (`notify.kosmiks.com`, see §1): DKIM TXT `resend._domainkey.notify`, MX + SPF TXT `send.notify`, CNAME `rsend.notify` — DNS only.
 - **Use `https://www.kosmiks.com`** for API calls. On Railway the apex serves the same app directly (no more 308 redirect to `www`), but every build uses `www`.
 - Old Vercel origins remain in the CORS allow-list so old APKs keep working.
 
@@ -408,9 +409,9 @@ R2_PRIVATE_BUCKET=kosmiks-documents
 R2_PUBLIC_URL=https://media.kosmiks.com
 CRON_SECRET=...                     # generated 8 Nov 2026 (Vercel's was sensitive/unreadable); the cron services reference it
 ADMIN_API_KEY, ADMIN_EXTERNAL_ID, NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_MAPBOX_KEY, SMTP_*   # copied from Vercel
-# SMTP_* (Gmail) can't connect from Railway Hobby. Not set yet:
-RESEND_API_KEY=re_...                # switches lib/email.ts to Resend's HTTP API
-EMAIL_FROM=Kosmiks <noreply@notify.kosmiks.com>   # must be on a Resend-verified domain (falls back to SMTP_FROM)
+# SMTP_* (Gmail) can't connect from Railway Hobby — only used if RESEND_API_KEY is unset.
+RESEND_API_KEY=re_...                # send-only key (from ~/Desktop/new_stripe), set 8 Nov 2026
+EMAIL_FROM=Kosmiks <noreply@notify.kosmiks.com>   # must be on the Resend-verified domain
 ```
 Setting a variable on Railway redeploys the service (unless skipped). Set secrets with `railway variable set KEY --stdin` so values never appear in a command line.
 
@@ -474,7 +475,7 @@ EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 - [ ] **Test Stripe Connect end to end in the app:** a provider with earnings → Set up payouts → Stripe test onboarding (Stripe's test data: phone `000 000 0000`, SMS code `000000`, test IBAN `FI2112345600000785`) → Withdraw → transfer visible in Stripe. Not yet done — onboarding needs the hosted page. Also confirm the Express login link works for v2 accounts.
 - [ ] **Decide: delete the IBANs already stored** in `provider_applications` (no longer needed; asked 8 Nov 2026, not done — permanent).
 - [ ] The first Stripe account `acct_1UWI…` (keys replaced) is unused — can be closed.
-- [ ] **Confirmation emails don't send from Railway** (Hobby blocks SMTP; found 8 Nov 2026 — the pushes arrived exactly 2 min late because they waited for the SMTP timeout; fixed in `8d10cbb`: pushes first, emails in the background, 10 s SMTP timeout). Either verify `notify.kosmiks.com` in Resend and set `RESEND_API_KEY` + `EMAIL_FROM`, or move to Railway Pro. The customer email template also still says "Muista maksaa palvelu paikalla" (pay at the salon) — wrong for online payments.
+- [ ] **Finish Resend:** Railway Hobby blocks SMTP (found 8 Nov 2026 — pushes arrived exactly 2 min late because they waited for the SMTP timeout; fixed in `8d10cbb`: pushes first, emails in the background). Domain `notify.kosmiks.com` created in Resend and `RESEND_API_KEY` + `EMAIL_FROM` set on Railway; **still to do:** add Resend's 4 DNS records in Cloudflare (DKIM TXT `resend._domainkey.notify`, MX + SPF TXT `send.notify`, CNAME `rsend.notify`; all DNS only) and run `resend domains verify c2b73f8c-7d82-405c-beef-9f45cf128dff`. Emails fail until the domain is verified. Email wording fixed to "paid online" (`1e071ad`).
 - [ ] Activate the new Stripe account (business details) before live mode — `charges_enabled` is false.
 - [ ] Optional: remove the SSH key `kosmiks-laptop` from Railway (account → SSH keys) if this machine shouldn't keep database access.
 
