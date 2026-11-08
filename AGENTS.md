@@ -1,7 +1,7 @@
 # Kosmiks — Full Project Context
 
 > Handoff document. Paste at the start of a new chat to restore context.
-> Last updated: 23 October 2026 (rebrand to Kosmiks + Clerk production instance) — supersedes all earlier versions.
+> Last updated: 8 November 2026 (moved from Vercel + Neon to Railway; new Stripe account) — supersedes all earlier versions.
 > `AGENTS.md` is a copy of this file — keep the two identical.
 
 ---
@@ -33,10 +33,10 @@
 | Component | Description |
 |---|---|
 | `cosmix-v2` | Expo / React Native mobile app — **this is the entire product UI** |
-| `cosmix-admin` | Next.js **API-only** backend on Vercel (plus `/`, `/privacy`, `/public/[category]`) |
-| Database | Neon PostgreSQL via Prisma |
+| `cosmix-admin` | Next.js **API-only** backend on **Railway** since 8 Nov 2026 (plus `/`, `/privacy`, `/public/[category]`) — see §9 Railway |
+| Database | **Railway PostgreSQL 18** via Prisma (Neon until 8 Nov 2026) |
 | Auth | Clerk **production instance** on `kosmiks.com` (mobile SDK + `@clerk/backend` `verifyToken` server-side) — see §5a |
-| Payments | Stripe — customer checkout only, no Stripe Connect. **Still in test mode.** |
+| Payments | Stripe — customer checkout only, no Stripe Connect. **New account since 8 Nov 2026** (Finland, EUR, demo/test mode — `charges_enabled` false until activated). |
 | Images & files | **Cloudflare R2** — see §9 Storage |
 | Maps | **Mapbox GL JS inside a WebView** — `react-native-maps` is NOT installed |
 | Email | Resend |
@@ -124,7 +124,7 @@ Clerk users are **not** copied between instances — every user got a new Clerk 
 
 Verified on 23 Oct 2026: a provider account signed in on the Kosmiks build and kept its row (created 2026-09-23), `ACTIVE` status, salon, booking, and got a new push token.
 
-**Secret keys:** a production instance can have several secret keys; any of them works. The backend uses one created on 23 Oct 2026 (stored in Vercel). The original auto-created key was never used — delete it (§13).
+**Secret keys:** a production instance can have several secret keys; any of them works. The backend uses one created on 23 Oct 2026 (stored in Railway, copied from Vercel). The original auto-created key was never used — delete it (§13).
 
 ---
 
@@ -282,6 +282,22 @@ curl -X POST https://exp.host/--/api/v2/push/getReceipts \
 - **Expo SDK 58**, React Native 0.88, `@stripe/stripe-react-native` 0.81.0. Release builds use **R8 minification** (template default since SDK 58: `android.enableMinifyInReleaseBuilds=true`).
 - **`plugins/with-stripe-android-fixes.js`** (registered in `app.json`) is required for release builds: it disables release lint (Stripe's `compileOnly` push-provisioning lib pulls the unpublished `play-services-tapandpay`) and adds `-dontwarn com.stripe.android.pushProvisioning.**` for R8. Don't remove it while on Stripe ≥ 0.81.
 
+### Railway (backend + database, since 8 Nov 2026)
+- Account `gabrielpius0311@gmail.com`, workspace "Gabriel's Projects", **Hobby plan**. Project **`kosmiks-database`** (`bb3ee979-bb54-475e-8ebe-baf5675684eb`), environment `production` (`ecbf7aaf-a2f7-4d18-a82d-63f0849d8b79`).
+- Services:
+
+| Service | ID | What |
+|---|---|---|
+| `cosmix-admin` | `2bbde094-0b79-4600-a025-733aab2ac209` | The API. Built by Railpack from GitHub `PKOOOO/cosmix-admin` `main` — **every push to main deploys**. Healthcheck `/api/public/health`, restart on failure. Domains: `www.kosmiks.com`, `kosmiks.com`, `cosmix-admin-production.up.railway.app` |
+| `Postgres` | `51a0abc7-f33b-4df8-a923-0608cda0c7d3` | PostgreSQL 18. **No public port** — the API reaches it over the private network (`DATABASE_URL=${{Postgres.DATABASE_URL}}`) |
+| `cron-payouts` | `cc67bfb6-9ea6-4490-899b-5a985989a550` | `alpine` + `wget` → `GET /api/cron/payouts`, schedule `0 6 * * 5` (UTC) |
+| `cron-push-receipts` | `0546d7ee-17fb-48bf-b2dc-fc1f211e00b1` | Same → `/api/cron/push-receipts`, `0 4 * * *` |
+
+  Both crons read `CRON_SECRET=${{cosmix-admin.CRON_SECRET}}` and `API_HOST=${{cosmix-admin.RAILWAY_PUBLIC_DOMAIN}}`; logs are in each cron service.
+- **Database access from this machine:** `railway ssh -p <project> -e production -s Postgres -- psql -U "$PGUSER" -d "$PGDATABASE"` (SSH key `kosmiks-laptop`, `~/.ssh/id_ed25519`, registered with Railway on 8 Nov 2026). For a one-off script, pipe SQL into `psql -f -`. Prisma CLI commands (`db push`, `migrate diff`) can't reach the private DB from here — run them through `railway ssh` into `cosmix-admin`, or temporarily add a TCP proxy (needs approval).
+- **Railway refuses to build dependencies with known high CVEs** (it blocked Next 14.2.30 → upgraded to 14.2.35). Keep `next` patched.
+- **Migration (8 Nov 2026):** `pg_dump` (v18, run inside the Railway Postgres container, Neon is PG 17) → `pg_restore`; all 14 tables matched row-for-row. Then the test bookings/payouts/reviews were deleted on Railway. **Neon (`ep-long-cloud-adg7mkpl`) still holds the pre-migration data as a backup** and Vercel project `cosmix-admin` (`prj_4MhmPJlCLL2IhgcYmF97fV6b2DO9`) still exists — see §13.
+
 ### Firebase
 - Project `servey-5eee1` (display name still "servey" — project IDs can't change; users never see it)
 - Android apps:
@@ -297,9 +313,9 @@ curl -X POST https://exp.host/--/api/v2/push/getReceipts \
 - The separate GCP project **`cosmix-expo`** (OAuth clients "Cosmix Web/iOS/Android") is **legacy and unused**.
 
 ### Domain & DNS
-- **`kosmiks.com`** purchased by the client on GoDaddy (still the registrar), live on Vercel with SSL
+- **`kosmiks.com`** purchased by the client on GoDaddy (still the registrar — GoDaddy only holds the nameserver setting), served by **Railway** with Railway-issued SSL since 8 Nov 2026
 - **DNS is on Cloudflare** (nameservers `devin` / `tori.ns.cloudflare.com`). Edit DNS in Cloudflare, not GoDaddy. Zone ID `1c429a45bd6c239aba403792492dc057`. A DNS-edit API token for this zone is at `~/.cloudflare-kosmiks-token`.
-- Vercel records (`A kosmiks.com → 216.198.79.1`, `CNAME www → …vercel-dns-017.com`) must stay **DNS only (gray cloud)**.
+- API records (must stay **DNS only (gray cloud)**): `CNAME www → 6elwurdk.up.railway.app`, `CNAME kosmiks.com → nufq9dse.up.railway.app` (Cloudflare flattens the apex), plus TXT `_railway-verify.www` / `_railway-verify` for Railway's domain verification. Before 8 Nov 2026 they pointed at Vercel (`A 216.198.79.1`, `CNAME …vercel-dns-017.com`).
 - **Clerk records (all DNS only — proxying breaks Clerk verification):**
 
 | Host | Target |
@@ -311,7 +327,7 @@ curl -X POST https://exp.host/--/api/v2/push/getReceipts \
 | `clk2._domainkey.kosmiks.com` | `dkim2.zl2bvjw49d3q.clerk.services` |
 
 - `media.kosmiks.com` → R2 (proxied). `_dmarc` TXT exists.
-- **Use `https://www.kosmiks.com`** for API calls — the apex returns a **308 redirect** to `www`, which risks dropping POST bodies / auth headers.
+- **Use `https://www.kosmiks.com`** for API calls. On Railway the apex serves the same app directly (no more 308 redirect to `www`), but every build uses `www`.
 - Old Vercel origins remain in the CORS allow-list so old APKs keep working.
 
 ### Storage — Cloudflare R2
@@ -361,35 +377,37 @@ eas build --profile production --platform android   # Play Store
 ## 11. Database
 
 - **No real Prisma migration history.** Use `npx prisma db push`. **Never `prisma migrate dev`** — it detects drift and offers to reset, which would wipe production. A fake baseline sits at `prisma/migrations/20240101000000_init`.
-- **⚠️ Local `.env` points at the production database.** There is no dev database. Every `db push`, script, and Prisma Studio edit hits the live system.
+- There is no dev database. Schema changes go to production (Railway) — see §9 Railway for how to reach it.
 - Before any `db push`, run `prisma migrate diff --from-schema-datasource --to-schema-datamodel --script` and confirm the output.
 - **`saloons.phone`** (added 29 Oct 2026 with `db push`) is the public number behind the map's "Soita" button. Existing salons were filled from their Phase 1 `ProviderApplication.phone`; new salons get it when created (`approve` route, `GET /api/provider/saloon`). Providers edit or clear it on the salon screen ("Phone shown to customers"); `PATCH /api/saloons/[id]` validates it (7–15 digits, empty = remove). The Phase 1 phone itself is never returned publicly.
+- **Production database is Railway Postgres** (§9). The local `cosmix-admin/.env` `DATABASE_URL` still points at **Neon (the old copy)** — local scripts and Prisma Studio now hit the backup, not production. Use `railway ssh` for production queries.
 - A cleanup script exists at `scripts/cleanup-test-data.ts` — **untracked**, dry-run by default, `--execute` to run. **Update `KEEP_EMAILS` before running.**
 
 ---
 
 ## 12. Environment Variables
 
-### `cosmix-admin` (Vercel)
+### `cosmix-admin` (Railway service `cosmix-admin`; copied from Vercel on 8 Nov 2026)
 ```
 CLERK_SECRET_KEY=sk_live_...        # Clerk PRODUCTION instance (kosmiks.com) since 23 Oct 2026
-DATABASE_URL=...                    # Neon — PRODUCTION
-STRIPE_SECRET_KEY=sk_test_...
-NEXT_PUBLIC_STRIPE_PUBLISH_KEY=pk_test_...   # NOTE: "PUBLISH" not "PUBLISHABLE" — typo, code matches
+DATABASE_URL=${{Postgres.DATABASE_URL}}   # Railway reference variable → private network
+STRIPE_SECRET_KEY=sk_test_...       # NEW Stripe account (8 Nov 2026), keys in ~/Desktop/new_stripe
+NEXT_PUBLIC_STRIPE_PUBLISH_KEY=pk_test_...   # NOTE: "PUBLISH" not "PUBLISHABLE" — typo, code matches. Returned by POST /api/checkout; the app uses it
 ADMIN_EMAIL=admin@cosmix.local      # must stay synthetic, never a real user's address
 R2_ACCOUNT_ID=a929da41595f86d4bca91509a6c28997
 R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY   # token "servey-api"
 R2_PUBLIC_BUCKET=kosmiks
 R2_PRIVATE_BUCKET=kosmiks-documents
 R2_PUBLIC_URL=https://media.kosmiks.com
-CRON_SECRET=...                     # Vercel sends it to cron routes; without it they 401
+CRON_SECRET=...                     # generated 8 Nov 2026 (Vercel's was sensitive/unreadable); the cron services reference it
+ADMIN_API_KEY, ADMIN_EXTERNAL_ID, NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_MAPBOX_KEY, SMTP_*   # copied from Vercel
 ```
-Env var changes on Vercel need a **redeploy** to take effect.
+Setting a variable on Railway redeploys the service (unless skipped). Set secrets with `railway variable set KEY --stdin` so values never appear in a command line.
 
 ### `cosmix-v2` (`eas.json` build profiles + `.env`)
 ```
 EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_Y2xlcmsua29z...   # eas.json preview + production AND local .env → clerk.kosmiks.com
-EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
+EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...   # new account since 8 Nov 2026 (eas.json + .env). Only the default: checkout calls initStripe() with the key the server returns, so a Stripe switch doesn't need a rebuild from builds after 6c37c1c
 EXPO_PUBLIC_PRODUCTION_DOMAIN=https://www.kosmiks.com
 EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 ```
@@ -406,7 +424,7 @@ EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 - [x] **Bearer-key `isAdmin` fallback — FIXED 26 Oct 2026.** A request with only `EXPO_PUBLIC_ADMIN_API_KEY` (extractable from the APK) now resolves to the service user with **`isAdmin: false`** (`lib/admin-access.ts`). Admins are recognised only via a verified Clerk token + `users.isAdmin`; the app's admin screens already send `X-User-Token`. Same change: `GET /api/bookings` is scoped (admin → all; user → own by `userId` or `customerEmail`; key-only → 401) — it used to return every booking with customer names/emails; the unused `POST /api/bookings` (created confirmed, unpaid bookings) was removed; `/api/bookings/[id]` GET/PATCH/DELETE are admin-only; legacy `POST /api/upload` requires `getEndUser()`. Verified with key-only requests: admin routes 403, bookings 401/403, public routes 200.
 - [ ] Consider whether a client-side shared key is the right model at all before launch (it now only grants anonymous/public access)
 - [x] **Reviews — FIXED 26 Oct 2026.** The app sent no credentials, so every review submit and salon review list got 401 (0 reviews in the DB). `POST /api/reviews` had no identity check at all (anyone with the bearer key could write/overwrite any booking's review); it now requires `getEndUser()` and booking ownership (userId or customerEmail). `GET` returns the reviewer's first name only (it used to return their email and clerkId). App: `apiHeaders()` in `src/lib/api.ts`.
-- [ ] **Delete the unused original `sk_live` key** in Clerk → production → API keys (keep the one created 23 Oct that Vercel uses)
+- [ ] **Delete the unused original `sk_live` key** in Clerk → production → API keys (keep the one created 23 Oct that the backend uses — now in Railway)
 - [ ] Delete `~/Desktop/kosmiks-secrets/client_secret_234539763868-….json` (no `_2_`) — it holds the revoked Google secret
 
 ### 🟠 Kosmiks / Clerk production follow-ups
@@ -433,15 +451,22 @@ EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 - [ ] **No Stripe webhook.** Bookings are confirmed only when the app calls `PATCH /api/checkout` after paying. If the app is closed/offline right after payment, the card is charged but the booking stays `pending` (provider never sees it, customer gets no confirmation). Add a Stripe webhook (`payment_intent.succeeded`) that runs the same confirmation, idempotent with the existing PATCH (`updateMany` on `pending` only).
 - [ ] **Abandoned `pending` bookings block slots forever.** `available-slots` excludes everything except `cancelled`, so an opened-then-abandoned checkout keeps the slot taken. Expire unpaid `pending` bookings after ~30 min (cron, e.g. alongside `push-receipts`; check the PaymentIntent status first so a late payment isn't lost).
 - [ ] **Double booking possible.** The time picker hides taken slots, but `POST /api/checkout` doesn't re-check, so two customers paying for the same time at the same moment both get it. Re-check overlap (same logic as `available-slots`) inside checkout before creating the bookings.
-- [ ] **Watch the first Friday payouts cron run** (06:00 UTC, Vercel → Logs `[CRON_PAYOUTS]`) and check the payouts it creates against the 10% fee.
+- [x] **First Friday payouts cron run — 30 Oct 2026, correct.** It created two `scheduled` payouts with the 10% fee applied (85 € → 76.50 €, 25 € → 22.50 €); they were test data and were deleted on 8 Nov 2026. Watch the first run on Railway (`cron-payouts` logs, Friday 13 Nov 06:00 UTC).
 - [ ] **C4 appointment reminder** — push to the customer the day before / a few hours before (cron).
 - [ ] Recommended order: webhook + expiry + double-booking re-check together (all testable in Stripe test mode), then customer cancel once the rule is decided.
 
+### 🟠 Railway / Stripe migration follow-ups (8 Nov 2026)
+- [ ] **Pause, then delete the Vercel project** `cosmix-admin` (pausing via the API was blocked by the permission check — do it in the Vercel dashboard). It still auto-deploys every push to `main` (pointing at Neon), but no domain routes to it. Delete after ~1 week without problems.
+- [ ] **Delete the Neon project** after ~1 week (it holds the pre-migration backup, including the deleted test bookings). Remove the old Neon `DATABASE_URL` from `cosmix-admin/.env` then.
+- [ ] **Build a new APK** for testers: installed builds have the old Stripe publishable key built in and can't pay against the new account. Builds from `6c37c1c` on take the key from the server.
+- [ ] Test a full payment + provider cancel/refund on the new Stripe account (test card `4242 4242 4242 4242`).
+- [ ] Activate the new Stripe account (business details) before live mode — `charges_enabled` is false.
+- [ ] Optional: remove the SSH key `kosmiks-laptop` from Railway (account → SSH keys) if this machine shouldn't keep database access.
+
 ### 🟡 Housekeeping
 - [ ] **Finish Cloudinary removal:** `CLOUDINARY_*` env vars **removed from Vercel (26 Oct 2026)**. Before deleting, verified: all 6 current provider documents exist in private R2, and nothing in the DB references Cloudinary. **Still to do (by hand — permanent deletion):** delete folder `cosmix/provider-documents` (and optionally `cosmix/salon-images`) on Cloudinary account `dhedbjqza` with CDN invalidation — the migrated documents are still publicly reachable there — then close accounts `dhedbjqza`, `dzmrvngco`, `dguk4ks45`
-- [ ] Mark `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` as **Sensitive** in Vercel
 - [ ] Update `scripts/cleanup-test-data.ts` keep-list; commit it
-- [ ] Set up a Neon dev branch so local work stops hitting production
+- [ ] Set up a dev database (e.g. a second Railway environment) so schema work stops hitting production
 - [ ] Uninstall `@clerk/nextjs` — zero importers remain
 - [ ] Likely-orphaned, not yet deleted: `components/settings/stripe-connect.tsx`, `hooks/billing/`, `components/main-nav.tsx`, `components/mobile-bottom-nav.tsx`, `components/loader.tsx`
 
@@ -449,7 +474,7 @@ EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 - [ ] **Apple Developer account — $99/year.** Blocks iOS testing, App Store submission, APNs push, Apple Pay merchant cert, and Sign in with Apple.
 - [ ] **GoDaddy mailboxes** — `support@kosmiks.com` + `admin@kosmiks.com`. Domain is on the client's account.
 - [ ] Resend sending domain — `notify.kosmiks.com` recommended (SPF, DKIM, DMARC; DNS goes in Cloudflare)
-- [ ] Hosting plan — Vercel Hobby prohibits commercial use. Pro is $20/mo.
+- [x] Hosting plan — moved to Railway Hobby ($5/mo, commercial use allowed) on 8 Nov 2026.
 - [ ] Stripe live mode (keys are still `sk_test` / `pk_test`)
 
 ---
@@ -463,7 +488,7 @@ EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 5. **Never hardcode the Expo projectId.**
 6. **Don't run `prisma migrate dev`.** Use `db push`, and check the diff first.
 7. **The app uses Mapbox in a WebView**, not `react-native-maps`.
-8. **`NEXT_PUBLIC_STRIPE_PUBLISH_KEY` is misspelled** in Vercel. Code matches the typo.
+8. **`NEXT_PUBLIC_STRIPE_PUBLISH_KEY` is misspelled** (Railway variable). Code matches the typo.
 9. **`ADMIN_EMAIL` must never be a real user's address** — `ensureServiceUser()` would claim their row.
 10. **Notification and email failures must never break the booking flow.**
 11. **Qualification documents are `r2-private:` references, not URLs.** Only `resolveDocumentUrl()` server-side turns them into links.
@@ -481,3 +506,5 @@ EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 23. **New native modules need new builds.** `@react-native-community/netinfo` and `expo-image` (Oct 2026) mean dev clients and APKs built before them crash with "native module not found".
 24. **NetInfo must use the JS reachability probe** (`NetInfo.configure({ useNativeReachability: false })` at the top of `src/lib/network.ts`). With Android's native "validated" flag the offline banner stayed stuck after airplane mode was turned off (Samsung, Oct 2026). Keep the configure call above any NetInfo use.
 25. **The app's bearer key is public.** Anything reachable with `Authorization: Bearer <EXPO_PUBLIC_ADMIN_API_KEY>` alone is reachable by anyone. Never grant admin or per-user data on it: use `requireAdmin()` / `isAdmin` for admin, `getEndUser()` for anything owned by a person, and return 401 for the service user (`clerkId === ADMIN_EXTERNAL_ID`) on user data.
+26. **Railway blocks builds with vulnerable dependencies** ("SECURITY VULNERABILITIES DETECTED" in the build log, deployment FAILED in seconds). Upgrade the package it names; it is not a code error.
+27. **The Railway database has no public port.** Reach it with `railway ssh` (§9 Railway). Opening a TCP proxy exposes it to the internet — only temporarily and with approval.
