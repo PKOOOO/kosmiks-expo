@@ -177,7 +177,7 @@ const Saloons = () => {
         ${MAPBOX_LOADER_JS}
         ${KOSMIKS_PIN_JS}
 
-        loadMapbox(function () {
+        function start() {
             mapboxgl.accessToken = TOKEN;
             var options = {
                 container: 'map',
@@ -199,6 +199,7 @@ const Saloons = () => {
                 options.pitch = use3d ? 45 : 0;
             }
             var map = new mapboxgl.Map(options);
+            watchMap(map, start);
             // Mapbox's terms require the logo and attribution: keep them, compact.
             map.addControl(new mapboxgl.AttributionControl({ compact: true }));
 
@@ -216,7 +217,8 @@ const Saloons = () => {
             } else if (POINTS.length === 1) {
                 map.jumpTo({ center: POINTS[0], zoom: 15, pitch: options.pitch || 0 });
             }
-        });
+        }
+        loadMapbox(start);
     </script>
 </body>
 </html>

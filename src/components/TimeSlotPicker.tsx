@@ -246,7 +246,6 @@ export default function TimeSlotPicker({
                 >
                   <Ionicons name={group.icon} size={16} color={muted} />
                   <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 14, color: muted }}>{group.label}</Text>
-                  <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: muted }}>· {group.slots.length}</Text>
                   {group.key === 'night' && daytimeCount > 0 && (
                     <Ionicons name={folded ? 'chevron-down' : 'chevron-up'} size={15} color={muted} style={{ marginLeft: 2 }} />
                   )}

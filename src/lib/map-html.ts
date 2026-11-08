@@ -12,8 +12,9 @@ export const MAPBOX_GL_V2_FALLBACK = '2.15.0';
 
 /**
  * Defines (in the page): `gl2`, `use3d`, `MAPBOX_VERSION`, `MAPBOX_STYLE`,
- * `lightPreset()` and `loadMapbox(callback)`, which loads the right GL JS
- * build and calls back once `mapboxgl` exists.
+ * `lightPreset()`, `loadMapbox(callback)`, which loads the right GL JS
+ * build and calls back once `mapboxgl` exists, and `watchMap(map, restart)`,
+ * the flat-map fallback for phones that can't draw the 3D map.
  */
 export const MAPBOX_LOADER_JS = `
   // Mapbox GL JS v3 requires WebGL2.
@@ -46,6 +47,41 @@ export const MAPBOX_LOADER_JS = `
     script.src = 'https://api.mapbox.com/mapbox-gl-js/v' + MAPBOX_VERSION + '/mapbox-gl.js';
     script.onload = callback;
     document.head.appendChild(script);
+  }
+
+  // Some Android WebViews report WebGL2 but can't draw the Standard style
+  // (the map stays blank behind the pins). If the 3D map can't draw, errors
+  // before loading, or loses its WebGL context, switch to the
+  // flat v2 + streets-v12 map and run the page's start function again.
+  function watchMap(map, restart) {
+    if (!gl2) return;
+    var loaded = false, failed = false;
+    function fail(reason) {
+      if (failed) return;
+      failed = true;
+      try { map.remove(); } catch (e) {}
+      gl2 = false;
+      use3d = false;
+      MAPBOX_VERSION = '${MAPBOX_GL_V2_FALLBACK}';
+      MAPBOX_STYLE = 'mapbox://styles/mapbox/streets-v12';
+      if (window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'mapFallback', reason: reason }));
+      }
+      loadMapbox(restart);
+    }
+    map.on('load', function () { loaded = true; });
+    map.on('error', function (e) {
+      // A single missing tile (sourceId set) isn't worth giving up the 3D map.
+      if (!loaded && !(e && e.sourceId)) fail('error: ' + ((e && e.error && e.error.message) || 'unknown'));
+    });
+    map.getCanvas().addEventListener('webglcontextlost', function () { fail('webglcontextlost'); });
+    // A slow network only delays the style; once it's here, a phone that
+    // can't draw the 3D map within 15 s gets the flat one.
+    var styleTimer = setTimeout(function () { if (!loaded) fail('style timeout'); }, 30000);
+    map.once('style.load', function () {
+      clearTimeout(styleTimer);
+      setTimeout(function () { if (!loaded) fail('draw timeout'); }, 15000);
+    });
   }
 `;
 

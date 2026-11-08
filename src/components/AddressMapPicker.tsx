@@ -209,10 +209,14 @@ const buildHTML = (
       target.innerHTML = icon === 'home' ? ${JSON.stringify(PIN_ICON_HOME)} : ${JSON.stringify(PIN_ICON_GLOBE)};
     };
 
-    loadMapbox(function () {
+    function start() {
       mapboxgl.accessToken = '${MAPBOX_TOKEN}';
+      PITCH = use3d ? 45 : 0; // recomputed: the flat fallback re-runs start
+      BEARING = use3d ? -17 : 0;
+      // After a flat-map fallback, keep wherever the pin already was.
+      var startAt = marker ? marker.getLngLat().toArray() : START;
       var options = {
-        container: 'map', style: MAPBOX_STYLE, center: START, attributionControl: false,
+        container: 'map', style: MAPBOX_STYLE, center: startAt, attributionControl: false,
         zoom: ${initialZoom}, pitch: PITCH, bearing: BEARING
       };
       if (gl2) {
@@ -227,13 +231,14 @@ const buildHTML = (
         };
       }
       map = new mapboxgl.Map(options);
+      watchMap(map, start);
       // Mapbox's terms require the logo and attribution: keep them, compact.
       map.addControl(new mapboxgl.AttributionControl({ compact: true }));
 
       var markerOptions = markerElement
         ? { element: markerElement, anchor: 'bottom', draggable: true }
         : { color: '${darkBrown}', draggable: true };
-      marker = new mapboxgl.Marker(markerOptions).setLngLat(START).addTo(map);
+      marker = new mapboxgl.Marker(markerOptions).setLngLat(startAt).addTo(map);
 
       marker.on('dragend', function () { post(marker.getLngLat(), 'marker-drag-end'); });
       var mapIsDragging = false;
@@ -255,7 +260,8 @@ const buildHTML = (
       map.once('idle', function () { if (!pending) highlightBuilding(map, marker.getLngLat()); });
 
       if (pending) { window.setMarker(pending[1], pending[0]); pending = null; }
-    });
+    }
+    loadMapbox(start);
   </script>
 </body>
 </html>`;

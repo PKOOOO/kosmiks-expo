@@ -39,7 +39,7 @@
 | Payments | Stripe — customers pay the platform; providers are paid with **Stripe Connect** (separate charges and transfers, see §4). Platform account `acct_1UZR…` (Finland, EUR, **test mode**, marketplace + platform loss liability) since 8 Nov 2026. |
 | Images & files | **Cloudflare R2** — see §9 Storage |
 | Maps | **Mapbox GL JS inside a WebView** — `react-native-maps` is NOT installed |
-| Email | Resend |
+| Email | Gmail SMTP via nodemailer (`lib/email.ts`) — **blocked on Railway Hobby** (outbound SMTP is Pro-only). Set `RESEND_API_KEY` (+ `EMAIL_FROM` on a verified domain) to send through Resend's HTTP API instead |
 | Push | Expo Notifications + Firebase Cloud Messaging (FCM V1) |
 
 The repo *directories* are still named `cosmix-v2` / `cosmix-admin`, and the Expo slug / EAS project is still `servey` (see §9). Only user-visible branding was renamed.
@@ -269,6 +269,7 @@ curl -X POST https://exp.host/--/api/v2/push/getReceipts \
 **All three map pages share `src/lib/map-html.ts`** (29 Oct 2026): `MAPBOX_LOADER_JS` (WebGL2 check → v3.32.0 + Standard or v2.15.0 + `streets-v12`; defines `gl2`, `use3d`, `MAPBOX_STYLE`, `lightPreset()`, `loadMapbox(cb)`), `KOSMIKS_PIN_CSS` / `KOSMIKS_PIN_JS` (`makeKosmiksPin(name, small)`). Bump the GL JS version there, once.
 - **Salon list mini map** (`saloons.tsx`): non-interactive, Standard + light preset + faded theme, POI labels off, pitch 45 on capable phones, small Kosmiks pins, `fitBounds` around all salons (pass `pitch` — `fitBounds` resets it).
 - **Address picker** (`AddressMapPicker.tsx`, Phase 3 + provider salon screen): **3D like the main map since 29 Oct 2026** (clock light preset, pitch 45 / bearing −17 on capable phones, zoom 16 when the salon has coordinates). The building under the pin is highlighted beige after every drag/search (`highlightBuilding(map, lngLat)` from `BUILDING_HIGHLIGHT_JS` in `map-html.ts`, shared with the main map). The pin is an HTML marker, so buildings never cover it; dragging the map keeps the pin at the screen centre. Keeps its own green location pin. `window.setMarker/setMarkerLabel/setMarkerIcon` exist before the map loads (RN calls them on mount); an early `setMarker` is applied once ready.
+- **Flat-map fallback (8 Nov 2026):** `watchMap(map, restart)` in `MAPBOX_LOADER_JS`. An Android phone showed a blank map with only the pins (WebGL2 reported, Standard style never drew). If the 3D map errors before loading, loses its WebGL context, doesn't get its style within 30 s, or doesn't finish drawing 15 s after the style arrived, the page removes it, switches to v2 + `streets-v12` and re-runs its start function (main map → `mapFallback` message, logged as `[MAP] 3D map failed`). Verified in headless Chrome with a broken style URL.
 - All three keep the **Mapbox logo + compact attribution** (they used to be hidden with CSS — Mapbox's terms require them).
 - Verified in Chrome against real salons (3D, pins, building highlight, night preset, picker label/move).
 
@@ -407,6 +408,9 @@ R2_PRIVATE_BUCKET=kosmiks-documents
 R2_PUBLIC_URL=https://media.kosmiks.com
 CRON_SECRET=...                     # generated 8 Nov 2026 (Vercel's was sensitive/unreadable); the cron services reference it
 ADMIN_API_KEY, ADMIN_EXTERNAL_ID, NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_MAPBOX_KEY, SMTP_*   # copied from Vercel
+# SMTP_* (Gmail) can't connect from Railway Hobby. Not set yet:
+RESEND_API_KEY=re_...                # switches lib/email.ts to Resend's HTTP API
+EMAIL_FROM=Kosmiks <noreply@notify.kosmiks.com>   # must be on a Resend-verified domain (falls back to SMTP_FROM)
 ```
 Setting a variable on Railway redeploys the service (unless skipped). Set secrets with `railway variable set KEY --stdin` so values never appear in a command line.
 
@@ -415,6 +419,7 @@ Setting a variable on Railway redeploys the service (unless skipped). Set secret
 EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_Y2xlcmsua29z...   # eas.json preview + production AND local .env → clerk.kosmiks.com
 EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...   # new account since 8 Nov 2026 (eas.json + .env). Only the default: checkout calls initStripe() with the key the server returns, so a Stripe switch doesn't need a rebuild from builds after 6c37c1c
 EXPO_PUBLIC_PRODUCTION_DOMAIN=https://www.kosmiks.com
+EXPO_PUBLIC_MAPBOX_TOKEN=pk.…   # in eas.json preview + production since 8 Nov 2026 (before, only EAS's server-side env had it)
 EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 ```
 
@@ -469,6 +474,7 @@ EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 - [ ] **Test Stripe Connect end to end in the app:** a provider with earnings → Set up payouts → Stripe test onboarding (Stripe's test data: phone `000 000 0000`, SMS code `000000`, test IBAN `FI2112345600000785`) → Withdraw → transfer visible in Stripe. Not yet done — onboarding needs the hosted page. Also confirm the Express login link works for v2 accounts.
 - [ ] **Decide: delete the IBANs already stored** in `provider_applications` (no longer needed; asked 8 Nov 2026, not done — permanent).
 - [ ] The first Stripe account `acct_1UWI…` (keys replaced) is unused — can be closed.
+- [ ] **Confirmation emails don't send from Railway** (Hobby blocks SMTP; found 8 Nov 2026 — the pushes arrived exactly 2 min late because they waited for the SMTP timeout; fixed in `8d10cbb`: pushes first, emails in the background, 10 s SMTP timeout). Either verify `notify.kosmiks.com` in Resend and set `RESEND_API_KEY` + `EMAIL_FROM`, or move to Railway Pro. The customer email template also still says "Muista maksaa palvelu paikalla" (pay at the salon) — wrong for online payments.
 - [ ] Activate the new Stripe account (business details) before live mode — `charges_enabled` is false.
 - [ ] Optional: remove the SSH key `kosmiks-laptop` from Railway (account → SSH keys) if this machine shouldn't keep database access.
 

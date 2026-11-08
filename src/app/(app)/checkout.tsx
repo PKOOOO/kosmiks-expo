@@ -158,8 +158,8 @@ export default function CheckoutScreen() {
   const canPickTime = !!params.saloonId && !!params.serviceId;
   const step: 1 | 2 = bookingConfirmed ? 2 : 1;
   // The page skips the bottom safe area (edges below) so the footer can run to
-  // the screen edge and pad for the home indicator itself — no empty band under it.
-  const footerBottom = Math.max(insets.bottom - 6, 12);
+  // the screen edge and pad for the home indicator / Android nav bar itself.
+  const footerBottom = insets.bottom + (Platform.OS === 'android' ? 16 : 6);
 
   const menu = (
     <Modal
@@ -214,21 +214,14 @@ export default function CheckoutScreen() {
           detail={serviceDetail}
           workType={params.workType ? formatWorkType(params.workType) : null}
           durationMinutes={saloonService.durationMinutes}
-          price={saloonService.price}
           when={when}
           confirmed={step === 2}
           onChangeTime={step === 2 && canPickTime ? changeTime : undefined}
         />
 
-        {/* ── Steps ──────────────────────────────────────────────────── */}
-        <StepBar step={step} />
-
         {step === 1 && canPickTime && (
-          <View>
-            <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 24, color: dark, marginBottom: 4 }}>Milloin sinulle sopii?</Text>
-            <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: muted, marginBottom: 16 }}>
-              Valitse päivä ja vapaa aika.
-            </Text>
+          <View style={{ marginTop: 26 }}>
+            <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 24, color: dark, marginBottom: 14 }}>Milloin sinulle sopii?</Text>
             <TimeSlotPicker
               saloonId={params.saloonId!}
               serviceId={params.serviceId!}
@@ -240,7 +233,7 @@ export default function CheckoutScreen() {
         )}
 
         {step === 2 && (
-          <View>
+          <View style={{ marginTop: 26 }}>
             <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 24, color: dark, marginBottom: 14 }}>Tarkista ja vahvista</Text>
 
             {isSignedIn ? (
@@ -292,10 +285,7 @@ export default function CheckoutScreen() {
         shadowRadius: 12,
         elevation: 12,
       }}>
-        <View>
-          <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 20, color: dark }}>{eur(saloonService.price)}</Text>
-          <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: muted }}>{saloonService.durationMinutes} min</Text>
-        </View>
+        <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 20, color: dark }}>{eur(saloonService.price)}</Text>
 
         <View style={{ flex: 1 }}>
           {step === 1 ? (
@@ -329,14 +319,13 @@ export default function CheckoutScreen() {
 // ─── Ticket ──────────────────────────────────────────────────────────────────
 
 function BookingTicket({
-  salonName, title, detail, workType, durationMinutes, price, when, confirmed, onChangeTime,
+  salonName, title, detail, workType, durationMinutes, when, confirmed, onChangeTime,
 }: {
   salonName: string;
   title: string;
   detail: string | null;
   workType: string | null;
   durationMinutes: number;
-  price: number;
   when: string | null;
   confirmed: boolean;
   onChangeTime?: () => void;
@@ -366,11 +355,12 @@ function BookingTicket({
 
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 }}>
           <TicketChip icon="time-outline" label={`${durationMinutes} min`} />
-          <TicketChip icon="pricetag-outline" label={eur(price)} />
           {workType ? <TicketChip icon="sparkles-outline" label={workType} /> : null}
         </View>
       </View>
 
+      {/* Time half — only once a time is picked (the picker is right below). */}
+      {when ? (<>
       {/* Perforation: page-coloured notches + dashed tear line */}
       <View style={{ flexDirection: 'row', alignItems: 'center', height: 24 }}>
         <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: pageBg, marginLeft: -12 }} />
@@ -382,16 +372,16 @@ function BookingTicket({
       <View style={{ flexDirection: 'row', alignItems: 'center', padding: 22, paddingTop: 16, gap: 12 }}>
         <View style={{
           width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center',
-          backgroundColor: when ? beige : 'rgba(215,195,167,0.18)',
+          backgroundColor: beige,
         }}>
-          <Ionicons name={confirmed ? 'checkmark' : 'calendar-outline'} size={20} color={when ? dark : beige} />
+          <Ionicons name={confirmed ? 'checkmark' : 'calendar-outline'} size={20} color={dark} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: beige }}>
             {confirmed ? 'Varattu aika' : 'Aika'}
           </Text>
-          <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 19, color: when ? white : 'rgba(255,255,255,0.55)', marginTop: 1 }}>
-            {when ? formatSlotLabel(when) : 'Valitse aika alta'}
+          <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 19, color: white, marginTop: 1 }}>
+            {formatSlotLabel(when)}
           </Text>
         </View>
         {onChangeTime ? (
@@ -404,6 +394,7 @@ function BookingTicket({
           </TouchableOpacity>
         ) : null}
       </View>
+      </>) : null}
     </View>
   );
 }
@@ -421,35 +412,6 @@ function TicketChip({ icon, label }: { icon: React.ComponentProps<typeof Ionicon
 }
 
 // ─── Steps / cards / buttons ─────────────────────────────────────────────────
-
-function StepBar({ step }: { step: 1 | 2 }) {
-  const items = ['Aika', 'Vahvistus'];
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 22, marginBottom: 22 }}>
-      {items.map((label, i) => {
-        const n = i + 1;
-        const done = n < step;
-        const active = n === step;
-        return (
-          <React.Fragment key={label}>
-            {i > 0 && <View style={{ flex: 1, height: 2, borderRadius: 1, backgroundColor: done || active ? dark : sand }} />}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <View style={{
-                width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center',
-                backgroundColor: active || done ? dark : sand,
-              }}>
-                {done
-                  ? <Ionicons name="checkmark" size={14} color={white} />
-                  : <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 13, color: active ? white : muted }}>{n}</Text>}
-              </View>
-              <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 14, color: active || done ? dark : muted }}>{label}</Text>
-            </View>
-          </React.Fragment>
-        );
-      })}
-    </View>
-  );
-}
 
 function DetailCard({
   icon, title, body, caption,

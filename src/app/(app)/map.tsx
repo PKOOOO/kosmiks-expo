@@ -695,6 +695,10 @@ export default function MapScreen() {
 
           function init() {
             mapboxgl.accessToken = TOKEN;
+            PITCH = use3d ? 55 : 0; // recomputed: the flat fallback re-runs init
+            BEARING = use3d ? -17 : 0;
+            markerEls = {};
+            meMarker = null; // belongs to the previous map/GL JS build
             var options = { container: 'map', center: CENTER, zoom: 14.5 };
             if (gl2) {
               options.style = MAPBOX_STYLE;
@@ -714,6 +718,7 @@ export default function MapScreen() {
               options.style = MAPBOX_STYLE;
             }
             map = new mapboxgl.Map(options);
+            watchMap(map, init);
 
             if (gl2) {
               setInterval(function () {
@@ -769,6 +774,8 @@ export default function MapScreen() {
         // The page reloaded with a route showing: draw it again.
         const routeSalon = route && salons.find((s) => s.id === route.salonId);
         if (route && routeSalon && route.status !== 'error') sendRoute(route, routeSalon);
+      } else if (data.type === 'mapFallback') {
+        console.log('[MAP] 3D map failed, using the flat map:', data.reason);
       } else if (data.type === 'routeReady') {
         setRoute((current) => current && { ...current, status: 'ready', duration: data.duration, distance: data.distance });
       } else if (data.type === 'routeError') {
@@ -1743,11 +1750,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 22,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    elevation: 6,
+    borderWidth: 1,
+    borderColor: '#EFE4D6',
   },
   cardPhoto: {
     width: '100%',
