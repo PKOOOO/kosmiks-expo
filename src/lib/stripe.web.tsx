@@ -20,6 +20,8 @@ export function StripeProvider({ children }: StripeProviderProps) {
   return children;
 }
 
+export async function initStripe(_params: { publishableKey: string }) {}
+
 export function useStripe() {
   return {
     initPaymentSheet: async () => ({ error: unsupportedError }),

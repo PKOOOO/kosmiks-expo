@@ -5,7 +5,7 @@ import { initiateCheckout, confirmBooking, ConfirmBookingError, CustomerInfo } f
 import { SaloonService } from '@/types';
 import { useRouter } from 'expo-router';
 import { useAuth, useUser } from '@clerk/clerk-expo';
-import { useStripe } from '@/lib/stripe';
+import { initStripe, useStripe } from '@/lib/stripe';
 import { describeError } from '@/lib/api';
 import { isOfflineNow } from '@/lib/network';
 
@@ -133,6 +133,17 @@ const CheckoutButtonInner: React.FC<CheckoutButtonProps> = ({
       }
 
       console.log('Got payment intent, initializing payment sheet...');
+
+      // Use the Stripe account the server created the payment in. The key
+      // built into the app can be out of date after a Stripe account switch,
+      // and then the payment sheet can't find the payment.
+      if (result.publishableKey) {
+        await initStripe({
+          publishableKey: result.publishableKey,
+          merchantIdentifier: 'merchant.com.kosmiks.app',
+          urlScheme: 'kosmiks',
+        });
+      }
 
       // Step 2: Initialize the Payment Sheet
       const { error: initError } = await initPaymentSheet({

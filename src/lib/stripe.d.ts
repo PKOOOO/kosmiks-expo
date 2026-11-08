@@ -1,1 +1,1 @@
-export { StripeProvider, useStripe } from "@stripe/stripe-react-native";
+export { StripeProvider, useStripe, initStripe } from "@stripe/stripe-react-native";
