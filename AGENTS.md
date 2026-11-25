@@ -1,7 +1,7 @@
 # Kosmiks — Full Project Context
 
 > Handoff document. Paste at the start of a new chat to restore context.
-> Last updated: 8 November 2026 (moved from Vercel + Neon to Railway; new Stripe account) — supersedes all earlier versions.
+> Last updated: 8 November 2026 (Railway + new Stripe account, Resend email, redesigned booking emails, booking times in Finnish time) — supersedes all earlier versions.
 > `AGENTS.md` is a copy of this file — keep the two identical.
 
 ---
@@ -39,7 +39,7 @@
 | Payments | Stripe — customers pay the platform; providers are paid with **Stripe Connect** (separate charges and transfers, see §4). Platform account `acct_1UZR…` (Finland, EUR, **test mode**, marketplace + platform loss liability) since 8 Nov 2026. |
 | Images & files | **Cloudflare R2** — see §9 Storage |
 | Maps | **Mapbox GL JS inside a WebView** — `react-native-maps` is NOT installed |
-| Email | **Resend** HTTP API from `notify.kosmiks.com` (EU region, domain id `c2b73f8c-7d82-405c-beef-9f45cf128dff`) when `RESEND_API_KEY` is set (`lib/email.ts`); otherwise Gmail SMTP via nodemailer, which **Railway Hobby blocks** (outbound SMTP is Pro-only). The Railway key is send-only; the Resend CLI (`~/.resend/bin/resend`) is logged in with full access |
+| Email | **Resend** HTTP API from `notify.kosmiks.com` (EU region, domain id `c2b73f8c-7d82-405c-beef-9f45cf128dff`) when `RESEND_API_KEY` is set (`lib/email.ts`); otherwise Gmail SMTP via nodemailer, which **Railway Hobby blocks** (outbound SMTP is Pro-only). The Railway key is send-only; the Resend CLI (`~/.resend/bin/resend`) is logged in with full access. Booking email templates and delivery: §8c |
 | Push | Expo Notifications + Firebase Cloud Messaging (FCM V1) |
 
 The repo *directories* are still named `cosmix-v2` / `cosmix-admin`, and the Expo slug / EAS project is still `servey` (see §9). Only user-visible branding was renamed.
@@ -273,6 +273,13 @@ curl -X POST https://exp.host/--/api/v2/push/getReceipts \
 - All three keep the **Mapbox logo + compact attribution** (they used to be hidden with CSS — Mapbox's terms require them).
 - Verified in Chrome against real salons (3D, pins, building highlight, night preset, picker label/move).
 
+## 8c. Booking emails & times (8 Nov 2026)
+
+- **Sending:** `confirmPendingBookings()` (`lib/booking-confirmation.ts`) awaits the pushes, then sends the emails in the background (not awaited — safe because Railway runs a long-lived server). `sendEmail()` in `lib/email.ts` uses the Resend HTTP API when `RESEND_API_KEY` is set.
+- **Templates** (`lib/email.ts`): `layout()` — sand page, one white card, logo at the top of the card, short footer with a kosmiks.com link. Tables and inline styles only (Gmail/Outlook ignore `<style>`); user values go through `escapeHtml`. Customer: "Varauksesi on vahvistettu" (service, salon, address, date, time, paid, salon phone in the footer). Salon: "Uusi varaus" (customer, service, date, time, phone, email, paid online). Both have plain-text versions.
+- **Logo:** `public/email-logo.png` (cosmix-admin), served at `https://www.kosmiks.com/email-logo.png`; emails need that absolute URL, and sent emails depend on it staying there. It is inside the white card because the arch is the same colour as the sand background (`#F4EDE5`). An image also stops Gmail translate changing the brand name (it turned the text "KOSMIKS" into "COSMIC").
+- **Times:** `SALON_TIME_ZONE = "Europe/Helsinki"` (`lib/send-notification.ts`), used by `formatWhen()` and the email date/time.
+
 ## 9. Infrastructure
 
 ### Expo / EAS
@@ -432,7 +439,21 @@ EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 
 ## 13. TODO — Outstanding Work
 
+### ▶ Next up (as of 8 Nov 2026)
+0. **Security first:** revoke the exposed Gmail app password and make both GitHub repos private (see 🔴 Security).
+1. Build a new APK and check the map + day/time step on a phone.
+2. Build abandoned-`pending` expiry + the double-booking re-check together (no client decision needed).
+3. Test provider cancel/refund and Stripe Connect end to end; sign in with the admin account.
+4. Ask the client for the cancellation rule, then build the real customer cancel.
+5. After about a week without problems: remove Vercel and Neon.
+
 ### 🔴 Security
+- [ ] **Revoke the Gmail app password (found 9 Nov 2026).** The current `SMTP_PASSWORD` was committed in `cosmix-admin/PAY_AT_VENUE_IMPLEMENTATION.md` (`8a03c29`, Oct 2025) and the repo is public. The file is now redacted, but the value stays in git history, so only revoking it (myaccount.google.com/apppasswords) closes this. Booking emails use Resend, so nothing depends on it; remove `SMTP_*` from Railway afterwards.
+- [ ] **Make both GitHub repos private** (`PKOOOO/cosmix-admin`, `PKOOOO/kosmiks-expo` — both readable without login on 9 Nov 2026; `CLAUDE.md` holds infrastructure IDs and email addresses). Afterwards confirm Railway still deploys on push.
+- [ ] **Add rate limiting** — none exists. Start with checkout, uploads and other routes that create data.
+- [ ] **Work through `npm audit` in `cosmix-admin`** — 5 critical, 21 high on 9 Nov 2026, including `next`, `form-data`, `nodemailer`. Reachability not checked; start by uninstalling unused packages such as `@clerk/nextjs`.
+- [ ] Delete `~/Desktop/new_stripe` once its keys are in a password manager (plain-text Stripe and Resend keys). Check that the `google-services.json` API key is restricted in Google Cloud.
+- [x] **Audit 9 Nov 2026 — fixed in code:** data-changing `/api/saloons*`, `/api/services*`, `/api/categories*` routes use `checkWriteAccess()` (the public key alone no longer works); `POST /api/saloons` is admin-only (salons come from the application approval); salon owners' emails removed from `/api/saloons/map` and `/api/public/saloons/[id]`; the `dev-admin-key-change-me` fallback is gone (no `ADMIN_API_KEY` = every key request refused); the broken unauthenticated `POST /api/public/saloons` was deleted. No other real secrets were in code or git history (current `.env` values and known key patterns checked).
 - [x] **Bearer-key `isAdmin` fallback — FIXED 26 Oct 2026.** A request with only `EXPO_PUBLIC_ADMIN_API_KEY` (extractable from the APK) now resolves to the service user with **`isAdmin: false`** (`lib/admin-access.ts`). Admins are recognised only via a verified Clerk token + `users.isAdmin`; the app's admin screens already send `X-User-Token`. Same change: `GET /api/bookings` is scoped (admin → all; user → own by `userId` or `customerEmail`; key-only → 401) — it used to return every booking with customer names/emails; the unused `POST /api/bookings` (created confirmed, unpaid bookings) was removed; `/api/bookings/[id]` GET/PATCH/DELETE are admin-only; legacy `POST /api/upload` requires `getEndUser()`. Verified with key-only requests: admin routes 403, bookings 401/403, public routes 200.
 - [ ] Consider whether a client-side shared key is the right model at all before launch (it now only grants anonymous/public access)
 - [x] **Reviews — FIXED 26 Oct 2026.** The app sent no credentials, so every review submit and salon review list got 401 (0 reviews in the DB). `POST /api/reviews` had no identity check at all (anyone with the bearer key could write/overwrite any booking's review); it now requires `getEndUser()` and booking ownership (userId or customerEmail). `GET` returns the reviewer's first name only (it used to return their email and clerkId). App: `apiHeaders()` in `src/lib/api.ts`.
@@ -440,7 +461,7 @@ EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 - [ ] Delete `~/Desktop/kosmiks-secrets/client_secret_234539763868-….json` (no `_2_`) — it holds the revoked Google secret
 
 ### 🟠 Kosmiks / Clerk production follow-ups
-- [ ] **Test a real payment on the Kosmiks build** — first release build with R8 minification; also confirms C1/P7 pushes
+- [x] **Real payment on the Kosmiks build — 8 Nov 2026.** Test bookings on the new Stripe account confirmed; the C1/P7 push arrives instantly.
 - [ ] **Sign in with the admin account** on the Kosmiks build and confirm its row re-links with `isAdmin` intact
 - [ ] Update/delete the stale `pk_test` `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` in EAS's server-side preview environment
 - [ ] Apple sign-in for iOS (needs Apple Developer account — see §10)
@@ -470,12 +491,12 @@ EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 ### 🟠 Railway / Stripe migration follow-ups (8 Nov 2026)
 - [ ] **Pause, then delete the Vercel project** `cosmix-admin` (pausing via the API was blocked by the permission check — do it in the Vercel dashboard). It still auto-deploys every push to `main` (pointing at Neon), but no domain routes to it. Delete after ~1 week without problems.
 - [ ] **Delete the Neon project** after ~1 week (it holds the pre-migration backup, including the deleted test bookings). Remove the old Neon `DATABASE_URL` from `cosmix-admin/.env` then.
-- [ ] **Build a new APK** for testers: installed builds have the old Stripe publishable key built in and can't pay against the new account. Builds from `6c37c1c` on take the key from the server.
-- [ ] Test a full payment + provider cancel/refund on the new Stripe account (test card `4242 4242 4242 4242`).
+- [ ] **Build a new APK** (`eas build --profile preview --platform android`) for testers. Needed to see the flat-map fallback, the simpler day/time step and the map card without shadow on a phone (all committed in `d9ac81f`, none confirmed on a device yet). Older installed builds also have the old Stripe publishable key built in; builds from `6c37c1c` on take the key from the server.
+- [ ] Test a provider cancel/refund on the new Stripe account (payment itself works, 8 Nov 2026; test card `4242 4242 4242 4242`).
 - [ ] **Test Stripe Connect end to end in the app:** a provider with earnings → Set up payouts → Stripe test onboarding (Stripe's test data: phone `000 000 0000`, SMS code `000000`, test IBAN `FI2112345600000785`) → Withdraw → transfer visible in Stripe. Not yet done — onboarding needs the hosted page. Also confirm the Express login link works for v2 accounts.
 - [ ] **Decide: delete the IBANs already stored** in `provider_applications` (no longer needed; asked 8 Nov 2026, not done — permanent).
 - [ ] The first Stripe account `acct_1UWI…` (keys replaced) is unused — can be closed.
-- [ ] **Confirm a booking email arrives through Resend.** Railway Hobby blocks SMTP (found 8 Nov 2026 — pushes arrived exactly 2 min late because they waited for the SMTP timeout; fixed in `8d10cbb`: pushes first, emails in the background). Resend set up the same day: domain `notify.kosmiks.com` **verified**, DNS records in Cloudflare, `RESEND_API_KEY` + `EMAIL_FROM` on Railway, deployed with `1e071ad` (email wording now "paid online"). Not yet tested with a real booking.
+- [x] **Booking email through Resend — verified 8 Nov 2026.** Railway Hobby blocks SMTP, which used to delay pushes by exactly 2 min; pushes now go first and emails in the background. On the test booking Resend accepted the emails 0.3 s after confirmation and reported them delivered; the tester saw the email about 1 min later, so that delay is after Resend (Gmail / the new domain), not our server. Exact cause not measured — a Gmail "Show original" would show it.
 - [ ] Activate the new Stripe account (business details) before live mode — `charges_enabled` is false.
 - [ ] Optional: remove the SSH key `kosmiks-laptop` from Railway (account → SSH keys) if this machine shouldn't keep database access.
 
@@ -489,7 +510,7 @@ EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 ### 🔵 Blocked on client
 - [ ] **Apple Developer account — $99/year.** Blocks iOS testing, App Store submission, APNs push, Apple Pay merchant cert, and Sign in with Apple.
 - [ ] **GoDaddy mailboxes** — `support@kosmiks.com` + `admin@kosmiks.com`. Domain is on the client's account.
-- [ ] Resend sending domain — `notify.kosmiks.com` recommended (SPF, DKIM, DMARC; DNS goes in Cloudflare)
+- [x] Resend sending domain — `notify.kosmiks.com` verified 8 Nov 2026 (§1, §9 DNS).
 - [x] Hosting plan — moved to Railway Hobby ($5/mo, commercial use allowed) on 8 Nov 2026.
 - [ ] Stripe live mode (keys are still `sk_test` / `pk_test`)
 
@@ -521,6 +542,8 @@ EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 22. **Many source files use CRLF or mixed line endings.** Python `open()` in text mode silently converts them to LF and turns a 3-line change into a whole-file diff. Edit with `open(p, newline='')`, or check `git diff --stat` after scripted edits.
 23. **New native modules need new builds.** `@react-native-community/netinfo` and `expo-image` (Oct 2026) mean dev clients and APKs built before them crash with "native module not found".
 24. **NetInfo must use the JS reachability probe** (`NetInfo.configure({ useNativeReachability: false })` at the top of `src/lib/network.ts`). With Android's native "validated" flag the offline banner stayed stuck after airplane mode was turned off (Samsung, Oct 2026). Keep the configure call above any NetInfo use.
-25. **The app's bearer key is public.** Anything reachable with `Authorization: Bearer <EXPO_PUBLIC_ADMIN_API_KEY>` alone is reachable by anyone. Never grant admin or per-user data on it: use `requireAdmin()` / `isAdmin` for admin, `getEndUser()` for anything owned by a person, and return 401 for the service user (`clerkId === ADMIN_EXTERNAL_ID`) on user data.
+25. **The app's bearer key is public.** Anything reachable with `Authorization: Bearer <EXPO_PUBLIC_ADMIN_API_KEY>` alone is reachable by anyone. Never grant admin or per-user data on it: use `requireAdmin()` / `isAdmin` for admin, `getEndUser()` for anything owned by a person, and return 401 for the service user (`clerkId === ADMIN_EXTERNAL_ID`) on user data. For routes that change data, use `checkWriteAccess()` or `getEndUser()`, not `checkAdminAccess()`, which returns the service user for key-only requests.
 26. **Railway blocks builds with vulnerable dependencies** ("SECURITY VULNERABILITIES DETECTED" in the build log, deployment FAILED in seconds). Upgrade the package it names; it is not a code error.
 27. **The Railway database has no public port.** Reach it with `railway ssh` (§9 Railway). Opening a TCP proxy exposes it to the internet — only temporarily and with approval.
+28. **The server runs in UTC.** Bookings are stored in true UTC, so any date or time shown to a person must pass `timeZone: SALON_TIME_ZONE`. Without it, emails and pushes showed times 2 h early (fixed 8 Nov 2026).
+29. **`railway logs` doesn't tell you when an email arrived.** `resend emails list` / `get` (`~/.resend/bin/resend`) give the time Resend accepted it and its last event.
