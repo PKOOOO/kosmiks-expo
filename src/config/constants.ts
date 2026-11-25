@@ -34,6 +34,7 @@ export const API_ENDPOINTS = {
   REVIEWS: `${API_BASE_URL}/reviews`,
   PUSH_TOKEN: `${API_BASE_URL}/user/push-token`,
   USER_LANGUAGE: `${API_BASE_URL}/user/language`,
+  USER_ACCOUNT: `${API_BASE_URL}/user/account`,
 } as const;
 
 // Export other useful constants

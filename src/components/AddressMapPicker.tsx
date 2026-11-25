@@ -233,6 +233,9 @@ const buildHTML = (
       }
       map = new mapboxgl.Map(options);
       watchMap(map, start);
+      map.on('load', function () {
+        window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'mapReady', engine: MAPBOX_VERSION, threeD: use3d }));
+      });
       // Mapbox's terms require the logo and attribution: keep them, compact.
       map.addControl(new mapboxgl.AttributionControl({ compact: true }));
 
@@ -346,6 +349,10 @@ export default function AddressMapPicker({
   const onMessage = useCallback((event: any) => {
     try {
       const msg = JSON.parse(event.nativeEvent.data);
+      // Same diagnostics as the main map: is the picker in 3D or on the flat fallback?
+      if (msg?.type === 'mapReady') { console.log('[PICKER] ready, engine', msg.engine, '3D:', msg.threeD); return; }
+      if (msg?.type === 'mapDrawn') { console.log('[PICKER] 3D map drawing after', msg.ms, 'ms'); return; }
+      if (msg?.type === 'mapFallback') { console.log('[PICKER] 3D map failed, using the flat map:', msg.reason); return; }
       if (msg?.type === 'marker-press') {
         onMarkerPress?.();
         return;

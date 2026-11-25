@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { SafeAreaView, View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Modal, TextInput, FlatList, KeyboardAvoidingView, Platform, Image, Dimensions, Linking } from 'react-native';
+import { SafeAreaView, View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Modal, TextInput, FlatList, KeyboardAvoidingView, Platform, Image, Dimensions } from 'react-native';
 import { useFonts } from 'expo-font';
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from '@expo/vector-icons';
@@ -15,7 +15,7 @@ import { MAPBOX_TOKEN, hasMapboxToken, MAP_UNAVAILABLE_HTML } from "@/config/con
 import { describeError } from "@/lib/api";
 import { useIsOffline, useOnReconnect } from "@/lib/network";
 import RemoteImage from '@/components/RemoteImage';
-import { getOpeningStatus, TimeSlot } from '@/lib/opening-hours';
+import { TimeSlot } from '@/lib/opening-hours';
 import { MAPBOX_LOADER_JS, KOSMIKS_PIN_CSS, KOSMIKS_PIN_JS, BUILDING_HIGHLIGHT_JS } from '@/lib/map-html';
 import { ALL_SERVICES, useT } from '@/i18n';
 
@@ -26,32 +26,42 @@ interface MapSalon extends Saloon {
   averageRating: number;
   reviewCount: number;
   timeSlots?: TimeSlot[];
-  phone?: string | null;
 }
 
-type RouteProfile = 'walking' | 'driving';
-type RouteState = {
-  salonId: string;
-  profile: RouteProfile;
-  from: [number, number];
-  status: 'loading' | 'ready' | 'error';
-  duration?: number; // seconds
-  distance?: number; // metres
-};
 
-// "12 min", "1 h 5 min"
-const formatDuration = (seconds: number) => {
-  const minutes = Math.max(1, Math.round(seconds / 60));
-  if (minutes < 60) return `${minutes} min`;
-  const rest = minutes % 60;
-  return rest ? `${Math.floor(minutes / 60)} h ${rest} min` : `${minutes / 60} h`;
-};
-
-// "900 m", "1,2 km"
-const formatDistance = (metres: number) =>
-  metres < 1000
-    ? `${Math.round(metres / 10) * 10} m`
-    : `${(metres / 1000).toFixed(metres < 10000 ? 1 : 0).replace('.', ',')} km`;
+// Salon photos in the detail popup: swipe left/right between them, dots show
+// which one is visible. One photo = a plain image, no dots.
+function PhotoPager({ urls }: { urls: string[] }) {
+  const [width, setWidth] = useState(0);
+  const [index, setIndex] = useState(0);
+  return (
+    <View style={{ flex: 1 }} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+      {width > 0 && (
+        <FlatList
+          data={urls}
+          keyExtractor={(url, i) => `${i}-${url}`}
+          horizontal
+          pagingEnabled
+          bounces={false}
+          showsHorizontalScrollIndicator={false}
+          scrollEnabled={urls.length > 1}
+          getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
+          onMomentumScrollEnd={(e) => setIndex(Math.round(e.nativeEvent.contentOffset.x / width))}
+          renderItem={({ item }) => (
+            <RemoteImage source={{ uri: item }} style={{ width, height: '100%' }} resizeMode="cover" />
+          )}
+        />
+      )}
+      {urls.length > 1 && (
+        <View style={styles.photoDots} pointerEvents="none">
+          {urls.map((url, i) => (
+            <View key={`${i}-${url}`} style={[styles.photoDot, i === index && styles.photoDotActive]} />
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
 
 // Bottom salon cards: one card per screen width, with a peek of the next.
 const CARD_WIDTH = Dimensions.get('window').width - 48;
@@ -91,7 +101,6 @@ export default function MapScreen() {
   const [displayedSalons, setDisplayedSalons] = useState<MapSalon[]>([]); // Salons to display in cards
   const [webViewRef, setWebViewRef] = useState<WebView | null>(null);
   const [activeCardIndex, setActiveCardIndex] = useState(0);
-  const [route, setRoute] = useState<RouteState | null>(null);
   const cardsFlatListRef = useRef<FlatList>(null);
 
   // Color scheme
@@ -336,83 +345,6 @@ export default function MapScreen() {
     setSelectedSalonForDetail(null);
   };
 
-  // Directions: draw the route from the user to the salon on our own map.
-  const sendRoute = (next: RouteState, salon: MapSalon) => {
-    webViewRef?.postMessage(JSON.stringify({
-      type: 'showRoute',
-      from: next.from,
-      to: [Number(salon.longitude), Number(salon.latitude)],
-      profile: next.profile,
-    }));
-  };
-
-  const handleDirections = async (salon: MapSalon, profile: RouteProfile = route?.profile ?? 'walking') => {
-    closeSalonDetailModal();
-    setSelectedSalon(salon);
-    try {
-      let { status } = await Location.getForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        ({ status } = await Location.requestForegroundPermissionsAsync());
-      }
-      if (status !== 'granted') {
-        Alert.alert(
-          t('map.locationNeeded'),
-          t('map.locationNeededBody'),
-          [
-            { text: t('common.cancel'), style: 'cancel' },
-            { text: t('map.settings'), onPress: () => Linking.openSettings() },
-          ]
-        );
-        return;
-      }
-      setRoute({ salonId: salon.id, profile, from: route?.from ?? [0, 0], status: 'loading' });
-      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const next: RouteState = {
-        salonId: salon.id,
-        profile,
-        from: [position.coords.longitude, position.coords.latitude],
-        status: 'loading',
-      };
-      setRoute(next);
-      sendRoute(next, salon);
-    } catch (error) {
-      console.warn('Directions failed:', error);
-      setRoute((current) => current && { ...current, status: 'error' });
-    }
-  };
-
-  const changeRouteProfile = (profile: RouteProfile) => {
-    if (!route || route.profile === profile) return;
-    const salon = salons.find((s) => s.id === route.salonId);
-    if (!salon) return;
-    const next: RouteState = { ...route, profile, status: 'loading', duration: undefined, distance: undefined };
-    setRoute(next);
-    sendRoute(next, salon);
-  };
-
-  const clearRoute = () => {
-    setRoute(null);
-    webViewRef?.postMessage(JSON.stringify({ type: 'clearRoute' }));
-    if (selectedSalon) centerMapOnSalon(selectedSalon);
-  };
-
-  // Swiping to another salon ends the route to the previous one.
-  useEffect(() => {
-    if (route && selectedSalon && selectedSalon.id !== route.salonId) {
-      setRoute(null);
-      webViewRef?.postMessage(JSON.stringify({ type: 'clearRoute' }));
-    }
-  }, [selectedSalon?.id]);
-
-  // Call: open the phone's dialler with the salon's number.
-  const handleCall = (salon: MapSalon) => {
-    const number = salon.phone?.replace(/[^\d+]/g, '');
-    if (!number) return;
-    Linking.openURL(`tel:${number}`).catch(() => {
-      Alert.alert(t('map.callFailed'), t('map.callNumber', { phone: salon.phone }));
-    });
-  };
-
   // Navigate to services
   const handleViewServices = (salon: MapSalon) => {
     closeSalonDetailModal();
@@ -604,9 +536,8 @@ export default function MapScreen() {
             }
           }
 
-          // In-app route from the user to a salon (Mapbox Directions API).
+          // The user's own position (blue dot).
           var meMarker = null;
-          var routeRequest = 0;
           function setMe(lngLat) {
             if (!meMarker) {
               var me = document.createElement('div');
@@ -616,62 +547,12 @@ export default function MapScreen() {
             meMarker.setLngLat(lngLat).addTo(map);
           }
 
-          function clearRoute() {
-            routeRequest++;
-            if (map.getLayer('route-line')) map.removeLayer('route-line');
-            if (map.getLayer('route-casing')) map.removeLayer('route-casing');
-            if (map.getSource('route')) map.removeSource('route');
-          }
-
-          function routeLayer(id, color, width) {
-            var paint = { 'line-color': color, 'line-width': width };
-            if (gl2) paint['line-emissive-strength'] = 1; // stays bright at night
-            var layer = { id: id, type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: paint };
-            if (gl2) layer.slot = 'top'; // 'middle' hides the line behind 3D buildings
-            return layer;
-          }
-
-          function showRoute(from, to, profile) {
-            var request = ++routeRequest;
-            setMe(from);
-            var url = 'https://api.mapbox.com/directions/v5/mapbox/' + profile + '/' +
-              from[0] + ',' + from[1] + ';' + to[0] + ',' + to[1] +
-              '?geometries=geojson&overview=full&access_token=' + TOKEN;
-            fetch(url).then(function (res) { return res.json(); }).then(function (json) {
-              if (request !== routeRequest) return; // a newer request replaced this one
-              var found = json && json.routes && json.routes[0];
-              if (!found) { post({ type: 'routeError' }); return; }
-              var data = { type: 'Feature', properties: {}, geometry: found.geometry };
-              if (map.getSource('route')) {
-                map.getSource('route').setData(data);
-              } else {
-                map.addSource('route', { type: 'geojson', data: data });
-                map.addLayer(routeLayer('route-casing', '#FFFFFF', 10));
-                map.addLayer(routeLayer('route-line', '#423120', 6));
-              }
-              var bounds = new mapboxgl.LngLatBounds(from, from);
-              found.geometry.coordinates.forEach(function (c) { bounds.extend(c); });
-              bounds.extend(to);
-              map.fitBounds(bounds, {
-                padding: { top: 150, bottom: 320, left: 50, right: 50 },
-                pitch: PITCH, bearing: BEARING, maxZoom: 16.5, duration: 1400
-              });
-              post({ type: 'routeReady', duration: found.duration, distance: found.distance });
-            }).catch(function () {
-              if (request === routeRequest) post({ type: 'routeError' });
-            });
-          }
-
           function handleMessage(event) {
             var data;
             try { data = JSON.parse(event.data); } catch (e) { return; }
             if (!map) return;
             if (data.type === 'selectSalon') {
               selectSalon(data.salonId, true);
-            } else if (data.type === 'showRoute') {
-              showRoute(data.from, data.to, data.profile);
-            } else if (data.type === 'clearRoute') {
-              clearRoute();
             } else if (data.type === 'centerOnLocation') {
               map.flyTo({ center: [data.longitude, data.latitude], zoom: 15, pitch: PITCH, duration: 1600, padding: MAP_PAD });
             } else if (data.type === 'zoomToService') {
@@ -774,15 +655,10 @@ export default function MapScreen() {
         // The map finished loading after the first card was selected: show it now.
         console.log('[MAP] ready, engine', data.engine, '3D:', data.threeD);
         if (selectedSalon) centerMapOnSalon(selectedSalon);
-        // The page reloaded with a route showing: draw it again.
-        const routeSalon = route && salons.find((s) => s.id === route.salonId);
-        if (route && routeSalon && route.status !== 'error') sendRoute(route, routeSalon);
+      } else if (data.type === 'mapDrawn') {
+        console.log('[MAP] 3D map drawing after', data.ms, 'ms');
       } else if (data.type === 'mapFallback') {
         console.log('[MAP] 3D map failed, using the flat map:', data.reason);
-      } else if (data.type === 'routeReady') {
-        setRoute((current) => current && { ...current, status: 'ready', duration: data.duration, distance: data.distance });
-      } else if (data.type === 'routeError') {
-        setRoute((current) => current && { ...current, status: 'error' });
       } else if (data.type === 'markerTap' || data.type === 'salonSelected') {
         // A pin was tapped: show that salon's card (the map already flew there).
         const salon = salons.find(s => s.id === data.salonId);
@@ -878,47 +754,7 @@ export default function MapScreen() {
           )}
         />
 
-        {/* Search bar, floating at the top of the map; the route panel replaces it while a route shows */}
-        {route ? (
-          <View style={styles.topSearchContainer}>
-            <View style={styles.routePanel}>
-              {(['walking', 'driving'] as const).map((profile) => (
-                <TouchableOpacity
-                  key={profile}
-                  style={[styles.routeModeButton, route.profile === profile && { backgroundColor: darkBrown }]}
-                  onPress={() => changeRouteProfile(profile)}
-                  accessibilityRole="button"
-                  accessibilityLabel={profile === 'walking' ? t('map.walking') : t('map.driving')}
-                  accessibilityState={{ selected: route.profile === profile }}
-                >
-                  <Ionicons name={profile === 'walking' ? 'walk' : 'car'} size={18} color={route.profile === profile ? white : darkBrown} />
-                </TouchableOpacity>
-              ))}
-              <View style={styles.routeInfo}>
-                {route.status === 'loading' ? (
-                  <Text style={styles.routeInfoMain}>{t('map.routeLoading')}</Text>
-                ) : route.status === 'error' ? (
-                  <Text style={styles.routeInfoMain}>{t('map.routeNotFound')}</Text>
-                ) : (
-                  <Text style={styles.routeInfoMain} numberOfLines={1}>
-                    {formatDuration(route.duration ?? 0)} · {formatDistance(route.distance ?? 0)}
-                  </Text>
-                )}
-                <Text style={styles.routeInfoSub} numberOfLines={1}>
-                  {salons.find((s) => s.id === route.salonId)?.name ?? ''}
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={clearRoute}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                accessibilityRole="button"
-                accessibilityLabel={t('map.closeRoute')}
-              >
-                <Ionicons name="close-circle" size={26} color={darkBrown} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        ) : (
+        {/* Search bar, floating at the top of the map */}
           <View style={styles.topSearchContainer}>
             <View style={styles.topSearchBar}>
               <Ionicons name="search" size={20} color={darkBrown} style={styles.topSearchIcon} />
@@ -942,7 +778,6 @@ export default function MapScreen() {
               )}
             </View>
           </View>
-        )}
 
         {/* Salon cards along the bottom, clear of the Mapbox logo */}
         <View
@@ -984,9 +819,6 @@ export default function MapScreen() {
               }}
               viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
               renderItem={({ item: salon }) => {
-                const status = getOpeningStatus(salon.timeSlots);
-                const photoCount = salon.images?.length ?? 0;
-                const rating = salon.averageRating || salon.rating || 0;
                 return (
                   <TouchableOpacity
                     style={styles.card}
@@ -1001,33 +833,12 @@ export default function MapScreen() {
                         style={styles.cardPhoto}
                         resizeMode="cover"
                       />
-                      {photoCount > 1 && (
-                        <View style={styles.cardPhotoCount}>
-                          <Ionicons name="images-outline" size={13} color={white} />
-                          <Text style={styles.cardPhotoCountText}>{photoCount}</Text>
-                        </View>
-                      )}
                     </View>
 
                     <View style={styles.cardBody}>
                       <View style={styles.cardTitleRow}>
                         <Text style={styles.cardName} numberOfLines={1}>{salon.name}</Text>
-                        <View style={styles.cardRatingPill}>
-                          <Ionicons name="star" size={13} color={darkBrown} />
-                          <Text style={styles.cardRatingText}>
-                            {salon.reviewCount > 0 ? `${rating.toFixed(1)} (${salon.reviewCount})` : t('map.new')}
-                          </Text>
-                        </View>
                       </View>
-
-                      {status && (
-                        <View style={styles.cardInfoRow}>
-                          <View style={[styles.cardStatusDot, { backgroundColor: status.open ? '#2E7D4F' : '#B3261E' }]} />
-                          <Text style={[styles.cardInfoText, { color: status.open ? '#2E7D4F' : '#B3261E' }]} numberOfLines={1}>
-                            {status.label}
-                          </Text>
-                        </View>
-                      )}
 
                       {!!salon.address && (
                         <View style={styles.cardInfoRow}>
@@ -1038,16 +849,8 @@ export default function MapScreen() {
 
                       <View style={styles.cardActions}>
                         <TouchableOpacity
-                          style={[styles.cardButton, styles.cardButtonOutline]}
-                          onPress={() => handleDirections(salon)}
-                          accessibilityRole="button"
-                        >
-                          <Ionicons name="navigate-outline" size={16} color={darkBrown} />
-                          <Text style={[styles.cardButtonText, { color: darkBrown }]}>{t('map.directions')}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
                           style={[styles.cardButton, styles.cardButtonFilled]}
-                          onPress={() => handleViewServices(salon)}
+                          onPress={() => handleSalonCardPress(salon)}
                           accessibilityRole="button"
                         >
                           <Ionicons name="calendar-outline" size={16} color={white} />
@@ -1270,6 +1073,10 @@ export default function MapScreen() {
         transparent={true}
         visible={isSalonDetailVisible}
         onRequestClose={closeSalonDetailModal}
+        // Android: without these the popup window stops above the system bars,
+        // so the dimmed backdrop misses them and the map shows below the sheet.
+        statusBarTranslucent
+        navigationBarTranslucent
       >
         <View style={styles.salonDetailOverlay}>
           <TouchableOpacity
@@ -1282,7 +1089,9 @@ export default function MapScreen() {
               styles.salonDetailContent,
               {
                 width: '100%',
-                // transform: [{ translateY: slideAnim }],
+                // The sheet now reaches under the Android navigation bar: keep
+                // the button clear of it (and of the iPhone home indicator).
+                paddingBottom: Math.max(40, 20 + insets.bottom),
               },
             ]}
           >
@@ -1299,11 +1108,7 @@ export default function MapScreen() {
                 {/* Salon Image */}
                 <View style={styles.salonDetailImageContainer}>
                   {selectedSalonForDetail.images && selectedSalonForDetail.images.length > 0 ? (
-                    <RemoteImage
-                      source={{ uri: selectedSalonForDetail.images[0].url }}
-                      style={styles.salonDetailImage}
-                      resizeMode="cover"
-                    />
+                    <PhotoPager key={selectedSalonForDetail.id} urls={selectedSalonForDetail.images.map((image) => image.url)} />
                   ) : (
                     <View style={[styles.salonDetailImage, styles.salonDetailImagePlaceholder]}>
                       <Ionicons name="business-outline" size={64} color={darkBrown} />
@@ -1346,33 +1151,6 @@ export default function MapScreen() {
                       {selectedSalonForDetail.shortIntro}
                     </Text>
                   )}
-
-                  {/* Action Buttons */}
-                  <View style={styles.salonDetailActions}>
-                    {/* Directions Button */}
-                    <TouchableOpacity
-                      style={[styles.salonDetailActionButton, styles.salonDetailActionButtonPrimary]}
-                      onPress={() => handleDirections(selectedSalonForDetail)}
-                    >
-                      <Ionicons name="navigate" size={20} color={white} />
-                      <Text style={[styles.salonDetailActionButtonText, { color: white, fontFamily: 'Philosopher-Bold' }]}>
-                        {t('map.route')}
-                      </Text>
-                    </TouchableOpacity>
-
-                    {/* Call Button: opens the dialler with the salon's number */}
-                    {!!selectedSalonForDetail.phone && (
-                    <TouchableOpacity
-                      style={[styles.salonDetailActionButton, styles.salonDetailActionButtonSecondary]}
-                      onPress={() => handleCall(selectedSalonForDetail)}
-                    >
-                      <Ionicons name="call" size={20} color={darkBrown} />
-                      <Text style={[styles.salonDetailActionButtonText, { color: darkBrown, fontFamily: 'Philosopher-Bold' }]}>
-                        {t('map.call')}
-                      </Text>
-                    </TouchableOpacity>
-                    )}
-                  </View>
 
                   {/* View Services Button */}
                   <TouchableOpacity
@@ -1547,47 +1325,6 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
-  routePanel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 25,
-    borderWidth: 1,
-    borderColor: '#423120',
-    width: 320,
-    height: 54,
-    paddingLeft: 6,
-    paddingRight: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  routeModeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#423120',
-  },
-  routeInfo: {
-    flex: 1,
-    marginLeft: 4,
-  },
-  routeInfoMain: {
-    fontFamily: 'Philosopher-Bold',
-    fontSize: 16,
-    color: '#423120',
-  },
-  routeInfoSub: {
-    fontFamily: 'Philosopher-Regular',
-    fontSize: 12,
-    color: '#8A7F75',
-  },
   topSearchIcon: {
     marginRight: 12,
   },
@@ -1761,23 +1498,6 @@ const styles = StyleSheet.create({
     height: 118,
     backgroundColor: '#F4EDE5',
   },
-  cardPhotoCount: {
-    position: 'absolute',
-    right: 10,
-    bottom: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-    backgroundColor: 'rgba(66, 49, 32, 0.75)',
-  },
-  cardPhotoCountText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontFamily: 'Philosopher-Bold',
-  },
   cardBody: {
     paddingHorizontal: 16,
     paddingTop: 12,
@@ -1796,30 +1516,10 @@ const styles = StyleSheet.create({
     fontFamily: 'Philosopher-Bold',
     color: '#423120',
   },
-  cardRatingPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-    backgroundColor: '#F4EDE5',
-  },
-  cardRatingText: {
-    fontSize: 13,
-    fontFamily: 'Philosopher-Bold',
-    color: '#423120',
-  },
   cardInfoRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-  },
-  cardStatusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginHorizontal: 3,
   },
   cardInfoText: {
     flex: 1,
@@ -1840,11 +1540,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-  },
-  cardButtonOutline: {
-    borderWidth: 1.5,
-    borderColor: '#423120',
-    backgroundColor: '#FFFFFF',
   },
   cardButtonFilled: {
     backgroundColor: '#423120',
@@ -1915,6 +1610,25 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  photoDots: {
+    position: 'absolute',
+    bottom: 14,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  photoDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.55)',
+  },
+  photoDotActive: {
+    width: 18,
+    backgroundColor: '#FFFFFF',
+  },
   salonDetailImagePlaceholder: {
     backgroundColor: '#F4EDE5',
     justifyContent: 'center',
@@ -1948,33 +1662,8 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     marginBottom: 20,
   },
-  salonDetailActions: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
-  },
-  salonDetailActionButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    gap: 8,
-  },
-  salonDetailActionButtonPrimary: {
-    backgroundColor: '#423120',
-  },
-  salonDetailActionButtonSecondary: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#423120',
-  },
-  salonDetailActionButtonText: {
-    fontSize: 16,
-  },
   salonDetailServicesButton: {
+    marginTop: 8,
     paddingVertical: 16,
     paddingHorizontal: 24,
     borderRadius: 12,

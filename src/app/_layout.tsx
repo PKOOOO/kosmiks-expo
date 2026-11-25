@@ -13,12 +13,29 @@ import * as SecureStore from "expo-secure-store";
 import { StripeProvider } from "@/lib/stripe";
 import * as Device from "expo-device";
 import Constants, { ExecutionEnvironment } from "expo-constants";
+import { isRunningInExpoGo } from "expo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_ENDPOINTS } from "@/config/constants";
 import { loadLanguage, useLanguage } from "@/i18n";
 import { apiFetch, apiHeaders } from "@/lib/api";
 
-const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+// isRunningInExpoGo() is what expo-notifications itself uses; the
+// executionEnvironment check alone returned false in Expo Go (SDK 58).
+const isExpoGo =
+  isRunningInExpoGo() || Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+
+// expo-notifications must NOT be imported in Expo Go: on Android its native
+// modules are missing there and the import itself throws
+// ("Cannot find native module 'ExpoTopicSubscriptionModule'"). Load it only in
+// dev clients / APKs, and never let a failure take the app down.
+let Notifications: typeof import("expo-notifications") | null = null;
+if (!isExpoGo) {
+  try {
+    Notifications = require("expo-notifications");
+  } catch (error) {
+    console.warn("[PUSH] expo-notifications unavailable:", error);
+  }
+}
 
 // Read the EAS projectId from the build config so it can never drift from the
 // project this app was actually built under (a mismatch makes
@@ -26,16 +43,8 @@ const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreCl
 const EXPO_PUSH_PROJECT_ID =
   Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
 
-// Registers the device for push notifications once the user is signed in,
-// and reports the Expo push token to the backend.
-function PushNotificationRegistrar() {
-  if (isExpoGo) {
-    return null;
-  }
-
-  const Notifications = require("expo-notifications");
-
-  // Show notifications while the app is in the foreground
+// Show notifications while the app is in the foreground (set once, at load).
+if (Notifications) {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,
@@ -45,11 +54,18 @@ function PushNotificationRegistrar() {
       shouldSetBadge: false,
     }),
   });
+}
 
+const notificationsModule = Notifications;
+
+// Registers the device for push notifications once the user is signed in,
+// and reports the Expo push token to the backend.
+function PushNotificationRegistrar() {
   const { isSignedIn, getToken } = useAuth();
 
   useEffect(() => {
-    if (!isSignedIn) {
+    const Notifications = notificationsModule;
+    if (!isSignedIn || !Notifications) {
       return;
     }
 

@@ -179,6 +179,17 @@ export default function ProfileEditPage() {
           </TouchableOpacity>
         </View>
 
+        {/* Delete account */}
+        <TouchableOpacity
+          onPress={() => router.push('/delete-account' as any)}
+          accessibilityRole="button"
+          style={{ marginTop: 28, paddingVertical: 12, paddingHorizontal: 20 }}
+        >
+          <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 15, color: '#B3261E', textDecorationLine: 'underline' }}>
+            {t('deleteAccount.link')}
+          </Text>
+        </TouchableOpacity>
+
         {/* Bottom Spacer */}
         <View style={{ height: 100 }} />
       </ScrollView>

@@ -7,7 +7,11 @@
  * back to v2 + streets-v12 so a map always renders.
  */
 
-export const MAPBOX_GL_V3 = '3.32.0';
+// Pinned to 3.20.0: from 3.21.0 the map freezes / runs out of memory on load in
+// Android Chrome and System WebView (mapbox-gl-js issue #13655, still open
+// Nov 2026). On 3.32.0 our Android phones never drew the 3D map. Re-test
+// Android before raising this.
+export const MAPBOX_GL_V3 = '3.20.0';
 export const MAPBOX_GL_V2_FALLBACK = '2.15.0';
 
 /**
@@ -69,106 +73,148 @@ export const MAPBOX_LOADER_JS = `
       }
       loadMapbox(restart);
     }
+    // "drawn" = real pixels reached the canvas. Slower Android phones take
+    // well over 15 s to finish loading every 3D tile ('load'), but they draw
+    // the map progressively long before that — only a canvas that stays empty
+    // means the 3D map is broken (the blank-map phone, Nov 2026).
+    var drawn = false, started = Date.now();
+    function checkPixels() {
+      if (drawn || failed) return;
+      try {
+        var canvas = map.getCanvas();
+        var gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+        if (!gl) return;
+        // Sample a 3x3 grid. A plain background colour alone doesn't count:
+        // a real map has at least two different colours (roads, buildings…).
+        var w = gl.drawingBufferWidth, h = gl.drawingBufferHeight, px = new Uint8Array(4), seen = {};
+        var colours = 0;
+        for (var i = 1; i <= 3; i++) {
+          for (var j = 1; j <= 3; j++) {
+            gl.readPixels(Math.floor(w * i / 4), Math.floor(h * j / 4), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+            if (px[3] === 0) continue;
+            var key = px[0] + ',' + px[1] + ',' + px[2];
+            if (!seen[key]) { seen[key] = true; colours++; }
+          }
+        }
+        if (colours >= 2) drawn = true;
+      } catch (e) {}
+      if (drawn) {
+        map.off('render', checkPixels);
+        if (window.ReactNativeWebView) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'mapDrawn', ms: Date.now() - started }));
+        }
+      }
+    }
+    map.on('render', checkPixels);
     map.on('load', function () { loaded = true; });
     map.on('error', function (e) {
       // A single missing tile (sourceId set) isn't worth giving up the 3D map.
-      if (!loaded && !(e && e.sourceId)) fail('error: ' + ((e && e.error && e.error.message) || 'unknown'));
+      if (!loaded && !drawn && !(e && e.sourceId)) fail('error: ' + ((e && e.error && e.error.message) || 'unknown'));
     });
     map.getCanvas().addEventListener('webglcontextlost', function () { fail('webglcontextlost'); });
-    // A slow network only delays the style; once it's here, a phone that
-    // can't draw the 3D map within 15 s gets the flat one.
-    var styleTimer = setTimeout(function () { if (!loaded) fail('style timeout'); }, 30000);
+    // A slow network only delays the style; once it's here, a phone whose
+    // canvas is still empty after 15 s gets the flat map.
+    var styleTimer = setTimeout(function () { if (!loaded && !drawn) fail('style timeout'); }, 30000);
     map.once('style.load', function () {
       clearTimeout(styleTimer);
-      setTimeout(function () { if (!loaded) fail('draw timeout'); }, 15000);
+      setTimeout(function () { if (!loaded && !drawn) fail('draw timeout'); }, 15000);
     });
   }
-`;
-
-/** The arch with the petal K, white on the brown pin head (SVG markup). */
-export const ARCH_ICON_SVG =
-  '<svg width="17" height="22" viewBox="48 40 104 132" aria-hidden="true">' +
-  '<path d="M48 168 Q48 172 52 172 H148 Q152 172 152 168 V92 A52 52 0 0 0 48 92 Z" fill="#FFFFFF"/>' +
-  '<g transform="translate(28 47) scale(0.7)" fill="#423120">' +
-  '<rect x="66" y="50" width="14" height="100" rx="7"/>' +
-  '<path d="M88 100 C 96 72 114 56 140 50 C 134 76 116 94 88 100 Z"/>' +
-  '<path d="M88 100 C 116 106 134 124 140 150 C 114 144 96 128 88 100 Z"/>' +
-  '</g></svg>';
-
-/** CSS for the Kosmiks salon pin: name pill, round brown head, tip. */
-export const KOSMIKS_PIN_CSS = `
-  .kpin { display: flex; flex-direction: column; align-items: center; cursor: pointer; }
-  .kpin-label {
-    background: #FFFFFF;
-    color: #423120;
-    font-family: 'Philosopher', Georgia, serif;
-    font-weight: 700;
-    font-size: 13px;
-    padding: 4px 10px;
-    border-radius: 12px;
-    margin-bottom: 4px;
-    white-space: nowrap;
-    max-width: 140px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    box-shadow: 0 2px 6px rgba(66, 49, 32, 0.25);
-  }
-  .kpin-head {
-    position: relative;
-    width: 40px; height: 40px;
-    border-radius: 50%;
-    background: #423120;
-    border: 3px solid #FFFFFF;
-    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
-    display: flex; align-items: center; justify-content: center;
-    transition: transform 0.25s ease;
-  }
-  .kpin-tip {
-    width: 0; height: 0;
-    border-left: 7px solid transparent;
-    border-right: 7px solid transparent;
-    border-top: 9px solid #FFFFFF;
-    margin-top: -2px;
-  }
-  .kpin.selected .kpin-head { transform: scale(1.22); }
-  .kpin.selected .kpin-label { background: #423120; color: #FFFFFF; }
-  .kpin.selected .kpin-head::after {
-    content: '';
-    position: absolute;
-    inset: -10px;
-    border-radius: 50%;
-    border: 3px solid #D7C3A7;
-    animation: kpulse 1.8s ease-out infinite;
-  }
-  @keyframes kpulse {
-    0% { transform: scale(0.85); opacity: 0.9; }
-    100% { transform: scale(1.5); opacity: 0; }
-  }
-  /* Small variant without the name pill (mini maps). */
-  .kpin.small .kpin-head { width: 30px; height: 30px; border-width: 2px; }
-  .kpin.small .kpin-head svg { width: 13px; height: 17px; }
 `;
 
 /**
- * Defines `makeKosmiksPin(name, small)` in the page: returns the pin element
- * (pass `small` for a compact pin without the name pill).
+ * CSS for the salon pin, modelled on the client's Lottie reference (Nov 2026):
+ * a plain round head with a white dot and a small point underneath — no name
+ * pill, no logo. Lottie proportions: dot = 28 % of the head, point ≈ 0.29 ×
+ * 0.21 of the head. Kosmiks brown instead of the Lottie's navy.
+ */
+export const KOSMIKS_PIN_CSS = `
+  .kpin {
+    position: relative;
+    display: flex; flex-direction: column; align-items: center;
+    cursor: pointer;
+  }
+  .kpin-head {
+    position: relative;
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    background: #423120;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+    transition: transform 0.25s ease;
+    transform-origin: 50% 100%;
+  }
+  .kpin-head::after {
+    content: '';
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 28%; height: 28%;
+    border-radius: 50%;
+    background: #FFFFFF;
+    transform: translate(-50%, -50%);
+  }
+  .kpin-tip {
+    width: 0; height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 7px solid #423120;
+    margin-top: -1px;
+  }
+  .kpin.selected .kpin-head { transform: scale(1.12); }
+  /* Selected salon: a translucent "zone" on the ground at the pin's point
+     that grows to full size and shrinks back, 1.5 s loop (timing and easing
+     from the client's Lottie reference, Nov 2026, recoloured to Kosmiks
+     brown). On the 3D map it is squashed so it lies flat under the pin. */
+  .kpin-zone {
+    --squash: 1;
+    position: absolute;
+    left: 50%; bottom: 0;
+    width: 120px; height: 120px;
+    margin-left: -60px; margin-bottom: -60px;
+    border-radius: 50%;
+    box-sizing: border-box;
+    background: rgba(66, 49, 32, 0.15);
+    border: 2px solid #423120;
+    transform: scaleY(var(--squash)) scale(0);
+    pointer-events: none;
+    z-index: -1;
+    display: none;
+  }
+  .kpin.tilt .kpin-zone { --squash: 0.55; }
+  .kpin.selected .kpin-zone {
+    display: block;
+    animation: kzone 1.5s cubic-bezier(0.333, 0, 0.667, 1) infinite;
+  }
+  @keyframes kzone {
+    0%   { transform: scaleY(var(--squash)) scale(0); }
+    50%  { transform: scaleY(var(--squash)) scale(1); }
+    100% { transform: scaleY(var(--squash)) scale(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .kpin.selected .kpin-zone { animation: none; transform: scaleY(var(--squash)) scale(1); }
+  }
+  /* Small variant (mini maps). */
+  .kpin.small .kpin-head { width: 24px; height: 24px; }
+  .kpin.small .kpin-tip { border-left-width: 4px; border-right-width: 4px; border-top-width: 5px; }
+`;
+
+/**
+ * Defines `makeKosmiksPin(name, small)` in the page: returns the pin element.
+ * The name is not drawn (the cards show it); it is the pin's accessible label.
  */
 export const KOSMIKS_PIN_JS = `
-  var ARCH_ICON = ${JSON.stringify(ARCH_ICON_SVG)};
   function makeKosmiksPin(name, small) {
     var pin = document.createElement('div');
     pin.className = small ? 'kpin small' : 'kpin';
-    if (!small) {
-      var label = document.createElement('div');
-      label.className = 'kpin-label';
-      label.textContent = name;
-      pin.appendChild(label);
-    }
+    // use3d comes from MAPBOX_LOADER_JS (false on the flat fallback map).
+    if (typeof use3d !== 'undefined' && use3d) pin.className += ' tilt';
+    if (name) { pin.setAttribute('role', 'button'); pin.setAttribute('aria-label', name); }
+    var zone = document.createElement('div');
+    zone.className = 'kpin-zone';
     var head = document.createElement('div');
     head.className = 'kpin-head';
-    head.innerHTML = ARCH_ICON;
     var tip = document.createElement('div');
     tip.className = 'kpin-tip';
+    pin.appendChild(zone);
     pin.appendChild(head);
     pin.appendChild(tip);
     return pin;

@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
+import { isRunningInExpoGo } from 'expo';
 import { API_BASE_URL } from '@/config/constants';
 import { localeTag, useT, type TKey } from '@/i18n';
 
@@ -18,7 +19,8 @@ const PROVIDER_STATUS_KEY = 'providerStatus';
 const statusKeyFor = (uid: string) => `${PROVIDER_STATUS_KEY}:${uid}`;
 
 const ADMIN_API_KEY = process.env.EXPO_PUBLIC_ADMIN_API_KEY || '';
-const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+const isExpoGo =
+  isRunningInExpoGo() || Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 // Polling only runs while the app is in the foreground; a push from the
 // approve/reject routes or returning to the app triggers an immediate check.
