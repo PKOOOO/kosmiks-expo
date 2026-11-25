@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { MAPBOX_TOKEN, hasMapboxToken, MAP_UNAVAILABLE_HTML } from '@/config/constants';
 import { MAPBOX_LOADER_JS, BUILDING_HIGHLIGHT_JS } from '@/lib/map-html';
 import { forwardGeocode, reverseGeocode as lookupAddress } from '@/lib/geocode';
+import { useT } from '@/i18n';
 
 
 // Helsinki — default center when we have no coordinates or address yet.
@@ -283,6 +284,7 @@ export default function AddressMapPicker({
   onMarkerPress,
   onPinDrop,
 }: Props) {
+  const { t } = useT();
   const webRef = useRef<WebView>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
@@ -425,14 +427,14 @@ export default function AddressMapPicker({
           <TextInput
             value={search}
             onChangeText={setSearch}
-            placeholder="Search an address…"
+            placeholder={t('misc.searchAddress')}
             placeholderTextColor="#bbb"
             returnKeyType="search"
             onSubmitEditing={runSearch}
             style={{ flex: 1, fontFamily: 'Philosopher-Regular', fontSize: 15, color: darkBrown }}
           />
           <TouchableOpacity onPress={runSearch} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 14, color: darkBrown }}>Go</Text>
+            <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 14, color: darkBrown }}>{t('more.go')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -451,12 +453,12 @@ export default function AddressMapPicker({
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
             <Ionicons name="location" size={16} color={darkBrown} style={{ marginRight: 6 }} />
             <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 13, color: darkBrown }}>
-              Your salon location
+              {t('misc.yourSalonLocation')}
             </Text>
             {resolving ? <ActivityIndicator size="small" color={darkBrown} style={{ marginLeft: 8 }} /> : null}
           </View>
           <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: address ? darkBrown : '#aaa' }}>
-            {address || 'Drag the pin or search to set your exact location'}
+            {address || t('misc.dragOrSearch')}
           </Text>
         </View>
       )}

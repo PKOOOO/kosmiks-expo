@@ -2,17 +2,8 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Switch } from 'react-native';
 import { BottomSheet, FormField, formInputStyle, Button, colors } from '@/components/admin/AdminUI';
 import { WORK_TYPES, type Category, type Service, type ServiceInput, type WorkType } from '@/lib/admin-catalog';
+import { useT, workTypeLabel } from '@/i18n';
 
-// Readable names for the stored work-type codes.
-const WORK_TYPE_LABELS: Record<WorkType, string> = {
-  UUDET: 'Uudet',
-  POISTO: 'Poisto',
-  HUOLTO: 'Huolto',
-  EI_LISAKKEITA: 'Ei lisäkkeitä',
-  LYHYET: 'Lyhyet',
-  KESKIPITKAT: 'Keskipitkät',
-  PITKAT: 'Pitkät',
-};
 
 function DeleteLink({ label, onPress }: { label: string; onPress: () => void }) {
   return (
@@ -44,6 +35,7 @@ function CategoryForm({
   onSave: (input: { name: string; popular: boolean }) => Promise<void>;
   onDelete?: () => void;
 }) {
+  const { t } = useT();
   const [name, setName] = useState(category?.name ?? '');
   const [popular, setPopular] = useState(category?.popular ?? false);
   const [saving, setSaving] = useState(false);
@@ -58,20 +50,20 @@ function CategoryForm({
     <BottomSheet
       visible
       onClose={onClose}
-      title={category ? 'Edit category' : 'New category'}
+      title={category ? t('adetail.editCategory') : t('adetail.newCategory')}
       footer={
         <>
-          <Button label={category ? 'Save changes' : 'Create category'} onPress={save} loading={saving} disabled={!name.trim()} />
-          {category && onDelete ? <DeleteLink label="Delete category" onPress={onDelete} /> : null}
+          <Button label={category ? t('adetail.saveChanges') : t('adetail.createCategory')} onPress={save} loading={saving} disabled={!name.trim()} />
+          {category && onDelete ? <DeleteLink label={t('adetail.deleteCategory')} onPress={onDelete} /> : null}
         </>
       }
     >
-      <FormField label="Name">
+      <FormField label={t('adetail.name')}>
         <TextInput
           style={formInputStyle}
           value={name}
           onChangeText={setName}
-          placeholder="e.g. Nails"
+          placeholder={t('adetail.namePh')}
           placeholderTextColor={colors.muted}
           returnKeyType="done"
         />
@@ -81,8 +73,8 @@ function CategoryForm({
         padding: 16, borderRadius: 16, backgroundColor: colors.white, borderWidth: 1, borderColor: '#E8D9C8',
       }}>
         <View style={{ flex: 1, paddingRight: 12 }}>
-          <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 15, color: colors.dark }}>Featured</Text>
-          <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: colors.muted, marginTop: 1 }}>Shown on the customer home screen</Text>
+          <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 15, color: colors.dark }}>{t('adetail.featured')}</Text>
+          <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: colors.muted, marginTop: 1 }}>{t('adetail.featuredBody')}</Text>
         </View>
         <Switch value={popular} onValueChange={setPopular} trackColor={{ false: colors.beige, true: colors.dark }} thumbColor={colors.white} />
       </View>
@@ -114,13 +106,14 @@ export function ServiceSheet(props: ServiceSheetProps) {
 function ServiceForm({
   service, categoryId, parentServiceId, parentName, onClose, onSave, onDelete,
 }: ServiceSheetProps) {
+  const { t } = useT();
   const [name, setName] = useState(service?.name ?? '');
   const [description, setDescription] = useState(service?.description ?? '');
   const [workTypes, setWorkTypes] = useState<WorkType[]>(service?.workTypes ?? []);
   const [saving, setSaving] = useState(false);
 
   const isOption = !!(service?.parentServiceId ?? parentServiceId);
-  const title = service ? (isOption ? 'Edit option' : 'Edit service') : isOption ? 'New option' : 'New service';
+  const title = service ? (isOption ? t('adetail.editOption') : t('adetail.editService')) : isOption ? t('adetail.newOption') : t('adetail.newService');
 
   const save = async () => {
     if (!name.trim()) return;
@@ -145,42 +138,42 @@ function ServiceForm({
       title={title}
       footer={
         <>
-          <Button label={service ? 'Save changes' : 'Create'} onPress={save} loading={saving} disabled={!name.trim()} />
-          {service && onDelete ? <DeleteLink label={isOption ? 'Delete option' : 'Delete service'} onPress={onDelete} /> : null}
+          <Button label={service ? t('adetail.saveChanges') : t('adetail.create')} onPress={save} loading={saving} disabled={!name.trim()} />
+          {service && onDelete ? <DeleteLink label={isOption ? t('adetail.deleteOption') : t('adetail.deleteService')} onPress={onDelete} /> : null}
         </>
       }
     >
       {!service && parentName ? (
         <View style={{ alignSelf: 'flex-start', paddingHorizontal: 12, height: 30, justifyContent: 'center', borderRadius: 15, backgroundColor: colors.sand, marginBottom: 14 }}>
           <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: colors.dark }}>
-            Option of <Text style={{ fontFamily: 'Philosopher-Bold' }}>{parentName}</Text>
+            {t('adetail.optionOf')} <Text style={{ fontFamily: 'Philosopher-Bold' }}>{parentName}</Text>
           </Text>
         </View>
       ) : null}
 
-      <FormField label="Name">
+      <FormField label={t('adetail.name')}>
         <TextInput
           style={formInputStyle}
           value={name}
           onChangeText={setName}
-          placeholder={isOption ? 'Option name' : 'Service name'}
+          placeholder={isOption ? t('adetail.optionName') : t('adetail.serviceName')}
           placeholderTextColor={colors.muted}
         />
       </FormField>
 
-      <FormField label="Description">
+      <FormField label={t('adetail.description')}>
         <TextInput
           style={[formInputStyle, { minHeight: 96, textAlignVertical: 'top' }]}
           value={description}
           onChangeText={setDescription}
-          placeholder="Shown to customers · optional"
+          placeholder={t('adetail.descriptionPh')}
           placeholderTextColor={colors.muted}
           multiline
         />
       </FormField>
 
       {isOption && (
-        <FormField label="Work types · optional">
+        <FormField label={t('adetail.workTypes')}>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             {WORK_TYPES.map(wt => {
               const on = workTypes.includes(wt);
@@ -196,7 +189,7 @@ function ServiceForm({
                     backgroundColor: on ? colors.dark : colors.white, borderWidth: 1, borderColor: on ? colors.dark : '#E8D9C8',
                   }}
                 >
-                  <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 14, color: on ? colors.white : colors.dark }}>{WORK_TYPE_LABELS[wt]}</Text>
+                  <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 14, color: on ? colors.white : colors.dark }}>{workTypeLabel(wt) ?? wt}</Text>
                 </TouchableOpacity>
               );
             })}

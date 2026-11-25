@@ -22,6 +22,9 @@ import { API_BASE_URL } from '@/config/constants';
 import useProviderServicesStore from '@/store/provider-services.store';
 import BrandHeader from '@/components/BrandHeader';
 import RemoteImage from '@/components/RemoteImage';
+import { localeTag, tr, useT, type TKey, formatMoney } from '@/i18n';
+import { translateServerMessage } from '@/i18n/server-messages';
+import { formatEur } from '@/lib/earnings';
 
 const colors = {
   brown: '#423120',
@@ -82,7 +85,7 @@ const normalizeApiBooking = (raw: Record<string, any>): Booking | null => {
     durationMinutes: Number(raw.durationMinutes || service?.durationMinutes || raw.saloonService?.durationMinutes || 30),
     totalAmount: Number(raw.totalAmount ?? raw.price ?? raw.saloonService?.price ?? 0),
     status,
-    customerName: raw.customerName || rawUser?.name || 'Customer',
+    customerName: raw.customerName || rawUser?.name || tr('pbook.customer'),
     customerPhone: raw.customerPhone || rawUser?.phoneNumber || '',
     customerEmail: raw.customerEmail || rawUser?.email || '',
     customerAvatar: raw.customerAvatar || raw.customerImageUrl || rawUser?.imageUrl || rawUser?.avatar,
@@ -92,9 +95,9 @@ const normalizeApiBooking = (raw: Record<string, any>): Booking | null => {
     refunded: Boolean(raw.refunded),
     paidOut: Boolean(raw.paidOut),
     cancelReason: raw.cancelReason || undefined,
-    service: { name: service?.name || raw.serviceName || 'Service' },
+    service: { name: service?.name || raw.serviceName || tr('pbook.service') },
     user: rawUser ? {
-      name: rawUser.name || raw.customerName || 'Customer',
+      name: rawUser.name || raw.customerName || tr('pbook.customer'),
       email: rawUser.email || raw.customerEmail || '',
       imageUrl: rawUser.imageUrl,
       avatar: rawUser.avatar,
@@ -108,7 +111,7 @@ const dateKey = (value: Date | string) => {
 };
 
 const formatTime = (value: string) =>
-  new Date(value).toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' });
+  new Date(value).toLocaleTimeString(localeTag(), { hour: '2-digit', minute: '2-digit' });
 
 const initials = (name: string) => name.split(' ').filter(Boolean).slice(0, 2)
   .map((part) => part[0]?.toUpperCase()).join('');
@@ -134,6 +137,7 @@ function CalendarView({ bookings, onSelectDate }: {
   bookings: Booking[];
   onSelectDate: (date: Date) => void;
 }) {
+  const { t, locale } = useT();
   const initialMonth = new Date();
   initialMonth.setDate(1);
   const [month, setMonth] = useState(initialMonth);
@@ -164,11 +168,11 @@ function CalendarView({ bookings, onSelectDate }: {
       <View style={styles.monthPicker}>
         <TouchableOpacity style={styles.sideMonth} onPress={() => moveMonth(-1)}>
           <Ionicons name="chevron-back" size={16} color={colors.muted} />
-          <Text style={styles.sideMonthText}>{previous.toLocaleDateString('en', { month: 'short' })}</Text>
+          <Text style={styles.sideMonthText}>{previous.toLocaleDateString(locale, { month: 'short' })}</Text>
         </TouchableOpacity>
-        <Text style={styles.currentMonth}>{month.toLocaleDateString('en', { month: 'short', year: 'numeric' })}</Text>
+        <Text style={styles.currentMonth}>{month.toLocaleDateString(locale, { month: 'short', year: 'numeric' })}</Text>
         <TouchableOpacity style={[styles.sideMonth, { justifyContent: 'flex-end' }]} onPress={() => moveMonth(1)}>
-          <Text style={styles.sideMonthText}>{next.toLocaleDateString('en', { month: 'short' })}</Text>
+          <Text style={styles.sideMonthText}>{next.toLocaleDateString(locale, { month: 'short' })}</Text>
           <Ionicons name="chevron-forward" size={16} color={colors.muted} />
         </TouchableOpacity>
       </View>
@@ -176,7 +180,7 @@ function CalendarView({ bookings, onSelectDate }: {
         {groupedDays.length === 0 ? (
           <View style={styles.emptyMonth}>
             <Ionicons name="calendar-outline" size={42} color={colors.beige} />
-            <Text style={styles.emptyMonthText}>No bookings this month.</Text>
+            <Text style={styles.emptyMonthText}>{t('pbook.noMonth')}</Text>
           </View>
         ) : groupedDays.map((items, index) => {
           const date = new Date(items[0].bookingTime);
@@ -188,9 +192,9 @@ function CalendarView({ bookings, onSelectDate }: {
               style={[styles.calendarCard, { backgroundColor: dayColors[index % dayColors.length] }]}
             >
               <View style={styles.calendarDateBlock}>
-                <Text style={styles.calendarWeekday}>{date.toLocaleDateString('en', { weekday: 'long' })}</Text>
+                <Text style={styles.calendarWeekday}>{date.toLocaleDateString(locale, { weekday: 'long' })}</Text>
                 <Text style={styles.calendarDay}>{date.getDate()}</Text>
-                <Text style={styles.calendarMonth}>{date.toLocaleDateString('en', { month: 'short' })}</Text>
+                <Text style={styles.calendarMonth}>{date.toLocaleDateString(locale, { month: 'short' })}</Text>
               </View>
               <View style={styles.calendarSlots}>
                 {items.map((booking) => (
@@ -222,6 +226,7 @@ function DayView({ date, bookings, providerAvatar, providerName, bottomPadding, 
   onBack: () => void;
   onSelectBooking: (booking: Booking) => void;
 }) {
+  const { t, locale } = useT();
   const dayBookings = bookings
     .filter((booking) => dateKey(booking.bookingTime) === dateKey(date))
     .sort((a, b) => +new Date(a.bookingTime) - +new Date(b.bookingTime));
@@ -230,19 +235,19 @@ function DayView({ date, bookings, providerAvatar, providerName, bottomPadding, 
     <View style={styles.dayPage}>
       <View style={styles.dayHero}>
         <TouchableOpacity
-          accessibilityLabel="Back to bookings calendar"
+          accessibilityLabel={t('pbook.backToCalendar')}
           onPress={onBack}
           style={styles.dayBackButton}
         >
           <Ionicons name="arrow-back" size={22} color={colors.brown} />
         </TouchableOpacity>
         <View style={styles.dayDateArea}>
-          <Text style={styles.dayWeekday}>{date.toLocaleDateString('en', { weekday: 'long' })}</Text>
+          <Text style={styles.dayWeekday}>{date.toLocaleDateString(locale, { weekday: 'long' })}</Text>
           <View style={styles.dayDateRow}>
             <Text style={styles.dayNumber}>{date.getDate()}</Text>
             <Text style={styles.dayDot}>.</Text>
             <View style={styles.dayMonthWrap}>
-              <Text style={styles.dayMonth}>{date.toLocaleDateString('en', { month: 'short' }).toUpperCase()}</Text>
+              <Text style={styles.dayMonth}>{date.toLocaleDateString(locale, { month: 'short' }).toUpperCase()}</Text>
               {dayBookings.length > 0 ? (
                 <View style={styles.dayCountBadge}>
                   <Text style={styles.dayCountText}>{dayBookings.length}</Text>
@@ -258,7 +263,7 @@ function DayView({ date, bookings, providerAvatar, providerName, bottomPadding, 
         showsVerticalScrollIndicator={false}
       >
         {dayBookings.length === 0 ? (
-          <View style={styles.noBookingsCard}><Text style={styles.noBookingsText}>No bookings on this date.</Text></View>
+          <View style={styles.noBookingsCard}><Text style={styles.noBookingsText}>{t('pbook.noDay')}</Text></View>
         ) : dayBookings.map((booking, index) => {
           const cardColors = ['#E8C471', '#B8C5C6', '#CBB7D8'];
           return (
@@ -289,25 +294,25 @@ function DayView({ date, bookings, providerAvatar, providerName, bottomPadding, 
   );
 }
 
-const STATUS_DISPLAY: Record<BookingStatus, { icon: keyof typeof Ionicons.glyphMap; label: string }> = {
-  pending: { icon: 'time', label: 'AWAITING PAYMENT' },
-  confirmed: { icon: 'checkmark-circle', label: 'CONFIRMED' },
-  completed: { icon: 'checkmark-done-circle', label: 'COMPLETED' },
-  no_show: { icon: 'person-remove', label: "DIDN'T SHOW UP" },
-  cancelled: { icon: 'close-circle', label: 'CANCELLED' },
+const STATUS_DISPLAY: Record<BookingStatus, { icon: keyof typeof Ionicons.glyphMap; label: TKey }> = {
+  pending: { icon: 'time', label: 'pbook.stPending' },
+  confirmed: { icon: 'checkmark-circle', label: 'pbook.stConfirmed' },
+  completed: { icon: 'checkmark-done-circle', label: 'pbook.stCompleted' },
+  no_show: { icon: 'person-remove', label: 'pbook.stNoShow' },
+  cancelled: { icon: 'close-circle', label: 'pbook.stCancelled' },
 };
 
 const paymentLabel = (booking: Booking) => {
-  if (booking.refunded) return 'REFUNDED';
-  if (booking.paymentMethod === 'pay_at_venue') return 'PAY AT THE SALON';
-  return booking.paid ? 'PAID ONLINE' : 'NOT PAID';
+  if (booking.refunded) return tr('pbook.payRefunded');
+  if (booking.paymentMethod === 'pay_at_venue') return tr('pbook.payAtSalon');
+  return booking.paid ? tr('pbook.paidOnline') : tr('pbook.notPaid');
 };
 
 // "Fri 31 Oct · 14:00–15:00"
 const formatSlot = (booking: Booking) => {
   const start = new Date(booking.bookingTime);
   const end = new Date(+start + booking.durationMinutes * 60 * 1000);
-  const day = start.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  const day = start.toLocaleDateString(localeTag(), { weekday: 'short', day: 'numeric', month: 'short' });
   return `${day} · ${formatTime(start.toISOString())}–${formatTime(end.toISOString())}`;
 };
 
@@ -317,6 +322,7 @@ function DetailView({ booking, onClose, onStatusChange, busy }: {
   onStatusChange: (status: BookingStatus, reason?: string) => void;
   busy: boolean;
 }) {
+  const { t, locale } = useT();
   const serviceTitle = booking.service.name.replace(/\s+(\([^)]*\))\s*$/, '\n$1');
   const status = STATUS_DISPLAY[booking.status];
   const started = new Date(booking.bookingTime) <= new Date();
@@ -336,24 +342,24 @@ function DetailView({ booking, onClose, onStatusChange, busy }: {
   } else if ((booking.status === 'confirmed' && !started) || booking.status === 'pending') {
     footer = (
       <TouchableOpacity disabled={busy} onPress={() => setCancelOpen(true)} style={styles.footerAction}>
-        <Text style={styles.footerActionText}>Cancel booking</Text>
+        <Text style={styles.footerActionText}>{t('pbook.cancelBooking')}</Text>
       </TouchableOpacity>
     );
   } else if (booking.status === 'confirmed') {
     footer = (
       <>
         <TouchableOpacity disabled={busy} onPress={() => onStatusChange('completed')} style={[styles.footerAction, styles.confirmAction]}>
-          <Text style={styles.confirmText}>Completed</Text>
+          <Text style={styles.confirmText}>{t('pbook.completed')}</Text>
         </TouchableOpacity>
         <TouchableOpacity disabled={busy} onPress={() => onStatusChange('no_show')} style={styles.footerAction}>
-          <Text style={styles.footerActionText}>Didn't show up</Text>
+          <Text style={styles.footerActionText}>{t('pbook.noShow')}</Text>
         </TouchableOpacity>
       </>
     );
   } else if (booking.status === 'completed' || booking.status === 'no_show') {
     footer = (
       <TouchableOpacity disabled={busy} onPress={() => onStatusChange('confirmed')} style={styles.footerAction}>
-        <Text style={styles.footerActionText}>Undo</Text>
+        <Text style={styles.footerActionText}>{t('pbook.undo')}</Text>
       </TouchableOpacity>
     );
   }
@@ -361,7 +367,7 @@ function DetailView({ booking, onClose, onStatusChange, busy }: {
   return (
     <View style={styles.detailPage}>
       <View style={styles.detailTopBar}>
-        <TouchableOpacity onPress={onClose} style={styles.darkIconButton} accessibilityLabel="Close">
+        <TouchableOpacity onPress={onClose} style={styles.darkIconButton} accessibilityLabel={t('pbook.close')}>
           <Ionicons name="close" size={22} color={colors.brown} />
         </TouchableOpacity>
       </View>
@@ -376,13 +382,13 @@ function DetailView({ booking, onClose, onStatusChange, busy }: {
 
           <View style={styles.detailTiles}>
             <View style={styles.detailTile}>
-              <Text style={styles.tileSmall}>Booking status</Text>
+              <Text style={styles.tileSmall}>{t('pbook.status')}</Text>
               <Ionicons name={status.icon} size={34} color={colors.brown} />
-              <Text style={styles.tileUnit}>{status.label}</Text>
+              <Text style={styles.tileUnit}>{t(status.label)}</Text>
             </View>
             <View style={styles.detailTile}>
-              <Text style={styles.tileSmall}>Total price</Text>
-              <Text style={styles.priceTile}>€{booking.totalAmount.toFixed(2)}</Text>
+              <Text style={styles.tileSmall}>{t('pbook.totalPrice')}</Text>
+              <Text style={styles.priceTile}>{formatMoney(booking.totalAmount)}</Text>
               <Text style={styles.tileUnit}>{paymentLabel(booking)}</Text>
             </View>
           </View>
@@ -390,11 +396,11 @@ function DetailView({ booking, onClose, onStatusChange, busy }: {
           {booking.status === 'cancelled' && (booking.cancelReason || booking.refunded) ? (
             <View style={styles.infoBox}>
               {booking.cancelReason ? <Text style={styles.infoText}>Reason: {booking.cancelReason}</Text> : null}
-              {booking.refunded ? <Text style={styles.infoText}>The customer's payment was refunded to their card.</Text> : null}
+              {booking.refunded ? <Text style={styles.infoText}>{t('pbook.refundedNote')}</Text> : null}
             </View>
           ) : null}
 
-          <Text style={styles.sectionTitle}>Customer</Text>
+          <Text style={styles.sectionTitle}>{t('pbook.customerSection')}</Text>
           <View style={styles.personRow}>
             <Avatar name={booking.customerName} uri={customerAvatar(booking)} size={42} />
             <View style={styles.personText}>
@@ -403,12 +409,12 @@ function DetailView({ booking, onClose, onStatusChange, busy }: {
               {booking.customerPhone ? <Text style={styles.personSub}>{booking.customerPhone}</Text> : null}
             </View>
             {phone ? (
-              <TouchableOpacity style={styles.contactButton} accessibilityLabel="Call the customer" onPress={() => Linking.openURL(`tel:${phone}`)}>
+              <TouchableOpacity style={styles.contactButton} accessibilityLabel={t('pbook.callCustomer')} onPress={() => Linking.openURL(`tel:${phone}`)}>
                 <Ionicons name="call" size={18} color={colors.brown} />
               </TouchableOpacity>
             ) : null}
             {booking.customerEmail ? (
-              <TouchableOpacity style={styles.contactButton} accessibilityLabel="Email the customer" onPress={() => Linking.openURL(`mailto:${booking.customerEmail}`)}>
+              <TouchableOpacity style={styles.contactButton} accessibilityLabel={t('pbook.emailCustomer')} onPress={() => Linking.openURL(`mailto:${booking.customerEmail}`)}>
                 <Ionicons name="mail" size={18} color={colors.brown} />
               </TouchableOpacity>
             ) : null}
@@ -416,7 +422,7 @@ function DetailView({ booking, onClose, onStatusChange, busy }: {
 
           {booking.notes ? (
             <>
-              <Text style={styles.sectionTitle}>Customer's note</Text>
+              <Text style={styles.sectionTitle}>{t('pbook.customerNote')}</Text>
               <Text style={styles.noteText}>{booking.notes}</Text>
             </>
           ) : null}
@@ -430,16 +436,16 @@ function DetailView({ booking, onClose, onStatusChange, busy }: {
       <Modal visible={cancelOpen} transparent animationType="fade" onRequestClose={() => setCancelOpen(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Cancel this booking?</Text>
+            <Text style={styles.modalTitle}>{t('pbook.cancelTitle')}</Text>
             <Text style={styles.modalCopy}>
               {booking.paid
-                ? `${booking.customerName} gets a notification and €${booking.totalAmount.toFixed(2)} is refunded to their card.`
-                : `${booking.customerName} gets a notification.`}
+                ? t('pbook.cancelBodyRefund', { name: booking.customerName, amount: formatEur(booking.totalAmount) })
+                : t('pbook.cancelBody', { name: booking.customerName })}
             </Text>
             <TextInput
               value={reason}
               onChangeText={setReason}
-              placeholder="Reason for the customer (optional)"
+              placeholder={t('pbook.reasonPh')}
               placeholderTextColor={colors.muted}
               maxLength={300}
               multiline
@@ -447,10 +453,10 @@ function DetailView({ booking, onClose, onStatusChange, busy }: {
             />
             <View style={styles.modalActions}>
               <TouchableOpacity onPress={() => setCancelOpen(false)} style={styles.footerAction}>
-                <Text style={styles.footerActionText}>Keep booking</Text>
+                <Text style={styles.footerActionText}>{t('pbook.keep')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={confirmCancel} style={[styles.footerAction, styles.confirmAction]}>
-                <Text style={styles.confirmText}>Cancel booking</Text>
+                <Text style={styles.confirmText}>{t('pbook.cancelBooking')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -461,6 +467,7 @@ function DetailView({ booking, onClose, onStatusChange, busy }: {
 }
 
 export default function ProviderBookingsScreen() {
+  const { t, locale } = useT();
   const insets = useSafeAreaInsets();
   const { user } = useUser();
   const { getToken } = useAuth();
@@ -472,7 +479,7 @@ export default function ProviderBookingsScreen() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const selectedBooking = bookings.find((booking) => booking.id === selectedBookingId) || null;
-  const providerName = user?.fullName || user?.firstName || 'Service provider';
+  const providerName = user?.fullName || user?.firstName || t('pbook.provider');
   const providerAvatar = user?.imageUrl;
 
   useEffect(() => {
@@ -508,7 +515,7 @@ export default function ProviderBookingsScreen() {
       setBookings(liveBookings);
     } catch (error) {
       console.log('[ProviderBookings] Could not load historical bookings', error);
-      setSyncError('Could not load your saved bookings. Pull down to retry.');
+      setSyncError(t('pbook.loadFailed'));
     } finally {
       setRefreshing(false);
     }
@@ -540,7 +547,7 @@ export default function ProviderBookingsScreen() {
       });
       const payload = await response.json().catch(() => null);
       if (!response.ok) {
-        Alert.alert('Could not update booking', typeof payload?.error === 'string' ? payload.error : 'Please try again.');
+        Alert.alert(t('pbook.updateFailed'), typeof payload?.error === 'string' ? translateServerMessage(payload.error) : t('pbook.tryAgain'));
         return;
       }
       setBookings((current) => current.map((booking) => booking.id === selectedBookingId
@@ -552,12 +559,12 @@ export default function ProviderBookingsScreen() {
         : booking));
       if (status === 'cancelled') {
         Alert.alert(
-          'Booking cancelled',
-          payload?.refunded ? 'The customer has been notified and their payment refunded.' : 'The customer has been notified.'
+          t('pbook.cancelled'),
+          payload?.refunded ? t('pbook.cancelledRefunded') : t('pbook.cancelledNotified')
         );
       }
     } catch {
-      Alert.alert('Could not update booking', 'Check your connection and try again.');
+      Alert.alert(t('pbook.updateFailed'), t('pbook.checkConnection'));
     } finally {
       setUpdating(false);
     }

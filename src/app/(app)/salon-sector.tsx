@@ -14,6 +14,7 @@ import { Salon } from "@/types/salon";
 import getSaloonsMap from "@/actions/get-saloons-map";
 import getCategories from "@/actions/get-categories";
 import { Category } from "@/types";
+import { useT } from '@/i18n';
 
 const darkBrown = "#3C2C1E";
 const beige = "#D9C7AF";
@@ -21,6 +22,7 @@ const lightBeige = "#E4D2BA";
 const chipBeige = "#D7C3A7";
 
 const SalonSector = () => {
+    const { t } = useT();
     const router = useRouter();
     const { salonId, salonName } = useLocalSearchParams<{
         salonId: string;
@@ -373,7 +375,7 @@ const SalonSector = () => {
                                                 marginBottom: 4
                                             }}
                                         >
-                                            {salonName || salon?.name || "Salon"} Salonki
+                                            {t('salons.salonTitle', { name: salonName || salon?.name || '' }).trim()}
                                         </Text>
                                         <Text
                                             style={{
@@ -383,7 +385,7 @@ const SalonSector = () => {
                                                 opacity: 0.8
                                             }}
                                         >
-                                            {salon.shortIntro || 'No description'}
+                                            {salon.shortIntro || t('search.noDescription')}
                                         </Text>
                                         <View style={{
                                             borderBottomWidth: 1,
@@ -398,7 +400,7 @@ const SalonSector = () => {
                                                 marginTop: 4
                                             }}
                                         >
-                                            Location: {salon.address || 'Not specified'}
+                                            {t('search.location', { address: salon.address || t('search.notSpecified') })}
                                         </Text>
                                         <View style={{
                                             borderBottomWidth: 1,
@@ -451,7 +453,7 @@ const SalonSector = () => {
                             <View style={{ paddingHorizontal: 20, marginTop: 32 }}>
                                 {/* Section title */}
                                 <Text style={{ color: darkBrown, fontFamily: 'Philosopher-Bold', fontSize: 30, textAlign: 'center' }}>
-                                    Kaikki palvelut
+                                    {t('salons.allServices')}
                                 </Text>
 
                                 {/* Categories Chips grid - Same layout as Suosituimmat palvelut (2-1-2-1 pattern) */}
@@ -571,7 +573,7 @@ const SalonSector = () => {
                                         opacity: 0.6,
                                     }}
                                 >
-                                    No services available at this salon
+                                    {t('salons.noServices')}
                                 </Text>
                             </View>
                         )}

@@ -1,6 +1,7 @@
 import { fetch as expoFetch } from 'expo/fetch';
 import { File } from 'expo-file-system';
 import { API_BASE_URL } from '@/config/constants';
+import { tr } from '@/i18n';
 
 type UploadImageOptions = {
   uri: string;
@@ -77,7 +78,7 @@ export async function uploadImage({
   }
 
   if (!presignResponse.ok || !presign.uploadUrl || !presign.url) {
-    throw new Error(presign.error || `${presignResponse.status}: ${presignText || 'Upload failed'}`);
+    throw new Error(presign.error || `${presignResponse.status}: ${presignText || tr('upload.failed')}`);
   }
 
   onProgress?.(15);
@@ -115,10 +116,10 @@ function putWithProgress(
     };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) resolve();
-      else reject(new Error(`Upload failed (${xhr.status})`));
+      else reject(new Error(`${tr('upload.failed')} (${xhr.status})`));
     };
-    xhr.onerror = () => reject(new Error('Upload failed — check your connection'));
-    xhr.ontimeout = () => reject(new Error('Upload timed out'));
+    xhr.onerror = () => reject(new Error(tr('upload.failedConnection')));
+    xhr.ontimeout = () => reject(new Error(tr('upload.timedOut')));
     // Send exactly the signed byte range (Content-Length is part of the signature).
     xhr.send(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
   });

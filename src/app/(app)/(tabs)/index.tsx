@@ -15,10 +15,12 @@ import { useAuth, useUser } from "@clerk/clerk-expo";
 import { API_ENDPOINTS } from "@/config/constants";
 import ErrorState from "@/components/ErrorState";
 import RemoteImage from '@/components/RemoteImage';
+import { useT, tr } from '@/i18n';
 
 const DISMISSED_RATINGS_KEY = '@cosmix_dismissed_rating_bookings';
 
 export default function Page() {
+  const { t } = useT();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isSignedIn, getToken } = useAuth();
@@ -27,7 +29,7 @@ export default function Page() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
-  const [heroText, setHeroText] = useState("Palvelut nyt!");
+  const [heroShowsMap, setHeroShowsMap] = useState(false);
 
   // Rating prompt modal state
   const [ratingModalVisible, setRatingModalVisible] = useState(false);
@@ -52,7 +54,7 @@ export default function Page() {
       anyB.service?.name ||
       anyB.subServiceName ||
       anyB.serviceName ||
-      "Palvelu"
+      tr('home.service')
     );
   };
 
@@ -68,13 +70,13 @@ export default function Page() {
         const response = await fetch(`${API_ENDPOINTS.SALONS}/${anyB.saloonId}`);
         if (response.ok) {
           const salon = await response.json();
-          return salon.name || "Salon";
+          return salon.name || tr('home.salon');
         }
       } catch (error) {
         console.warn("Error fetching salon details:", error);
       }
     }
-    return "Salon";
+    return tr('home.salon');
   };
 
   // Check for unrated bookings on mount (auto rating popup)
@@ -176,9 +178,7 @@ export default function Page() {
   // Alternate hero text every 3 seconds
   useEffect(() => {
     const interval = setInterval(() => {
-      setHeroText(prevText =>
-        prevText === "Palvelut nyt!" ? "Kartta" : "Palvelut nyt!"
-      );
+      setHeroShowsMap(prev => !prev);
     }, 4000);
 
     return () => clearInterval(interval);
@@ -281,7 +281,7 @@ export default function Page() {
                     paddingVertical: 8,
                   }}
                 >
-                  {heroText}
+                  {heroShowsMap ? t('home.heroMap') : t('home.heroServices')}
                 </Text>
               </View>
 
@@ -326,7 +326,7 @@ export default function Page() {
               textAlign: "center",
             }}
           >
-            Kauden suosituimmat palvelut.
+            {t('home.popularTitle')}
           </Text>
 
           <View
@@ -405,7 +405,7 @@ export default function Page() {
                 paddingHorizontal: 16,
               }}
             >
-              Hemmottelu, jonka ansaitset.
+              {t('home.tagline')}
             </Text>
           </View>
         </View>
@@ -421,7 +421,7 @@ export default function Page() {
               marginBottom: 20,
             }}
           >
-            Kategoriat
+            {t('home.categories')}
           </Text>
 
           {/* Loading State */}
@@ -429,7 +429,7 @@ export default function Page() {
             <View style={{ alignItems: "center", justifyContent: "center", padding: 20 }}>
               <ActivityIndicator size="large" color={darkBrown} />
               <Text style={{ color: darkBrown, fontFamily: "Philosopher-Regular", marginTop: 10 }}>
-                Ladataan kategorioita...
+                {t('home.loadingCategories')}
               </Text>
             </View>
           )}
@@ -505,7 +505,7 @@ export default function Page() {
                       fontSize: 16,
                     }}
                   >
-                    Lisää
+                    {t('home.more')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -530,7 +530,7 @@ export default function Page() {
               activeOpacity={0.8}
             >
               <Text style={{ color: darkBrown, fontSize: 25, fontFamily: "Philosopher-Bold", textAlign: "center" }}>
-                Kirjaudu sisään
+                {t('common.signIn')}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -553,7 +553,7 @@ export default function Page() {
               activeOpacity={0.8}
             >
               <Text style={{ color: darkBrown, fontSize: 25, fontFamily: "Philosopher-Bold", textAlign: "center" }}>
-                Yrittäjille
+                {t('home.forBusinesses')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -562,10 +562,10 @@ export default function Page() {
         {/* FOOTER LINKS */}
         <View className="py-6 px-4" style={{ paddingBottom: 24 + 60 + insets.bottom }}>
           {[
-            ["Käyttöehdot", "Palvelut"],
-            ["Meistä", "Etusivu"],
-            ["Tili", "Lahjakortit"],
-            ["Ota yhteyttä", "Ajanvaraus"],
+            ["terms", "services"],
+            ["about", "home"],
+            ["account", "giftCards"],
+            ["contact", "bookings"],
           ].map((row, rowIdx) => (
             <View key={rowIdx} className="flex-row justify-between" style={{ marginBottom: 20 }}>
               {row.map((link, colIdx) => (
@@ -575,28 +575,28 @@ export default function Page() {
                   onPress={() => {
                     // Handle footer navigation
                     switch (link) {
-                      case "Etusivu":
+                      case "home":
                         router.push("/");
                         break;
-                      case "Palvelut":
+                      case "services":
                         router.push("/categories");
                         break;
-                      case "Ajanvaraus":
+                      case "bookings":
                         router.push("/bookings");
                         break;
-                      case "Lahjakortit":
-                        Alert.alert("Lahjakortit", "Tulossa pian");
+                      case "giftCards":
+                        Alert.alert(t('home.linkGiftCards'), t('home.comingSoon'));
                         break;
-                      case "Tili":
+                      case "account":
                         router.push("/profile");
                         break;
-                      case "Käyttöehdot":
+                      case "terms":
                         router.push("/info?tab=terms");
                         break;
-                      case "Meistä":
+                      case "about":
                         router.push("/info?tab=about");
                         break;
-                      case "Ota yhteyttä":
+                      case "contact":
                         router.push("/info?tab=contact");
                         break;
                       default:
@@ -615,7 +615,10 @@ export default function Page() {
                       textAlign: "left",
                     }}
                   >
-                    {link}
+                    {{
+                      terms: t('home.linkTerms'), services: t('home.linkServices'), about: t('home.linkAbout'), home: t('home.linkHome'),
+                      account: t('home.linkAccount'), giftCards: t('home.linkGiftCards'), contact: t('home.linkContact'), bookings: t('home.linkBookings'),
+                    }[link]}
                   </Text>
                 </TouchableOpacity>
               ))}

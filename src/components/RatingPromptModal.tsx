@@ -17,6 +17,7 @@ import { Booking } from "../types";
 import { API_ENDPOINTS } from "@/config/constants";
 import { useAuth } from "@clerk/clerk-expo";
 import { apiFetch, apiHeaders } from "@/lib/api";
+import { useT } from '@/i18n';
 
 const darkBrown = "#423120";
 
@@ -37,6 +38,7 @@ export const RatingPromptModal: React.FC<RatingPromptModalProps> = ({
     onClose,
     onRatingSubmitted,
 }) => {
+    const { t } = useT();
     const insets = useSafeAreaInsets();
     const [selectedRating, setSelectedRating] = useState(0);
     const [comment, setComment] = useState("");
@@ -71,10 +73,10 @@ export const RatingPromptModal: React.FC<RatingPromptModalProps> = ({
             setSelectedRating(0);
             setComment("");
             onRatingSubmitted();
-            Alert.alert("Kiitos!", `Annoit arvosanan ${selectedRating}/5 ⭐`);
+            Alert.alert(t('bookings.thanks'), t('bookings.ratedBody', { rating: selectedRating }));
         } catch (error) {
             console.error("Error submitting rating:", error);
-            Alert.alert("Virhe", "Arvosanan lähettäminen epäonnistui.");
+            Alert.alert(t('common.error'), t('bookings.rateFailed'));
         } finally {
             setSubmittingRating(false);
         }
@@ -130,7 +132,7 @@ export const RatingPromptModal: React.FC<RatingPromptModalProps> = ({
                                 textAlign: "center",
                                 marginBottom: 8,
                             }}>
-                                Arvostele hoito
+                                {t('bookings.rateTitle')}
                             </Text>
 
                             {/* Service & Salon name */}
@@ -175,12 +177,12 @@ export const RatingPromptModal: React.FC<RatingPromptModalProps> = ({
                                 textAlign: "center",
                                 marginBottom: 16,
                             }}>
-                                {selectedRating === 0 && "Valitse arvosana napauttamalla tähtiä"}
-                                {selectedRating === 1 && "Huono kokemus 😞"}
-                                {selectedRating === 2 && "Tyydyttävä 😐"}
-                                {selectedRating === 3 && "Hyvä 🙂"}
-                                {selectedRating === 4 && "Erittäin hyvä 😊"}
-                                {selectedRating === 5 && "Erinomainen! 🤩"}
+                                {selectedRating === 0 && t('bookings.rate0')}
+                                {selectedRating === 1 && t('bookings.rate1')}
+                                {selectedRating === 2 && t('bookings.rate2')}
+                                {selectedRating === 3 && t('bookings.rate3')}
+                                {selectedRating === 4 && t('bookings.rate4')}
+                                {selectedRating === 5 && t('bookings.rate5')}
                             </Text>
 
                             {/* Comment Input */}
@@ -205,7 +207,7 @@ export const RatingPromptModal: React.FC<RatingPromptModalProps> = ({
                                         minHeight: 100,
                                         textAlignVertical: "top",
                                     }}
-                                    placeholder="Kerro kokemuksestasi..."
+                                    placeholder={t('bookings.ratePlaceholder')}
                                     placeholderTextColor="#999"
                                     multiline
                                     numberOfLines={4}
@@ -231,7 +233,7 @@ export const RatingPromptModal: React.FC<RatingPromptModalProps> = ({
                                         fontSize: 16,
                                         color: darkBrown,
                                     }}>
-                                        Myöhemmin
+                                        {t('rating.later')}
                                     </Text>
                                 </TouchableOpacity>
 
@@ -254,7 +256,7 @@ export const RatingPromptModal: React.FC<RatingPromptModalProps> = ({
                                             fontSize: 16,
                                             color: "white",
                                         }}>
-                                            Lähetä
+                                            {t('bookings.send')}
                                         </Text>
                                     )}
                                 </TouchableOpacity>

@@ -14,6 +14,7 @@ import { ApiError } from "@/lib/api";
 import { MAPBOX_TOKEN, hasMapboxToken, MAP_UNAVAILABLE_HTML } from "@/config/constants";
 import { MAPBOX_LOADER_JS, KOSMIKS_PIN_CSS, KOSMIKS_PIN_JS } from "@/lib/map-html";
 import RemoteImage from '@/components/RemoteImage';
+import { useT, workTypeLabel } from '@/i18n';
 
 const darkBrown = "#3C2C1E";
 const beige = "#D9C7AF";
@@ -118,6 +119,7 @@ const SaloonImageCarousel = ({ images, saloonName }: { images: string[], saloonN
 };
 
 const Saloons = () => {
+    const { t } = useT();
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { serviceName, categoryName, serviceId, salonId, workType, parentServiceName } = useLocalSearchParams<{
@@ -352,7 +354,7 @@ const Saloons = () => {
                                                 }}
                                             >
                                                 {(() => {
-                                                    const text = salonId ? (serviceName || "Service") : (serviceName || "Services");
+                                                    const text = salonId ? (serviceName || t('salons.service')) : (serviceName || t('salons.services'));
                                                     const trimmed = text.trim();
                                                     let displayContent: React.ReactNode = "";
 
@@ -389,17 +391,7 @@ const Saloons = () => {
 
                                                     // If workType exists (e.g., PITKAT), show it below in parentheses
                                                     if (workType) {
-                                                        const workTypeMapping: Record<string, string> = {
-                                                            'UUDET': 'Uudet',
-                                                            'POISTO': 'Poisto',
-                                                            'HUOLTO': 'Huolto',
-                                                            'EI_LISAKKEITA': 'Ei lisäkkeitä',
-                                                            'LYHYET': 'Lyhyet',
-                                                            'KESKIPITKAT': 'Keskipitkät',
-                                                            'PITKAT': 'Pitkät'
-                                                        };
-
-                                                        let displayWorkType = workTypeMapping[workType];
+                                                        let displayWorkType = workTypeLabel(workType);
 
                                                         if (!displayWorkType) {
                                                             const formatted = workType.replace(/_/g, ' ').toLowerCase();
@@ -639,7 +631,7 @@ const Saloons = () => {
                                         textAlign: "center",
                                     }}
                                 >
-                                    Saloneja ei ole saatavilla
+                                    {t('salons.none')}
                                 </Text>
                                 <Text
                                     style={{
@@ -651,7 +643,7 @@ const Saloons = () => {
                                         opacity: 0.6,
                                     }}
                                 >
-                                    Ei salonkeja tällä hetkellä tarjoa {serviceName}
+                                    {t('salons.noneOffer', { service: serviceName })}
                                 </Text>
                             </View>
                         )}

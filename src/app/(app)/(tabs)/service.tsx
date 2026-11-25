@@ -14,6 +14,7 @@ import { API_ENDPOINTS } from "@/config/constants";
 import ErrorState from "@/components/ErrorState";
 import { apiFetch, ApiError } from "@/lib/api";
 import RemoteImage from '@/components/RemoteImage';
+import { useT } from '@/i18n';
 
 const normalizeString = (str: string) => {
   return str
@@ -74,6 +75,7 @@ const fuzzyMatch = (queryPart: string, target: string): boolean => {
 };
 
 export default function ServicesPage() {
+  const { t } = useT();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState("");
@@ -376,7 +378,7 @@ export default function ServicesPage() {
                 style={{ flex: 1, fontSize: 16, fontFamily: 'Philosopher-Bold', color: darkBrown }}
                 value={query}
                 onChangeText={setQuery}
-                placeholder="Etsi hoitoja..."
+                placeholder={t('search.placeholder')}
                 placeholderTextColor="#999"
                 returnKeyType="search"
               />
@@ -390,7 +392,7 @@ export default function ServicesPage() {
                 <View style={{ alignItems: 'center', justifyContent: 'center', padding: 20 }}>
                   <ActivityIndicator size="large" color={darkBrown} />
                   <Text style={{ color: darkBrown, fontFamily: 'Philosopher-Regular', marginTop: 10 }}>
-                    {searchType === 'salon' ? 'Ladataan salonkeja...' : searchType === 'service' ? 'Ladataan palveluja...' : 'Ladataan kategorioita...'}
+                    {searchType === 'salon' ? t('search.loadingSalons') : searchType === 'service' ? t('search.loadingServices') : t('search.loadingCategories')}
                   </Text>
                 </View>
               ) : searchType === 'salon' && filteredSalons.length > 0 ? (
@@ -447,7 +449,7 @@ export default function ServicesPage() {
               ) : (
                 <View style={{ alignItems: 'center', marginTop: 10 }}>
                   <Text style={{ fontFamily: 'Philosopher-Bold', color: darkBrown, fontSize: 16 }}>
-                    Ei löytynyt
+                    {t('search.notFound')}
                   </Text>
                 </View>
               )}
@@ -456,7 +458,7 @@ export default function ServicesPage() {
             <>
               {/* Section title */}
               <Text style={{ color: darkBrown, fontFamily: 'Philosopher-Bold', fontSize: 20 }} className="mt-8">
-                Suosituimmat palvelut
+                {t('search.popular')}
               </Text>
 
               {/* Popular Categories - 2-1-2-1 pattern */}
@@ -574,7 +576,7 @@ export default function ServicesPage() {
                   </>
                 ) : (
                   <Text style={{ color: darkBrown, fontFamily: 'Philosopher-Regular', textAlign: 'center', marginTop: 10 }}>
-                    Suosittuja palveluita ei ole vielä
+                    {t('search.noPopular')}
                   </Text>
                 )}
               </View>
@@ -605,6 +607,7 @@ function SalonCard({
   lightBeige: string;
   beige: string;
 }) {
+  const { t } = useT();
   return (
     <TouchableOpacity
       style={{ alignItems: "center", marginBottom: 24, position: "relative" }}
@@ -699,7 +702,7 @@ function SalonCard({
                 marginTop: 4
               }}
             >
-              {salon.shortIntro || 'No description'}
+              {salon.shortIntro || t('search.noDescription')}
             </Text>
             <Text
               style={{
@@ -709,7 +712,7 @@ function SalonCard({
                 marginTop: 4
               }}
             >
-              Location: {salon.address || 'Not specified'}
+              {t('search.location', { address: salon.address || t('search.notSpecified') })}
             </Text>
 
             <View style={{

@@ -8,20 +8,22 @@ import { useAdminStore, isAwaitingReview, applicantName, type Application, type 
 import { FilterPills, Card, Avatar, EmptyState, PhaseDots, colors, relativeDay } from '@/components/admin/AdminUI';
 import BrandHeader from '@/components/BrandHeader';
 import { useTabBarSpace } from '@/lib/layout';
+import { useT, type TKey } from '@/i18n';
 
 type Filter = 'review' | 'progress' | 'active' | 'rejected';
 
 const groupOf = (s: ProviderStatus): Filter =>
   isAwaitingReview(s) ? 'review' : s === 'ACTIVE' ? 'active' : s === 'REJECTED' ? 'rejected' : 'progress';
 
-const EMPTY: Record<Filter, { title: string; body: string }> = {
-  review: { title: 'Nothing to review', body: 'New applications will show up here.' },
-  progress: { title: 'No one in progress', body: 'Approved applicants finishing their next step appear here.' },
-  active: { title: 'No active providers yet', body: '' },
-  rejected: { title: 'No rejected applications', body: '' },
+const EMPTY: Record<Filter, { title: TKey; body?: TKey }> = {
+  review: { title: 'admin.emptyReview', body: 'admin.emptyReviewBody' },
+  progress: { title: 'admin.emptyProgress', body: 'admin.emptyProgressBody' },
+  active: { title: 'admin.emptyActive' },
+  rejected: { title: 'admin.emptyRejected' },
 };
 
 export default function AdminApplicationsScreen() {
+  const { t } = useT();
   const { getToken } = useAuth();
   const router = useRouter();
   const tabBarSpace = useTabBarSpace();
@@ -40,7 +42,7 @@ export default function AdminApplicationsScreen() {
     try {
       await loadApplications(() => getTokenRef.current());
     } catch {
-      setError("Couldn't load applications.");
+      setError(t('admin.appsFailed'));
     } finally {
       setRefreshing(false);
     }
@@ -67,10 +69,10 @@ export default function AdminApplicationsScreen() {
         value={active}
         onChange={setFilter}
         options={[
-          { key: 'review', label: 'Needs review', count: counts.review },
-          { key: 'progress', label: 'In progress', count: counts.progress },
-          { key: 'active', label: 'Active', count: counts.active },
-          { key: 'rejected', label: 'Rejected', count: counts.rejected },
+          { key: 'review', label: t('admin.needsReview'), count: counts.review },
+          { key: 'progress', label: t('admin.inProgress'), count: counts.progress },
+          { key: 'active', label: t('admin.active'), count: counts.active },
+          { key: 'rejected', label: t('admin.rejected'), count: counts.rejected },
         ]}
       />
 
@@ -83,7 +85,7 @@ export default function AdminApplicationsScreen() {
           contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: tabBarSpace }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} tintColor={colors.dark} />}
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-          ListEmptyComponent={<EmptyState icon="document-text-outline" title={error ?? EMPTY[active].title} body={error ? undefined : EMPTY[active].body} />}
+          ListEmptyComponent={<EmptyState icon="document-text-outline" title={error ?? t(EMPTY[active].title)} body={error || !EMPTY[active].body ? undefined : t(EMPTY[active].body!)} />}
           renderItem={({ item }) => (
             <ApplicationCard item={item} onPress={() => router.push(`/(admin)/applications/${item.id}` as any)} />
           )}

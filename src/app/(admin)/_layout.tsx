@@ -5,6 +5,7 @@ import { Tabs, useSegments } from 'expo-router';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import TabBar from '@/components/TabBar';
 import { useAdminStore, useAdminBadges } from '@/lib/admin-api';
+import { useT } from '@/i18n';
 
 // Tab opened first (replaces the old `initialRouteName` prop on <Tabs>).
 export const unstable_settings = { initialRouteName: 'home' };
@@ -20,6 +21,7 @@ const dynamicForeground =
 
 // iOS: native Liquid Glass tab bar (same as the provider dashboard).
 function IosAdminTabs({ reviewCount, toSendCount, hidden }: { reviewCount: number; toSendCount: number; hidden: boolean }) {
+  const { t } = useT();
   return (
     <NativeTabs
       hidden={hidden}
@@ -32,12 +34,12 @@ function IosAdminTabs({ reviewCount, toSendCount, hidden }: { reviewCount: numbe
     >
       <NativeTabs.Trigger name="home">
         <NativeTabs.Trigger.Icon sf={{ default: 'house', selected: 'house.fill' }} md="home" />
-        <NativeTabs.Trigger.Label hidden>Home</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label hidden>{t('atabs.home')}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="applications">
         <NativeTabs.Trigger.Icon sf={{ default: 'doc.text', selected: 'doc.text.fill' }} md="description" />
-        <NativeTabs.Trigger.Label hidden>Applications</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label hidden>{t('atabs.applications')}</NativeTabs.Trigger.Label>
         {/* Rendered only when non-zero: the native badge shows "0" even with hidden set. */}
         {reviewCount > 0 && (
           <NativeTabs.Trigger.Badge selectedBackgroundColor={badgeAmber}>
@@ -48,7 +50,7 @@ function IosAdminTabs({ reviewCount, toSendCount, hidden }: { reviewCount: numbe
 
       <NativeTabs.Trigger name="payouts">
         <NativeTabs.Trigger.Icon sf={{ default: 'banknote', selected: 'banknote.fill' }} md="payments" />
-        <NativeTabs.Trigger.Label hidden>Payouts</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label hidden>{t('atabs.payouts')}</NativeTabs.Trigger.Label>
         {/* Rendered only when non-zero: the native badge shows "0" even with hidden set. */}
         {toSendCount > 0 && (
           <NativeTabs.Trigger.Badge selectedBackgroundColor={badgeAmber}>
@@ -59,12 +61,12 @@ function IosAdminTabs({ reviewCount, toSendCount, hidden }: { reviewCount: numbe
 
       <NativeTabs.Trigger name="saloons">
         <NativeTabs.Trigger.Icon sf={{ default: 'storefront', selected: 'storefront.fill' }} md="storefront" />
-        <NativeTabs.Trigger.Label hidden>Salons</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label hidden>{t('atabs.salons')}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="catalog">
         <NativeTabs.Trigger.Icon sf={{ default: 'square.grid.2x2', selected: 'square.grid.2x2.fill' }} md="grid_view" />
-        <NativeTabs.Trigger.Label hidden>Catalog</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label hidden>{t('atabs.catalog')}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );
@@ -72,22 +74,23 @@ function IosAdminTabs({ reviewCount, toSendCount, hidden }: { reviewCount: numbe
 
 // Android: the floating pill tab bar used across the app.
 function AndroidAdminTabs({ reviewCount, toSendCount, hidden }: { reviewCount: number; toSendCount: number; hidden: boolean }) {
+  const { t } = useT();
   return (
     <Tabs
       tabBar={(props) => (hidden ? null : <TabBar {...props} />)}
       screenOptions={{ headerShown: false }}
     >
-      <Tabs.Screen name="home" options={{ title: 'Home' }} />
+      <Tabs.Screen name="home" options={{ title: t('atabs.home') }} />
       <Tabs.Screen
         name="applications"
-        options={{ title: 'Applications', tabBarBadge: reviewCount > 0 ? reviewCount : undefined }}
+        options={{ title: t('atabs.applications'), tabBarBadge: reviewCount > 0 ? reviewCount : undefined }}
       />
       <Tabs.Screen
         name="payouts"
-        options={{ title: 'Payouts', tabBarBadge: toSendCount > 0 ? toSendCount : undefined }}
+        options={{ title: t('atabs.payouts'), tabBarBadge: toSendCount > 0 ? toSendCount : undefined }}
       />
-      <Tabs.Screen name="saloons" options={{ title: 'Salons' }} />
-      <Tabs.Screen name="catalog" options={{ title: 'Catalog' }} />
+      <Tabs.Screen name="saloons" options={{ title: t('atabs.salons') }} />
+      <Tabs.Screen name="catalog" options={{ title: t('atabs.catalog') }} />
     </Tabs>
   );
 }

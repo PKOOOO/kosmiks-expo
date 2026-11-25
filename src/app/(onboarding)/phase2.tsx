@@ -15,9 +15,11 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { API_BASE_URL } from '@/config/constants';
 import { uploadImage } from '@/lib/upload-image';
 import UploadProgress from '@/components/UploadProgress';
-import { connectionProblemEn } from '@/lib/api';
+import { connectionProblem } from '@/lib/api';
 import { isOfflineNow } from '@/lib/network';
 import RemoteImage from '@/components/RemoteImage';
+import { localeTag, useT, type TKey } from '@/i18n';
+import { translateServerMessage } from '@/i18n/server-messages';
 
 const ADMIN_API_KEY = process.env.EXPO_PUBLIC_ADMIN_API_KEY || '';
 
@@ -29,9 +31,8 @@ const red = '#c00';
 
 const TOTAL_STEPS = 4;
 
-const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const pad2 = (n: number) => String(n).padStart(2, '0');
-const formatDobDisplay = (d: Date) => `${pad2(d.getDate())} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+const formatDobDisplay = (d: Date) => d.toLocaleDateString(localeTag(), { day: 'numeric', month: 'long', year: 'numeric' });
 const formatDobStore = (d: Date) => `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`;
 const parseDobStore = (s: string): Date | null => {
   const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s);
@@ -45,28 +46,21 @@ const isAtLeast18 = (dob: Date): boolean => {
   return dob.getTime() <= cutoff.getTime();
 };
 
-const QUESTIONS = [
-  { question: 'What is your full legal name?', hint: 'As it appears on your ID document' },
-  { question: 'What is your date of birth?', hint: 'You must be 18 or older to register' },
-  { question: 'Your qualifications', hint: 'Upload documents proving you are qualified to provide beauty and spa services' },
-  { question: 'Almost done', hint: 'Accept the terms to submit your application' },
+const QUESTIONS: { question: TKey; hint: TKey }[] = [
+  { question: 'phase2.qLegalName', hint: 'phase2.hLegalName' },
+  { question: 'phase2.qDob', hint: 'phase2.hDob' },
+  { question: 'phase2.qDocs', hint: 'phase2.hDocs' },
+  { question: 'phase2.qTerms', hint: 'phase2.hTerms' },
 ];
 
 // Step 3 asks for these one at a time. All three are required.
 const DOCS = [
-  { title: 'Diploma or certificate', icon: 'school-outline' },
-  { title: 'Professional license', icon: 'ribbon-outline' },
-  { title: 'Government ID', icon: 'card-outline' },
+  { title: 'phase2.doc0', upload: 'phase2.doc0Upload', remove: 'phase2.doc0Remove', icon: 'school-outline' },
+  { title: 'phase2.doc1', upload: 'phase2.doc1Upload', remove: 'phase2.doc1Remove', icon: 'ribbon-outline' },
+  { title: 'phase2.doc2', upload: 'phase2.doc2Upload', remove: 'phase2.doc2Remove', icon: 'card-outline' },
 ] as const;
 
-const TERMS = [
-  'Provide accurate information about yourself and your services.',
-  'Honor all bookings made through the Kosmiks platform.',
-  'Maintain professional standards of service quality.',
-  'Comply with all applicable Finnish laws and regulations.',
-  'Allow Kosmiks to collect a platform fee of 10% on each completed booking.',
-  'Receive payouts through Stripe: you set up your Stripe account (ID and bank details) when you first withdraw earnings.',
-];
+const TERMS: TKey[] = ['phase2.term1', 'phase2.term2', 'phase2.term3', 'phase2.term4', 'phase2.term5', 'phase2.term6'];
 
 const bigInput = {
   fontFamily: 'Philosopher-Regular' as const,
@@ -81,6 +75,7 @@ const bigInput = {
 };
 
 export default function Phase2Screen() {
+  const { t } = useT();
   const router = useRouter();
   const { getToken } = useAuth();
   const insets = useSafeAreaInsets();
@@ -132,7 +127,7 @@ export default function Phase2Screen() {
 
   const pickAndUploadDoc = async (slotIndex: number) => {
     if (await isOfflineNow()) {
-      Alert.alert('No internet connection', 'Connect to the internet to upload.');
+      Alert.alert(t('phase2.noInternet'), t('phase2.noInternetUpload'));
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -158,7 +153,7 @@ export default function Phase2Screen() {
       setError('');
     } catch (err: any) {
       console.error('[UPLOAD] Error:', err?.message ?? err);
-      Alert.alert('Upload failed', connectionProblemEn(err) ?? err?.message ?? 'Please try again.');
+      Alert.alert(t('phase2.uploadFailed'), connectionProblem(err) ?? err?.message ?? t('phase2.tryAgain'));
     } finally {
       setUploadingIndex(null);
     }
@@ -169,17 +164,17 @@ export default function Phase2Screen() {
   };
 
   const validate = (): boolean => {
-    if (step === 0 && !legalName.trim()) { setError('Please enter your full legal name'); return false; }
+    if (step === 0 && !legalName.trim()) { setError(t('phase2.errLegalName')); return false; }
     if (step === 1) {
       const dob = parseDobStore(dateOfBirth);
-      if (!dob) { setError('Please select your date of birth'); return false; }
-      if (!isAtLeast18(dob)) { setError('You must be 18 or older to register'); return false; }
+      if (!dob) { setError(t('phase2.errDob')); return false; }
+      if (!isAtLeast18(dob)) { setError(t('phase2.errAge')); return false; }
     }
     if (step === 2 && !docSlots[docStep]) {
-      setError(`Please upload your ${DOCS[docStep].title.toLowerCase()}`);
+      setError(t(DOCS[docStep].upload));
       return false;
     }
-    if (step === 3 && !termsAccepted) { setError('You must accept the terms to continue'); return false; }
+    if (step === 3 && !termsAccepted) { setError(t('phase2.errTerms')); return false; }
     setError('');
     return true;
   };
@@ -225,15 +220,15 @@ export default function Phase2Screen() {
       router.replace('/(onboarding)/pending' as any);
     } catch (err: any) {
       console.error('[SUBMIT] Error:', err?.message ?? err);
-      Alert.alert('Error', connectionProblemEn(err) ?? err?.message ?? 'Failed to submit. Please try again.');
+      Alert.alert(t('common.error'), translateServerMessage(connectionProblem(err) ?? err?.message ?? t('phase2.submitFailed')));
     } finally {
       setSubmitting(false);
     }
   };
 
   const q = step === 2
-    ? { question: DOCS[docStep].title, hint: `Document ${docStep + 1} of ${DOCS.length}` }
-    : QUESTIONS[step];
+    ? { question: t(DOCS[docStep].title), hint: t('phase2.docOf', { n: docStep + 1, total: DOCS.length }) }
+    : { question: t(QUESTIONS[step].question), hint: t(QUESTIONS[step].hint) };
 
   const renderStep = () => {
     switch (step) {
@@ -270,7 +265,7 @@ export default function Phase2Screen() {
                 fontSize: 20,
                 color: selected ? darkBrown : '#ccc',
               }}>
-                {selected ? formatDobDisplay(selected) : 'Select date of birth'}
+                {selected ? formatDobDisplay(selected) : t('phase2.selectDob')}
               </Text>
               <Ionicons name="calendar-outline" size={22} color={darkBrown} />
             </TouchableOpacity>
@@ -296,7 +291,7 @@ export default function Phase2Screen() {
                 onPress={() => setShowDobPicker(false)}
                 style={{ alignSelf: 'flex-end', paddingVertical: 8, paddingHorizontal: 12 }}
               >
-                <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 16, color: darkBrown }}>Done</Text>
+                <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 16, color: darkBrown }}>{t('more.done')}</Text>
               </TouchableOpacity>
             )}
           </>
@@ -332,11 +327,11 @@ export default function Phase2Screen() {
                   backgroundColor: 'rgba(66,49,32,0.84)',
                 }}>
                   <Ionicons name="checkmark" size={14} color={white} />
-                  <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 12, color: white }}>Uploaded</Text>
+                  <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 12, color: white }}>{t('more.uploaded')}</Text>
                 </View>
                 <TouchableOpacity
                   onPress={() => removeDoc(docStep)}
-                  accessibilityLabel={`Remove ${doc.title}`}
+                  accessibilityLabel={t(doc.remove)}
                   style={{
                     position: 'absolute', top: 10, right: 10,
                     width: 34, height: 34, borderRadius: 17,
@@ -375,7 +370,7 @@ export default function Phase2Screen() {
                         <Ionicons name={doc.icon} size={24} color={darkBrown} />
                       </View>
                       <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 16, color: darkBrown }}>
-                        Upload {doc.title.toLowerCase()}
+                        {t(doc.upload)}
                       </Text>
                     </>
                   )
@@ -391,7 +386,7 @@ export default function Phase2Screen() {
         return (
           <View>
             <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 15, color: '#555', lineHeight: 23, marginBottom: 16 }}>
-              By joining Kosmiks as a service provider, you agree to:
+              {t('phase2.termsIntro')}
             </Text>
             {TERMS.map((term, i) => (
               <View key={i} style={{ flexDirection: 'row', marginBottom: 14 }}>
@@ -399,12 +394,12 @@ export default function Phase2Screen() {
                   {i + 1}.
                 </Text>
                 <Text style={{ flex: 1, fontFamily: 'Philosopher-Regular', fontSize: 15, color: '#555', lineHeight: 23 }}>
-                  {term}
+                  {t(term)}
                 </Text>
               </View>
             ))}
             <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 15, color: '#555', lineHeight: 23, marginTop: 4, marginBottom: 28 }}>
-              Kosmiks reserves the right to suspend providers who violate these terms.
+              {t('phase2.termsSuspend')}
             </Text>
 
             <TouchableOpacity
@@ -416,7 +411,7 @@ export default function Phase2Screen() {
                 {termsAccepted && <Ionicons name="checkmark" size={14} color={white} />}
               </View>
               <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: darkBrown, flex: 1 }}>
-                I agree to the Kosmiks terms and conditions
+                {t('phase2.agree')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -483,7 +478,7 @@ export default function Phase2Screen() {
             {submitting
               ? <ActivityIndicator color={white} />
               : <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 16, color: white }}>
-                  {step === TOTAL_STEPS - 1 ? 'Submit application' : 'Continue'}
+                  {step === TOTAL_STEPS - 1 ? t('apply.submit') : t('apply.continue')}
                 </Text>
             }
           </TouchableOpacity>

@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
+import { tr } from '@/i18n';
 
 const MAX_WIDTH = 1600;
 // Salon photos are shown as landscape tiles, so they're cropped to 4:3.
@@ -39,9 +40,9 @@ async function cropLandscapeIOS(asset: ImagePicker.ImagePickerAsset): Promise<Pi
       height: CROP_HEIGHT,
       forceJpg: true,
       compressImageQuality: 0.78,
-      cropperToolbarTitle: 'Crop photo',
-      cropperChooseText: 'Use photo',
-      cropperCancelText: 'Cancel',
+      cropperToolbarTitle: tr('upload.cropTitle'),
+      cropperChooseText: tr('upload.usePhoto'),
+      cropperCancelText: tr('common.cancel'),
       cropperToolbarColor: brand.light,
       cropperToolbarWidgetColor: brand.dark,
       cropperActiveWidgetColor: brand.dark,

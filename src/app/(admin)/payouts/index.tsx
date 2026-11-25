@@ -10,6 +10,7 @@ import { FilterPills, Card, EmptyState, colors } from '@/components/admin/AdminU
 import { StatusChip } from '@/components/earnings/EarningsUI';
 import BrandHeader from '@/components/BrandHeader';
 import { useTabBarSpace } from '@/lib/layout';
+import { useT } from '@/i18n';
 
 // Providers withdraw their own earnings through Stripe Connect; this screen
 // is a read-only record. "Manual" holds the old SEPA payouts (an admin still
@@ -22,6 +23,7 @@ const inFilter = (p: AdminPayout, f: Filter) =>
     : p.status === 'scheduled' || p.status === 'sent' || p.status === 'arrived';
 
 export default function AdminPayoutsScreen() {
+  const { t } = useT();
   const { getToken } = useAuth();
   const router = useRouter();
   const tabBarSpace = useTabBarSpace();
@@ -40,7 +42,7 @@ export default function AdminPayoutsScreen() {
     try {
       await loadPayouts(() => getTokenRef.current());
     } catch (e: any) {
-      setError(e?.message === 'Forbidden' ? 'Only signed-in admins can see payouts.' : "Couldn't load payouts.");
+      setError(e?.message === 'Forbidden' ? t('admin.payoutsForbidden') : t('admin.payoutsFailed'));
     } finally {
       setRefreshing(false);
     }
@@ -63,10 +65,10 @@ export default function AdminPayoutsScreen() {
   const header = (
     <View style={{ marginBottom: 14 }}>
       <View style={{ backgroundColor: colors.dark, borderRadius: 22, padding: 20 }}>
-        <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: colors.beige }}>Sent to providers this month</Text>
+        <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: colors.beige }}>{t('more.sentThisMonth')}</Text>
         <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 36, color: colors.white, marginTop: 2 }}>{formatEur(thisMonthTotal)}</Text>
         <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: colors.beige, marginTop: 2 }}>
-          Providers withdraw their earnings themselves through Stripe.
+          {t('admin.payoutsInfo')}
         </Text>
       </View>
     </View>
@@ -80,8 +82,8 @@ export default function AdminPayoutsScreen() {
         onChange={setFilter}
         options={[
           { key: 'stripe', label: 'Stripe', count: counts.stripe },
-          { key: 'failed', label: 'Failed', count: counts.failed },
-          { key: 'manual', label: 'Manual', count: counts.manual },
+          { key: 'failed', label: t('admin.failed'), count: counts.failed },
+          { key: 'manual', label: t('admin.manual'), count: counts.manual },
         ]}
       />
 
@@ -98,7 +100,7 @@ export default function AdminPayoutsScreen() {
           ListEmptyComponent={
             <EmptyState
               icon="cash-outline"
-              title={error ?? (filter === 'stripe' ? 'No withdrawals yet' : filter === 'failed' ? 'No failed payouts' : 'No manual payouts')}
+              title={error ?? (filter === 'stripe' ? t('admin.noWithdrawals') : filter === 'failed' ? t('admin.noFailed') : t('admin.noManual'))}
             />
           }
           renderItem={({ item }) => (

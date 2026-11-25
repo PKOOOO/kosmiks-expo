@@ -15,6 +15,7 @@ import { useRouter } from "expo-router";
 import { useFonts } from "expo-font";
 import Header from "@/components/Header";
 import { useAuth, useUser } from "@clerk/clerk-expo";
+import { useT } from '@/i18n';
 
 const darkBrown = "#423120";
 const beige = "#D9C7AF";
@@ -23,6 +24,7 @@ const inputBox = "F4EDE5"
 const titleLine = "#D7C3A7";
 
 export default function ProfileEditPage() {
+  const { t } = useT();
   const router = useRouter();
   const { isSignedIn, isLoaded: authLoaded } = useAuth();
   const { user: clerkUser, isLoaded: userLoaded } = useUser();
@@ -69,7 +71,7 @@ export default function ProfileEditPage() {
 
   const handleSave = async () => {
     if (!name || !email) {
-      Alert.alert("Virhe", "Täytä kaikki pakolliset kentät");
+      Alert.alert(t('common.error'), t('settings.saveMissing'));
       return;
     }
 
@@ -78,11 +80,11 @@ export default function ProfileEditPage() {
       // TODO: Implement update user API call here
       // await updateUser({ name, email, phone });
 
-      Alert.alert("Onnistui", "Tiedot tallennettiin onnistuneesti", [
-        { text: "OK", onPress: () => router.back() }
+      Alert.alert(t('common.success'), t('settings.saved'), [
+        { text: t('common.ok'), onPress: () => router.back() }
       ]);
     } catch (error) {
-      Alert.alert("Virhe", "Tietojen tallennus epäonnistui");
+      Alert.alert(t('common.error'), t('settings.saveFailed'));
     } finally {
       setLoading(false);
     }
@@ -115,7 +117,7 @@ export default function ProfileEditPage() {
         {/* Card Container */}
         <View style={styles.card}>
           {/* Title */}
-          <Text style={styles.title}>Asetukset</Text>
+          <Text style={styles.title}>{t('settings.title')}</Text>
 
           {/* Horizontal line */}
           <View style={styles.titleLine} />
@@ -125,19 +127,19 @@ export default function ProfileEditPage() {
 
             {/* Käyttäjänimi (Username) */}
             <View style={styles.fieldContainer}>
-              <Text style={styles.label}>Käyttäjänimi</Text>
+              <Text style={styles.label}>{t('settings.username')}</Text>
               <TextInput
                 style={styles.input}
                 value={username}
                 onChangeText={setUsername}
-                placeholder="Anna käyttäjänimesi"
+                placeholder={t('settings.usernamePlaceholder')}
                 placeholderTextColor={darkBrown + "80"}
               />
             </View>
 
             {/* Sähköpostiosoite (Email) */}
             <View style={styles.fieldContainer}>
-              <Text style={styles.label}>Sähköpostiosoite</Text>
+              <Text style={styles.label}>{t('settings.email')}</Text>
               <TextInput
                 style={styles.input}
                 value={email}
@@ -151,7 +153,7 @@ export default function ProfileEditPage() {
 
             {/* Puhelin (Phone) */}
             <View style={styles.fieldContainer}>
-              <Text style={styles.label}>Puhelin</Text>
+              <Text style={styles.label}>{t('settings.phone')}</Text>
               <TextInput
                 style={styles.input}
                 value={phone}
@@ -172,7 +174,7 @@ export default function ProfileEditPage() {
             {loading ? (
               <ActivityIndicator size="small" color={darkBrown} />
             ) : (
-              <Text style={styles.saveButtonText}>Tallenna</Text>
+              <Text style={styles.saveButtonText}>{t('common.save')}</Text>
             )}
           </TouchableOpacity>
         </View>

@@ -6,6 +6,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '@/components/earnings/EarningsUI';
+import { localeTag, tr } from '@/i18n';
 
 export { colors, Card, SectionLabel, ListRow, AmountRow, SubpageHeader } from '@/components/earnings/EarningsUI';
 
@@ -219,10 +220,10 @@ export function Chip({ label, tone = 'neutral' }: { label: string; tone?: 'neutr
 export const relativeDay = (iso: string) => {
   const d = new Date(iso);
   const days = Math.floor((Date.now() - d.getTime()) / 86_400_000);
-  if (days <= 0) return 'Today';
-  if (days === 1) return 'Yesterday';
-  if (days < 7) return `${days} days ago`;
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  if (days <= 0) return tr('admin.today');
+  if (days === 1) return tr('admin.yesterday');
+  if (days < 7) return tr('admin.daysAgo', { days });
+  return d.toLocaleDateString(localeTag(), { day: 'numeric', month: 'short', year: 'numeric' });
 };
 
 export function SearchBar({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
@@ -312,7 +313,7 @@ export function BottomSheet({
         <TouchableOpacity
           activeOpacity={1}
           onPress={() => { Keyboard.dismiss(); onClose(); }}
-          accessibilityLabel="Close"
+          accessibilityLabel={tr('admin.close')}
           style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(30,20,12,0.45)' }}
         />
         <View style={{
@@ -330,7 +331,7 @@ export function BottomSheet({
             <Text style={{ flex: 1, fontFamily: 'Philosopher-Bold', fontSize: 21, color: colors.dark }}>{title}</Text>
             <TouchableOpacity
               onPress={() => { Keyboard.dismiss(); onClose(); }}
-              accessibilityLabel="Close"
+              accessibilityLabel={tr('admin.close')}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               style={{ width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.sand }}
             >

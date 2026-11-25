@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
+import { useT } from '@/i18n';
 
 type Props = {
   percent: number;
@@ -19,6 +20,7 @@ const STROKE = 4;
 // storage. It fills smoothly towards the real progress rather than jumping,
 // since phones often report a small upload in one or two big steps.
 export default function UploadProgress({ percent, onDark = false, size = 52 }: Props) {
+  const { t } = useT();
   const target = Math.max(0, Math.min(100, percent));
   const [shown, setShown] = useState(0);
   const creepRef = useRef(0);
@@ -44,7 +46,7 @@ export default function UploadProgress({ percent, onDark = false, size = 52 }: P
   return (
     <View
       accessibilityRole="progressbar"
-      accessibilityLabel={done ? 'Upload complete' : 'Uploading'}
+      accessibilityLabel={done ? t('photos.uploadDone') : t('photos.uploading')}
       accessibilityValue={{ min: 0, max: 100, now: Math.round(shown) }}
       style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}
     >

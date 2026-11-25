@@ -10,7 +10,9 @@ import SideMenu from "@/components/SideMenu";
 import CategoryCardGrid from "@/components/CategoryCardGrid";
 import ErrorState from "@/components/ErrorState";
 
+import { useT } from '@/i18n';
 const Categories: React.FC = () => {
+  const { t } = useT();
   const router = useRouter();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -109,7 +111,7 @@ const Categories: React.FC = () => {
                 textAlign: "center",
               }}
             >
-              Kategorioita ei löytynyt
+              {t('salons.noCategories')}
             </Text>
           </View>
         )}

@@ -3,6 +3,7 @@ import { Animated, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useIsOffline } from '@/lib/network';
+import { useT } from '@/i18n';
 
 const darkBrown = '#423120';
 const white = '#FFFFFF';
@@ -15,6 +16,7 @@ const RESTORED_VISIBLE_MS = 2000;
  * back, then slides away. It never blocks touches on the screen below.
  */
 export default function OfflineBanner() {
+  const { t } = useT();
   const isOffline = useIsOffline();
   const insets = useSafeAreaInsets();
   const [mode, setMode] = useState<'hidden' | 'offline' | 'restored'>('hidden');
@@ -50,7 +52,7 @@ export default function OfflineBanner() {
       style={[styles.banner, { paddingTop: insets.top, height: BANNER_HEIGHT + insets.top, transform: [{ translateY }] }]}
     >
       <Ionicons name={restored ? 'wifi' : 'cloud-offline-outline'} size={16} color={white} />
-      <Text style={styles.text}>{restored ? 'Yhteys palautettu' : 'Ei internetyhteyttä'}</Text>
+      <Text style={styles.text}>{restored ? t('errors.restored') : t('errors.offlineTitle')}</Text>
     </Animated.View>
   );
 }

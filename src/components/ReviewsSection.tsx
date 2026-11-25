@@ -8,6 +8,7 @@ import {
 import { API_ENDPOINTS } from "@/config/constants";
 import ErrorState from "@/components/ErrorState";
 import { apiFetch, apiHeaders, ApiError } from "@/lib/api";
+import { useT } from '@/i18n';
 
 const darkBrown = "#423120";
 
@@ -30,6 +31,7 @@ interface ReviewsSectionProps {
 }
 
 export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ saloonId }) => {
+    const { t } = useT();
     const [reviews, setReviews] = useState<Review[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<unknown>(null);
@@ -127,7 +129,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ saloonId }) => {
                     opacity: 0.7,
                     textAlign: "center"
                 }}>
-                    Ei vielä arvosteluja
+                    {t('misc.noReviews')}
                 </Text>
             </View>
         );

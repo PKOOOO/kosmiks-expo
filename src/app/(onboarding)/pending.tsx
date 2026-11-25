@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { API_BASE_URL } from '@/config/constants';
+import { localeTag, useT, type TKey } from '@/i18n';
 
 const PROVIDER_STATUS_KEY = 'providerStatus';
 // Cache must be scoped per-user so a previous ACTIVE provider's cached status
@@ -38,21 +39,15 @@ const NEXT_ROUTES: Record<string, string> = {
   REJECTED:        '/(onboarding)/rejected',
 };
 
-const COPY: Record<string, { title: string; body: string }> = {
-  PHASE1_PENDING: {
-    title: "We're reviewing your application",
-    body: 'Our team checks every new provider by hand. This usually takes less than 24 hours.',
-  },
-  PHASE2_PENDING: {
-    title: "We're verifying your documents",
-    body: 'We check your qualifications and bank details by hand. This usually takes less than 24 hours.',
-  },
+const COPY: Record<string, { title: TKey; body: TKey }> = {
+  PHASE1_PENDING: { title: 'apply.reviewTitle', body: 'apply.reviewBody' },
+  PHASE2_PENDING: { title: 'apply.verifyTitle', body: 'apply.verifyBody' },
 };
 
-const STAGES = [
-  { title: 'Application', detail: 'Your details and services' },
-  { title: 'Verification', detail: 'Documents and bank details' },
-  { title: 'Salon setup', detail: 'Photos, hours and location' },
+const STAGES: { title: TKey; detail: TKey }[] = [
+  { title: 'apply.stageApplication', detail: 'apply.stageApplicationDetail' },
+  { title: 'apply.stageVerification', detail: 'apply.stageVerificationDetail' },
+  { title: 'apply.stageSalon', detail: 'apply.stageSalonDetail' },
 ];
 
 type StageState = 'done' | 'review' | 'upcoming';
@@ -61,9 +56,10 @@ type StageState = 'done' | 'review' | 'upcoming';
 const reviewIndexFor = (status: string | null) => (status === 'PHASE2_PENDING' ? 1 : 0);
 
 const formatChecked = (d: Date) =>
-  d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  d.toLocaleTimeString(localeTag(), { hour: '2-digit', minute: '2-digit' });
 
 export default function PendingScreen() {
+  const { t } = useT();
   const router = useRouter();
   const { getToken, userId } = useAuth();
   const insets = useSafeAreaInsets();
@@ -202,14 +198,14 @@ export default function PendingScreen() {
       >
         <View style={statusPill}>
           <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#C08A3E' }} />
-          <Text style={statusPillText}>In review</Text>
+          <Text style={statusPillText}>{t('apply.inReview')}</Text>
         </View>
 
         <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 30, lineHeight: 38, color: darkBrown, marginTop: 18 }}>
-          {copy.title}
+          {t(copy.title)}
         </Text>
         <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 15, lineHeight: 22, color: muted, marginTop: 10 }}>
-          {copy.body}
+          {t(copy.body)}
         </Text>
 
         {/* Progress timeline */}
@@ -255,17 +251,17 @@ export default function PendingScreen() {
                       fontFamily: 'Philosopher-Bold', fontSize: 16,
                       color: state === 'upcoming' ? muted : darkBrown,
                     }}>
-                      {stage.title}
+                      {t(stage.title)}
                     </Text>
                     <Text style={{
                       fontFamily: 'Philosopher-Bold', fontSize: 12,
                       color: state === 'review' ? '#A0702C' : muted,
                     }}>
-                      {state === 'done' ? 'Approved' : state === 'review' ? 'In review' : 'Next'}
+                      {state === 'done' ? t('apply.approved') : state === 'review' ? t('apply.inReview') : t('apply.next')}
                     </Text>
                   </View>
                   <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: muted, marginTop: 2 }}>
-                    {stage.detail}
+                    {t(stage.detail)}
                   </Text>
                 </View>
               </View>
@@ -278,7 +274,7 @@ export default function PendingScreen() {
             <Ionicons name="notifications-outline" size={18} color={darkBrown} />
           </View>
           <Text style={{ flex: 1, fontFamily: 'Philosopher-Regular', fontSize: 14, lineHeight: 20, color: '#6F6258' }}>
-            We'll send you a notification as soon as you're approved. This page also updates by itself while it's open.
+            {t('apply.notifyNote')}
           </Text>
         </View>
       </ScrollView>
@@ -295,8 +291,8 @@ export default function PendingScreen() {
             : <Ionicons name="refresh" size={15} color={muted} />}
           <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: muted }}>
             {checking
-              ? 'Checking…'
-              : lastChecked ? `Last checked ${formatChecked(lastChecked)} · Check now` : 'Check now'}
+              ? t('apply.checking')
+              : lastChecked ? t('apply.lastChecked', { time: formatChecked(lastChecked) }) : t('apply.checkNow')}
           </Text>
         </TouchableOpacity>
 
@@ -305,7 +301,7 @@ export default function PendingScreen() {
           onPress={() => router.replace('/(app)/(tabs)/' as any)}
           style={{ backgroundColor: darkBrown, borderRadius: 14, paddingVertical: 17, alignItems: 'center' }}
         >
-          <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 16, color: white }}>Go home</Text>
+          <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 16, color: white }}>{t('more.goHome')}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

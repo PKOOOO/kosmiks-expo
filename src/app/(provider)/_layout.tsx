@@ -6,6 +6,7 @@ import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import TabBar from '@/components/TabBar';
 import { API_BASE_URL } from '@/config/constants';
 import useProviderServicesStore from '@/store/provider-services.store';
+import { useT } from '@/i18n';
 
 // Tab opened first (replaces the old `initialRouteName` prop on <Tabs>).
 export const unstable_settings = { initialRouteName: 'bookings' };
@@ -19,6 +20,7 @@ const dynamicForeground =
     : "black";
 
 function IosProviderTabs({ serviceCount, tabBarHidden }: { serviceCount: number; tabBarHidden: boolean }) {
+  const { t } = useT();
   return (
     <NativeTabs
       hidden={tabBarHidden}
@@ -34,7 +36,7 @@ function IosProviderTabs({ serviceCount, tabBarHidden }: { serviceCount: number;
           sf={{ default: "calendar.badge.clock", selected: "calendar.badge.clock" }}
           md="calendar_month"
         />
-        <NativeTabs.Trigger.Label hidden>Bookings</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label hidden>{t('ptabs.bookings')}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="services">
@@ -45,7 +47,7 @@ function IosProviderTabs({ serviceCount, tabBarHidden }: { serviceCount: number;
           }}
           md="content_cut"
         />
-        <NativeTabs.Trigger.Label hidden>Services</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label hidden>{t('ptabs.services')}</NativeTabs.Trigger.Label>
         {/* Rendered only when non-zero: the native badge shows "0" even with hidden set. */}
         {serviceCount > 0 && (
           <NativeTabs.Trigger.Badge selectedBackgroundColor={badgeGreen}>
@@ -59,7 +61,7 @@ function IosProviderTabs({ serviceCount, tabBarHidden }: { serviceCount: number;
           sf={{ default: "storefront", selected: "storefront.fill" }}
           md="storefront"
         />
-        <NativeTabs.Trigger.Label hidden>Salon</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label hidden>{t('ptabs.salon')}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="payouts">
@@ -67,7 +69,7 @@ function IosProviderTabs({ serviceCount, tabBarHidden }: { serviceCount: number;
           sf={{ default: "banknote", selected: "banknote.fill" }}
           md="credit_card"
         />
-        <NativeTabs.Trigger.Label hidden>Earnings</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label hidden>{t('ptabs.earnings')}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );
@@ -75,6 +77,7 @@ function IosProviderTabs({ serviceCount, tabBarHidden }: { serviceCount: number;
 
 // Android uses the same floating pill pattern as the customer app.
 function AndroidProviderTabs({ serviceCount, tabBarHidden }: { serviceCount: number; tabBarHidden: boolean }) {
+  const { t } = useT();
   return (
     <Tabs
       tabBar={(props) => tabBarHidden ? null : <TabBar {...props} />}
@@ -82,22 +85,22 @@ function AndroidProviderTabs({ serviceCount, tabBarHidden }: { serviceCount: num
     >
       <Tabs.Screen
         name="bookings"
-        options={{ title: 'Bookings' }}
+        options={{ title: t('ptabs.bookings') }}
       />
       <Tabs.Screen
         name="services"
         options={{
-          title: 'Services',
+          title: t('ptabs.services'),
           tabBarBadge: serviceCount > 0 ? serviceCount : undefined,
         }}
       />
       <Tabs.Screen
         name="salon"
-        options={{ title: 'Salon' }}
+        options={{ title: t('ptabs.salon') }}
       />
       <Tabs.Screen
         name="payouts"
-        options={{ title: 'Earnings' }}
+        options={{ title: t('ptabs.earnings') }}
       />
     </Tabs>
   );

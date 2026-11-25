@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_BASE_URL } from '@/config/constants';
 import CategoryCardGrid from '@/components/CategoryCardGrid';
+import { useT, type TKey } from '@/i18n';
 
 const ADMIN_API_KEY = process.env.EXPO_PUBLIC_ADMIN_API_KEY || '';
 
@@ -28,19 +29,20 @@ const CITIES = [
   'Kouvola', 'Joensuu', 'Lappeenranta', 'Hämeenlinna', 'Vaasa',
 ];
 
-const QUESTIONS = [
-  { question: "What's your first name?" },
-  { question: "What's your last name?" },
-  { question: "What's your phone number?" },
-  { question: 'Which city do you work in?' },
-  { question: 'Which neighbourhood?', hint: 'Optional — you can skip this' },
-  { question: "What's your home address?", hint: 'Not shown publicly — for verification only' },
-  { question: 'What services do you offer?', hint: 'Select all that apply' },
+const QUESTIONS: { question: TKey; hint?: TKey }[] = [
+  { question: 'apply.qFirstName' },
+  { question: 'apply.qLastName' },
+  { question: 'apply.qPhone' },
+  { question: 'apply.qCity' },
+  { question: 'apply.qNeighbourhood', hint: 'apply.hNeighbourhood' },
+  { question: 'apply.qAddress', hint: 'apply.hAddress' },
+  { question: 'apply.qServices', hint: 'apply.hServices' },
 ];
 
 type Category = { id: string; name: string };
 
 export default function Phase1Screen() {
+  const { t } = useT();
   const router = useRouter();
   const { getToken } = useAuth();
   const insets = useSafeAreaInsets();
@@ -83,12 +85,12 @@ export default function Phase1Screen() {
   }, [step]);
 
   const validate = (): boolean => {
-    if (step === 0 && !firstName.trim()) { setError('Please enter your first name'); return false; }
-    if (step === 1 && !lastName.trim()) { setError('Please enter your last name'); return false; }
-    if (step === 2 && !phone.trim()) { setError('Please enter your phone number'); return false; }
-    if (step === 3 && !city) { setError('Please select a city'); return false; }
-    if (step === 5 && !address.trim()) { setError('Please enter your address'); return false; }
-    if (step === 6 && !selectedCategories.length) { setError('Select at least one service'); return false; }
+    if (step === 0 && !firstName.trim()) { setError(t('apply.errFirstName')); return false; }
+    if (step === 1 && !lastName.trim()) { setError(t('apply.errLastName')); return false; }
+    if (step === 2 && !phone.trim()) { setError(t('apply.errPhone')); return false; }
+    if (step === 3 && !city) { setError(t('apply.errCity')); return false; }
+    if (step === 5 && !address.trim()) { setError(t('apply.errAddress')); return false; }
+    if (step === 6 && !selectedCategories.length) { setError(t('apply.errServices')); return false; }
     setError('');
     return true;
   };
@@ -128,7 +130,7 @@ export default function Phase1Screen() {
       if (!res.ok) throw new Error(`${res.status}`);
       router.replace('/(onboarding)/pending' as any);
     } catch {
-      Alert.alert('Error', 'Failed to submit application. Please try again.');
+      Alert.alert(t('common.error'), t('apply.submitFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -200,7 +202,7 @@ export default function Phase1Screen() {
             style={[bigInput, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}
           >
             <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 20, color: city ? darkBrown : '#ccc', flex: 1 }}>
-              {city || 'Select city…'}
+              {city || t('apply.selectCity')}
             </Text>
             <Ionicons name="chevron-down" size={20} color="#aaa" />
           </TouchableOpacity>
@@ -211,7 +213,7 @@ export default function Phase1Screen() {
             ref={neighRef}
             value={neighbourhood}
             onChangeText={v => { setNeighbourhood(v); setError(''); }}
-            placeholder="e.g. Kallio, Töölö"
+            placeholder={t('apply.neighbourhoodPh')}
             placeholderTextColor="#ccc"
             autoCapitalize="words"
             returnKeyType="next"
@@ -225,7 +227,7 @@ export default function Phase1Screen() {
             ref={addressRef}
             value={address}
             onChangeText={v => { setAddress(v); setError(''); }}
-            placeholder="Street address"
+            placeholder={t('apply.addressPh')}
             placeholderTextColor="#ccc"
             autoCapitalize="words"
             returnKeyType="done"
@@ -284,11 +286,11 @@ export default function Phase1Screen() {
             fontFamily: 'Philosopher-Bold', color: darkBrown, marginBottom: q.hint ? 8 : 28,
             fontSize: isServicesStep ? 26 : 30, lineHeight: isServicesStep ? 32 : 38,
           }}>
-            {q.question}
+            {t(q.question)}
           </Text>
           {q.hint ? (
             <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: '#999', marginBottom: isServicesStep ? 14 : 24, lineHeight: 20 }}>
-              {q.hint}
+              {t(q.hint)}
             </Text>
           ) : null}
           {renderStep()}
@@ -310,7 +312,7 @@ export default function Phase1Screen() {
             {submitting
               ? <ActivityIndicator color={white} />
               : <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 16, color: white }}>
-                  {step === TOTAL_STEPS - 1 ? 'Submit application' : 'Continue'}
+                  {step === TOTAL_STEPS - 1 ? t('apply.submit') : t('apply.continue')}
                 </Text>
             }
           </TouchableOpacity>
@@ -325,7 +327,7 @@ export default function Phase1Screen() {
           <View style={{ backgroundColor: white, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: insets.bottom + 8 }}>
             <View style={{ width: 40, height: 4, backgroundColor: beige, borderRadius: 2, alignSelf: 'center', marginTop: 12, marginBottom: 4 }} />
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 14 }}>
-              <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 18, color: darkBrown }}>Select city</Text>
+              <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 18, color: darkBrown }}>{t('more.selectCity')}</Text>
               <TouchableOpacity onPress={() => setShowCityPicker(false)}>
                 <Ionicons name="close" size={22} color={darkBrown} />
               </TouchableOpacity>

@@ -9,10 +9,13 @@ import { RoundButton, EmptyState, colors } from '@/components/admin/AdminUI';
 import { CategorySheet } from '@/components/admin/CatalogSheets';
 import { useCatalogStore } from '@/lib/admin-catalog';
 import { useTabBarSpace } from '@/lib/layout';
+import { useT } from '@/i18n';
+import { translateServerMessage } from '@/i18n/server-messages';
 
 // Catalog: the same category blocks customers see. Tap one to manage its
 // services; darker blocks are the featured ones on the customer home screen.
 export default function AdminCatalogScreen() {
+  const { t } = useT();
   const { getToken } = useAuth();
   const router = useRouter();
   const tabBarSpace = useTabBarSpace();
@@ -27,7 +30,7 @@ export default function AdminCatalogScreen() {
 
   const refresh = useCallback(async () => {
     setError(null);
-    try { await load(tokenFn); } catch { setError("Couldn't load the catalog."); } finally { setRefreshing(false); }
+    try { await load(tokenFn); } catch { setError(t('admin.catalogFailed')); } finally { setRefreshing(false); }
   }, [load, tokenFn]);
 
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
@@ -37,7 +40,7 @@ export default function AdminCatalogScreen() {
 
   return (
     <SafeAreaView edges={Platform.OS === 'ios' ? ['top', 'left', 'right'] : undefined} style={{ flex: 1, backgroundColor: colors.white }}>
-      <BrandHeader right={<RoundButton icon="add" filled label="Add category" onPress={() => setAdding(true)} />} />
+      <BrandHeader right={<RoundButton icon="add" filled label={t('admin.addCategory')} onPress={() => setAdding(true)} />} />
 
       {!loaded ? (
         <ActivityIndicator size="large" color={colors.dark} style={{ marginTop: 40 }} />
@@ -47,7 +50,7 @@ export default function AdminCatalogScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void refresh(); }} tintColor={colors.dark} />}
         >
           {categories.length === 0 ? (
-            <EmptyState icon="grid-outline" title={error ?? 'No categories yet'} body={error ? undefined : 'Tap + to add the first one.'} />
+            <EmptyState icon="grid-outline" title={error ?? t('admin.noCategories')} body={error ? undefined : t('admin.noCategoriesBody')} />
           ) : (
             <>
               <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: colors.muted, textAlign: 'center', marginBottom: 14 }}>
@@ -60,7 +63,7 @@ export default function AdminCatalogScreen() {
               />
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 18 }}>
                 <View style={{ width: 14, height: 14, borderRadius: 5, backgroundColor: colors.dark }} />
-                <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: colors.muted }}>Featured on the customer home screen</Text>
+                <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: colors.muted }}>{t('more.featuredHome')}</Text>
               </View>
             </>
           )}
@@ -77,7 +80,7 @@ export default function AdminCatalogScreen() {
             setAdding(false);
             router.push(`/(admin)/catalog/${created.id}` as any);
           } catch (e: any) {
-            Alert.alert("Couldn't create category", e?.message ?? 'Please try again.');
+            Alert.alert(t('admin.createCategoryFailed'), e?.message ? translateServerMessage(e.message) : t('admin.tryAgain'));
           }
         }}
       />

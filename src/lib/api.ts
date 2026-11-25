@@ -1,4 +1,6 @@
 import { API_BASE_URL } from '@/config/constants';
+import { tr } from '@/i18n';
+import { translateServerMessage } from '@/i18n/server-messages';
 
 /**
  * Shared networking helpers.
@@ -99,21 +101,21 @@ export type ErrorCopy = { title: string; message: string };
 
 export function describeError(error: unknown, isOffline = false): ErrorCopy {
   if (isOffline) {
-    return { title: 'Ei internetyhteyttä', message: 'Tarkista yhteytesi. Yritämme uudelleen, kun yhteys palaa.' };
+    return { title: tr('errors.offlineTitle'), message: tr('errors.offlineBody') };
   }
   switch (classifyError(error)) {
     case 'offline':
-      return { title: 'Yhteysvirhe', message: 'Emme saaneet yhteyttä palveluun. Tarkista yhteytesi ja yritä uudelleen.' };
+      return { title: tr('errors.connTitle'), message: tr('errors.connBody') };
     case 'timeout':
-      return { title: 'Lataus kesti liian kauan', message: 'Yhteys on hidas. Yritä uudelleen.' };
+      return { title: tr('errors.slowTitle'), message: tr('errors.slowBody') };
     case 'server':
-      return { title: 'Palvelussa on tilapäinen häiriö', message: 'Korjaamme asiaa. Yritä hetken kuluttua uudelleen.' };
+      return { title: tr('errors.serverTitle'), message: tr('errors.serverBody') };
     case 'auth':
-      return { title: 'Kirjaudu uudelleen', message: 'Istuntosi on vanhentunut. Kirjaudu sisään ja yritä uudelleen.' };
+      return { title: tr('errors.authTitle'), message: tr('errors.authBody') };
     case 'notFound':
-      return { title: 'Sisältöä ei löytynyt', message: 'Se on ehkä poistettu tai siirretty.' };
+      return { title: tr('errors.notFoundTitle'), message: tr('errors.notFoundBody') };
     default:
-      return { title: 'Jokin meni vikaan', message: 'Yritä uudelleen hetken kuluttua.' };
+      return { title: tr('errors.genericTitle'), message: tr('errors.genericBody') };
   }
 }
 
@@ -132,42 +134,42 @@ export async function isServerHealthy(): Promise<boolean> {
 }
 
 /**
- * English copy for connection-type failures, for the provider onboarding
- * screens (which are written in English). Returns null for other errors so
- * callers can keep showing the server's own validation message.
+ * Short copy for connection-type failures (provider/admin screens), in the app
+ * language. Returns null for other errors so callers can keep showing the
+ * server's own validation message.
  */
-export function connectionProblemEn(error: unknown): string | null {
+export function connectionProblem(error: unknown): string | null {
   switch (classifyError(error)) {
     case 'offline':
-      return 'No internet connection. Check your connection and try again.';
+      return tr('errors.noInternet');
     case 'timeout':
-      return 'The connection is slow. Please try again.';
+      return tr('errors.slow');
     case 'server':
-      return 'Something went wrong on our side. Please try again in a moment.';
+      return tr('errors.ourSide');
     default:
       return null;
   }
 }
 
 /**
- * English error text for the provider and admin screens (they are in English).
+ * Error text for the provider and admin screens, in the app language.
  * Connection problems and server errors get friendly copy; a short, plain
  * server message (e.g. "Rejection reason required") is kept because it tells
  * the user what to fix; anything else (HTML pages, stack traces, empty
  * messages) falls back to `fallback`.
  */
-export function friendlyErrorEn(error: unknown, fallback = 'Something went wrong. Please try again.'): string {
-  const connection = connectionProblemEn(error);
+export function friendlyError(error: unknown, fallback = tr('errors.generic')): string {
+  const connection = connectionProblem(error);
   if (connection) return connection;
   if (error instanceof ApiError) {
     if (error.kind === 'auth') {
       return error.status === 403
-        ? "You don't have permission to do this."
-        : 'Your session has expired. Please sign in again.';
+        ? tr('errors.noPermission')
+        : tr('errors.sessionExpired');
     }
-    if (error.kind === 'notFound') return "That item couldn't be found. It may have been removed.";
+    if (error.kind === 'notFound') return tr('errors.itemNotFound');
   }
   const text = error instanceof Error ? error.message.trim() : '';
   const looksTechnical = !text || text.length > 140 || /^</.test(text) || /^HTTP \d{3}$/.test(text) || /exception|stack|undefined|null/i.test(text);
-  return looksTechnical ? fallback : text;
+  return looksTechnical ? fallback : translateServerMessage(text);
 }

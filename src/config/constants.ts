@@ -33,6 +33,7 @@ export const API_ENDPOINTS = {
   SALONS_MAP: `${API_BASE_URL}/public/saloons/map`,
   REVIEWS: `${API_BASE_URL}/reviews`,
   PUSH_TOKEN: `${API_BASE_URL}/user/push-token`,
+  USER_LANGUAGE: `${API_BASE_URL}/user/language`,
 } as const;
 
 // Export other useful constants

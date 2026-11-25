@@ -12,6 +12,7 @@ import Header from '@/components/Header';
 import SideMenu from '@/components/SideMenu';
 import ReviewsSection from '@/components/ReviewsSection';
 import { useAuth, useUser } from '@clerk/clerk-expo';
+import { localeTag, tr, useT } from '@/i18n';
 
 const dark = '#423120';
 const beige = '#D7C3A7';
@@ -21,7 +22,7 @@ const muted = '#8A7F75';
 const white = '#FFFFFF';
 const pageBg = '#FFFFFF';
 
-const eur = (n: number) => new Intl.NumberFormat('fi-FI', { style: 'currency', currency: 'EUR' }).format(n);
+const eur = (n: number) => new Intl.NumberFormat(localeTag(), { style: 'currency', currency: 'EUR' }).format(n);
 
 // "Kämmenselkä ja ranne (1 käsi)" → main name + the bracketed detail on its own line.
 const splitServiceName = (name: string) => {
@@ -35,6 +36,7 @@ const formatWorkType = (raw: string) => {
 };
 
 export default function CheckoutScreen() {
+  const { t } = useT();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isSignedIn } = useAuth();
@@ -87,14 +89,14 @@ export default function CheckoutScreen() {
         isAvailable: true,
         saloon: {
           id: params.saloonId,
-          name: params.saloonName || 'Unknown Salon',
+          name: params.saloonName || tr('checkout.unknownSalon'),
           userId: 'user-1',
           rating: 4.5,
         },
         service: {
           id: params.serviceId,
-          name: params.serviceName || 'Unknown Service',
-          description: `${params.serviceName} at ${params.saloonName}`,
+          name: params.serviceName || tr('checkout.unknownService'),
+          description: tr('checkout.serviceAt', { service: params.serviceName, salon: params.saloonName }),
           categoryId: 'cat-1',
           isPopular: false,
         },
@@ -180,13 +182,13 @@ export default function CheckoutScreen() {
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
           <Ionicons name="alert-circle-outline" size={56} color={dark} style={{ marginBottom: 14, opacity: 0.5 }} />
           <Text style={{ fontSize: 18, fontFamily: 'Philosopher-Bold', color: dark, textAlign: 'center', marginBottom: 6 }}>
-            Palvelua ei valittu
+            {t('checkout.noService')}
           </Text>
           <Text style={{ fontSize: 14, fontFamily: 'Philosopher-Regular', color: muted, textAlign: 'center', marginBottom: 22 }}>
-            Valitse palvelu jatkaaksesi varausta
+            {t('checkout.noServiceBody')}
           </Text>
           <TouchableOpacity onPress={() => router.back()} style={{ backgroundColor: dark, height: 50, paddingHorizontal: 24, borderRadius: 25, justifyContent: 'center' }}>
-            <Text style={{ fontSize: 16, fontFamily: 'Philosopher-Bold', color: white }}>Takaisin palveluihin</Text>
+            <Text style={{ fontSize: 16, fontFamily: 'Philosopher-Bold', color: white }}>{t('checkout.backToServices')}</Text>
           </TouchableOpacity>
         </View>
         {menu}
@@ -221,7 +223,7 @@ export default function CheckoutScreen() {
 
         {step === 1 && canPickTime && (
           <View style={{ marginTop: 26 }}>
-            <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 24, color: dark, marginBottom: 14 }}>Milloin sinulle sopii?</Text>
+            <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 24, color: dark, marginBottom: 14 }}>{t('more.whenSuits')}</Text>
             <TimeSlotPicker
               saloonId={params.saloonId!}
               serviceId={params.serviceId!}
@@ -234,29 +236,29 @@ export default function CheckoutScreen() {
 
         {step === 2 && (
           <View style={{ marginTop: 26 }}>
-            <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 24, color: dark, marginBottom: 14 }}>Tarkista ja vahvista</Text>
+            <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 24, color: dark, marginBottom: 14 }}>{t('more.reviewConfirm')}</Text>
 
             {isSignedIn ? (
               <DetailCard
                 icon="person-outline"
-                caption="Varaus tehdään nimelläsi"
-                title={customerInfo.name || 'Nimi puuttuu'}
-                body={customerInfo.email || 'Sähköposti puuttuu'}
+                caption={t('checkout.bookedInYourName')}
+                title={customerInfo.name || t('checkout.nameMissing')}
+                body={customerInfo.email || t('checkout.emailMissing')}
               />
             ) : (
               <DetailCard
                 icon="log-in-outline"
-                caption="Valitsemasi aika säilyy"
-                title="Kirjaudu sisään"
-                body="Tarvitset tilin, jotta voit hallita varaustasi."
+                caption={t('checkout.timeKept')}
+                title={t('checkout.signInTitle')}
+                body={t('checkout.signInBody')}
               />
             )}
 
             <View style={{ height: 10 }} />
             <DetailCard
               icon="lock-closed-outline"
-              title="Turvallinen korttimaksu"
-              body="Maksu käsitellään Stripen kautta. Saat vahvistuksen heti."
+              title={t('checkout.securePayment')}
+              body={t('checkout.securePaymentBody')}
             />
           </View>
         )}
@@ -290,7 +292,7 @@ export default function CheckoutScreen() {
         <View style={{ flex: 1 }}>
           {step === 1 ? (
             <PrimaryButton
-              label={pendingSlot ? 'Jatka' : 'Valitse aika'}
+              label={pendingSlot ? t('checkout.continue') : t('slots.chooseTime')}
               icon={pendingSlot ? 'arrow-forward' : undefined}
               disabled={!pendingSlot}
               onPress={() => pendingSlot && confirmSlot(pendingSlot)}
@@ -303,10 +305,10 @@ export default function CheckoutScreen() {
               onError={handleError}
               disabled={!isCustomerInfoComplete}
             >
-              Maksa ja varaa
+              {t('checkout.payAndBook')}
             </CheckoutButton>
           ) : (
-            <PrimaryButton label="Kirjaudu ja varaa" icon="log-in-outline" onPress={goToSignIn} />
+            <PrimaryButton label={t('checkout.signInAndBook')} icon="log-in-outline" onPress={goToSignIn} />
           )}
         </View>
       </View>
@@ -330,6 +332,7 @@ function BookingTicket({
   confirmed: boolean;
   onChangeTime?: () => void;
 }) {
+  const { t } = useT();
   return (
     <View style={{
       borderRadius: 26,
@@ -354,7 +357,7 @@ function BookingTicket({
         ) : null}
 
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 }}>
-          <TicketChip icon="time-outline" label={`${durationMinutes} min`} />
+          <TicketChip icon="time-outline" label={t('checkout.minutes', { minutes: durationMinutes })} />
           {workType ? <TicketChip icon="sparkles-outline" label={workType} /> : null}
         </View>
       </View>
@@ -378,7 +381,7 @@ function BookingTicket({
         </View>
         <View style={{ flex: 1 }}>
           <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: beige }}>
-            {confirmed ? 'Varattu aika' : 'Aika'}
+            {confirmed ? t('checkout.bookedTime') : t('checkout.time')}
           </Text>
           <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 19, color: white, marginTop: 1 }}>
             {formatSlotLabel(when)}
@@ -390,7 +393,7 @@ function BookingTicket({
             accessibilityRole="button"
             style={{ height: 34, paddingHorizontal: 14, borderRadius: 17, justifyContent: 'center', backgroundColor: 'rgba(215,195,167,0.2)' }}
           >
-            <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 14, color: white }}>Muuta</Text>
+            <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 14, color: white }}>{t('more.change')}</Text>
           </TouchableOpacity>
         ) : null}
       </View>

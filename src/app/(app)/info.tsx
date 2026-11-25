@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import Header from '@/components/Header';
 import SideMenu from '@/components/SideMenu';
 import { SUPPORT_EMAIL } from '@/lib/earnings';
+import { useT, type TKey } from '@/i18n';
 
 const darkBrown = "#423120";
 const lightBrown = "#D7C3A7";
@@ -14,30 +15,22 @@ const PRIVACY_POLICY_URL = "https://www.kosmiks.com/privacy";
 
 type TabType = 'faq' | 'about' | 'contact' | 'terms' | 'privacy';
 
-const sections: { id: TabType; name: string }[] = [
-    { id: 'faq', name: 'FAQ' },
-    { id: 'about', name: 'Tietoja meistä' },
-    { id: 'contact', name: 'Ota yhteyttä' },
-    { id: 'terms', name: 'Ehdot' },
-    { id: 'privacy', name: 'Yksityisyys' },
+const sections: { id: TabType; name: TKey }[] = [
+    { id: 'faq', name: 'info.faqTab' },
+    { id: 'about', name: 'info.aboutTab' },
+    { id: 'contact', name: 'info.contactTab' },
+    { id: 'terms', name: 'info.termsTab' },
+    { id: 'privacy', name: 'info.privacyTab' },
 ];
 
-const faqs = [
-    {
-        q: 'Miten voin varata palvelun?',
-        a: 'Siirry Palvelut-sivulle, valitse kategoria ja palvelu, ja valitse sinulle sopiva ajankohta.',
-    },
-    {
-        q: 'Voinko peruuttaa varaukseni?',
-        a: 'Kyllä. Voit peruuttaa varauksesi profiilisi "Omat varaukset" -osiossa peruutusehtojen mukaisesti.',
-    },
-    {
-        q: 'Mitä maksutapoja hyväksytään?',
-        a: 'Hyväksymme yleisimmät maksukortit. Maksut käsitellään turvallisesti Stripen kautta.',
-    },
+const faqs: { q: TKey; a: TKey }[] = [
+    { q: 'info.q1', a: 'info.a1' },
+    { q: 'info.q2', a: 'info.a2' },
+    { q: 'info.q3', a: 'info.a3' },
 ];
 
 export default function InfoPage() {
+    const { t } = useT();
     const router = useRouter();
     const params = useLocalSearchParams();
     const [activeTab, setActiveTab] = useState<TabType>('faq');
@@ -62,11 +55,11 @@ export default function InfoPage() {
             case 'faq':
                 return (
                     <>
-                        <Text style={styles.title}>Usein kysytyt kysymykset</Text>
+                        <Text style={styles.title}>{t('info.faqTitle')}</Text>
                         {faqs.map((item, i) => (
                             <View key={item.q} style={[styles.block, i > 0 && styles.divider]}>
-                                <Text style={styles.subTitle}>{item.q}</Text>
-                                <Text style={styles.paragraph}>{item.a}</Text>
+                                <Text style={styles.subTitle}>{t(item.q)}</Text>
+                                <Text style={styles.paragraph}>{t(item.a)}</Text>
                             </View>
                         ))}
                     </>
@@ -74,24 +67,24 @@ export default function InfoPage() {
             case 'about':
                 return (
                     <>
-                        <Text style={styles.title}>Tietoja meistä</Text>
+                        <Text style={styles.title}>{t('info.aboutTitle')}</Text>
                         <Text style={styles.paragraph}>
-                            KOSMIKS on kauneus- ja hyvinvointipalveluiden kohteesi. Yhdistämme sinut alan huippuammattilaisiin hiusten, kynsien, hieronnan ja muiden palveluiden parissa.
+                            {t('info.about1')}
                         </Text>
                         <Text style={styles.paragraph}>
-                            Missiomme on tehdä itsehoidosta helppoa kaikille. Tarvitsetpa sitten nopean siistimisen tai kokonaisen kylpyläpäivän, me hoidamme kaiken.
+                            {t('info.about2')}
                         </Text>
                     </>
                 );
             case 'contact':
                 return (
                     <>
-                        <Text style={styles.title}>Ota yhteyttä</Text>
+                        <Text style={styles.title}>{t('info.contactTitle')}</Text>
                         <Text style={styles.paragraph}>
-                            Onko sinulla kysyttävää tai palautetta? Kuulemme mielellämme sinusta!
+                            {t('info.contactBody')}
                         </Text>
                         <View style={[styles.block, styles.divider]}>
-                            <Text style={styles.label}>Sähköposti</Text>
+                            <Text style={styles.label}>{t('info.email')}</Text>
                             <Text
                                 style={[styles.paragraph, styles.link]}
                                 onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`).catch(() => { })}
@@ -100,52 +93,52 @@ export default function InfoPage() {
                             </Text>
                         </View>
                         <View style={[styles.block, styles.divider]}>
-                            <Text style={styles.label}>Sijainti</Text>
-                            <Text style={styles.paragraph}>Helsinki, Suomi</Text>
+                            <Text style={styles.label}>{t('info.location')}</Text>
+                            <Text style={styles.paragraph}>{t('info.locationValue')}</Text>
                         </View>
                     </>
                 );
             case 'terms':
                 return (
                     <>
-                        <Text style={styles.title}>Käyttöehdot</Text>
+                        <Text style={styles.title}>{t('info.termsTitle')}</Text>
                         <Text style={styles.paragraph}>
-                            Tervetuloa Kosmiksiin. Käyttämällä sovellustamme hyväksyt nämä ehdot.
+                            {t('info.termsIntro')}
                         </Text>
-                        <Text style={styles.subTitle}>1. Käyttäjätilit</Text>
+                        <Text style={styles.subTitle}>{t('info.terms1Title')}</Text>
                         <Text style={styles.paragraph}>
-                            Olet vastuussa Google-tilisi luottamuksellisuuden säilyttämisestä.
+                            {t('info.terms1')}
                         </Text>
-                        <Text style={styles.subTitle}>2. Varaukset</Text>
+                        <Text style={styles.subTitle}>{t('info.terms2Title')}</Text>
                         <Text style={styles.paragraph}>
-                            Varaukset riippuvat saatavuudesta ja palveluntarjoajan vahvistuksesta.
+                            {t('info.terms2')}
                         </Text>
-                        <Text style={styles.subTitle}>3. Peruutukset</Text>
+                        <Text style={styles.subTitle}>{t('info.terms3Title')}</Text>
                         <Text style={styles.paragraph}>
-                            Peruutukset on tehtävä vähintään 24 tuntia etukäteen maksujen välttämiseksi.
+                            {t('info.terms3')}
                         </Text>
                     </>
                 );
             case 'privacy':
                 return (
                     <>
-                        <Text style={styles.title}>Tietosuojaseloste</Text>
+                        <Text style={styles.title}>{t('info.privacyTitle')}</Text>
                         <Text style={styles.paragraph}>
-                            Tietosuojasi on meille tärkeää. Tässä kerromme lyhyesti, miten keräämme ja käytämme tietojasi.
+                            {t('info.privacyIntro')}
                         </Text>
-                        <Text style={styles.subTitle}>Tiedonkeruu</Text>
+                        <Text style={styles.subTitle}>{t('info.privacy1Title')}</Text>
                         <Text style={styles.paragraph}>
-                            Keräämme tietoja, jotka annat meille suoraan, esimerkiksi luodessasi tilin tai varatessasi palvelun.
+                            {t('info.privacy1')}
                         </Text>
-                        <Text style={styles.subTitle}>Tietojen käyttö</Text>
+                        <Text style={styles.subTitle}>{t('info.privacy2Title')}</Text>
                         <Text style={styles.paragraph}>
-                            Käytämme tietojasi palvelujemme tarjoamiseen ja parantamiseen, maksujen käsittelyyn ja viestintään kanssasi.
+                            {t('info.privacy2')}
                         </Text>
                         <Text
                             style={[styles.paragraph, styles.link]}
                             onPress={() => Linking.openURL(PRIVACY_POLICY_URL).catch(() => { })}
                         >
-                            Lue koko tietosuojaseloste
+                            {t('info.privacyFull')}
                         </Text>
                     </>
                 );
@@ -198,7 +191,7 @@ export default function InfoPage() {
                                 style={[styles.pill, selected && styles.pillSelected]}
                             >
                                 <Text style={[styles.pillText, selected && styles.pillTextSelected]}>
-                                    {section.name}
+                                    {t(section.name)}
                                 </Text>
                             </TouchableOpacity>
                         );

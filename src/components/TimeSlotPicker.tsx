@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { API_BASE_URL } from '@/config/constants';
+import { localeTag, tr, useLanguage, useT, type TKey } from '@/i18n';
 
 const darkBrown = '#423120';
 const beige = '#D7C3A7';
@@ -27,11 +28,12 @@ type Props = {
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const capitalise = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-/** "La 24.10. klo 10.30" — the chosen slot in Finnish date/time style. */
+/** "La 24.10. klo 10.30" / "Sat 24/10 at 10:30" — the chosen slot in the app language. */
 export const formatSlotLabel = (datetime: string) => {
   const d = new Date(datetime);
-  const weekday = capitalise(d.toLocaleDateString('fi-FI', { weekday: 'short' }));
-  return `${weekday} ${d.getDate()}.${d.getMonth() + 1}. klo ${pad2(d.getHours())}.${pad2(d.getMinutes())}`;
+  const weekday = capitalise(d.toLocaleDateString(localeTag(), { weekday: 'short' }));
+  const sep = useLanguage.getState().lang === 'en' ? ':' : '.';
+  return tr('slots.slotLabel', { weekday, day: d.getDate(), month: d.getMonth() + 1, time: `${pad2(d.getHours())}${sep}${pad2(d.getMinutes())}` });
 };
 
 /**
@@ -48,6 +50,7 @@ export function ConfirmBookingTimeButton({
   /** Chosen slot's datetime — shown on the button so the choice is always visible. */
   selected?: string | null;
 }) {
+  const { t, locale } = useT();
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -65,7 +68,7 @@ export function ConfirmBookingTimeButton({
       }}
     >
       <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 16, color: enabled ? white : muted }}>
-        {enabled && selected ? `Jatka · ${formatSlotLabel(selected)}` : 'Valitse aika'}
+        {enabled && selected ? t('slots.continueAt', { slot: formatSlotLabel(selected) }) : t('slots.chooseTime')}
       </Text>
     </TouchableOpacity>
   );
@@ -75,9 +78,9 @@ export function ConfirmBookingTimeButton({
 // (22–06) is last and folded away — the salon is bookable around the clock,
 // but few people want 03:00.
 const PERIODS = [
-  { key: 'morning', label: 'Aamu', icon: 'partly-sunny-outline', from: 6, to: 12 },
-  { key: 'afternoon', label: 'Iltapäivä', icon: 'sunny-outline', from: 12, to: 17 },
-  { key: 'evening', label: 'Ilta', icon: 'cloudy-night-outline', from: 17, to: 22 },
+  { key: 'morning', label: 'slots.morning', icon: 'partly-sunny-outline', from: 6, to: 12 },
+  { key: 'afternoon', label: 'slots.afternoon', icon: 'sunny-outline', from: 12, to: 17 },
+  { key: 'evening', label: 'slots.evening', icon: 'cloudy-night-outline', from: 17, to: 22 },
 ] as const;
 
 const hourOf = (time: string) => Number(time.slice(0, 2));
@@ -90,6 +93,7 @@ export default function TimeSlotPicker({
   showConfirmButton = true,
   onSelectionChange,
 }: Props) {
+  const { t, locale } = useT();
   const today = useMemo(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -153,15 +157,15 @@ export default function TimeSlotPicker({
   const groups = useMemo(() => [
     ...PERIODS.map(p => ({
       key: p.key as string,
-      label: p.label as string,
+      label: p.label as TKey,
       icon: p.icon as React.ComponentProps<typeof Ionicons>['name'],
       slots: slots.filter(s => hourOf(s.time) >= p.from && hourOf(s.time) < p.to),
     })),
-    { key: 'night', label: 'Yö', icon: 'moon-outline' as const, slots: slots.filter(s => isNight(s.time)) },
+    { key: 'night', label: 'slots.night' as TKey, icon: 'moon-outline' as const, slots: slots.filter(s => isNight(s.time)) },
   ].filter(g => g.slots.length > 0), [slots]);
 
   const daytimeCount = groups.filter(g => g.key !== 'night').reduce((n, g) => n + g.slots.length, 0);
-  const selectedLabel = capitalise(selectedDate.toLocaleDateString('fi-FI', { weekday: 'long', day: 'numeric', month: 'long' }));
+  const selectedLabel = capitalise(selectedDate.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' }));
 
   return (
     <View>
@@ -174,7 +178,7 @@ export default function TimeSlotPicker({
       >
         {dates.map((d, i) => {
           const isSelected = toAPIDate(d) === toAPIDate(selectedDate);
-          const weekday = i === 0 ? 'Tänään' : capitalise(d.toLocaleDateString('fi-FI', { weekday: 'short' }));
+          const weekday = i === 0 ? t('slots.today') : capitalise(d.toLocaleDateString(locale, { weekday: 'short' }));
           const showMonth = i === 0 || d.getDate() === 1;
           return (
             <TouchableOpacity
@@ -183,7 +187,7 @@ export default function TimeSlotPicker({
               activeOpacity={0.8}
               accessibilityRole="button"
               accessibilityState={{ selected: isSelected }}
-              accessibilityLabel={d.toLocaleDateString('fi-FI', { weekday: 'long', day: 'numeric', month: 'long' })}
+              accessibilityLabel={d.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' })}
               style={{
                 width: 60,
                 paddingVertical: 10,
@@ -199,7 +203,7 @@ export default function TimeSlotPicker({
                 {d.getDate()}
               </Text>
               <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 11, color: isSelected ? beige : muted, opacity: showMonth || isSelected ? 1 : 0 }}>
-                {d.toLocaleDateString('fi-FI', { month: 'short' }).replace('.', '')}
+                {d.toLocaleDateString(locale, { month: 'short' }).replace('.', '')}
               </Text>
             </TouchableOpacity>
           );
@@ -218,16 +222,16 @@ export default function TimeSlotPicker({
       ) : failed ? (
         <Notice
           icon="cloud-offline-outline"
-          title="Aikoja ei voitu ladata"
-          body="Tarkista yhteys ja yritä uudelleen."
-          action={{ label: 'Yritä uudelleen', onPress: () => setReloadKey(k => k + 1) }}
+          title={t('slots.loadFailed')}
+          body={t('slots.loadFailedBody')}
+          action={{ label: t('common.retry'), onPress: () => setReloadKey(k => k + 1) }}
         />
       ) : slots.length === 0 ? (
         <Notice
           icon="calendar-clear-outline"
-          title="Täyteen varattu"
-          body="Tälle päivälle ei ole vapaita aikoja — kokeile toista päivää."
-          action={{ label: 'Seuraava päivä', onPress: () => {
+          title={t('slots.full')}
+          body={t('slots.fullBody')}
+          action={{ label: t('slots.nextDay'), onPress: () => {
             const idx = dates.findIndex(d => toAPIDate(d) === toAPIDate(selectedDate));
             if (idx >= 0 && idx < dates.length - 1) setSelectedDate(dates[idx + 1]);
           } }}
@@ -245,7 +249,7 @@ export default function TimeSlotPicker({
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}
                 >
                   <Ionicons name={group.icon} size={16} color={muted} />
-                  <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 14, color: muted }}>{group.label}</Text>
+                  <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 14, color: muted }}>{t(group.label)}</Text>
                   {group.key === 'night' && daytimeCount > 0 && (
                     <Ionicons name={folded ? 'chevron-down' : 'chevron-up'} size={15} color={muted} style={{ marginLeft: 2 }} />
                   )}

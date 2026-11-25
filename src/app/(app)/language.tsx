@@ -1,5 +1,5 @@
 // src/app/(app)/language.tsx
-import React, { useState } from "react";
+import React from "react";
 import {
   SafeAreaView,
   ScrollView,
@@ -11,6 +11,7 @@ import {
 import { useRouter } from "expo-router";
 import { useFonts } from "expo-font";
 import Header from "@/components/Header";
+import { LANGUAGES, useLanguage, useT } from '@/i18n';
 
 const darkBrown = "#423120";
 const beige = "#D9C7AF";
@@ -18,8 +19,10 @@ const lightBeige = "#D7C3A7";
 const titleLine = "#D7C3A7";
 
 export default function LanguagePage() {
+  const { t } = useT();
   const router = useRouter();
-  const [selectedLanguage, setSelectedLanguage] = useState<string>("Suomi");
+  const lang = useLanguage((s) => s.lang);
+  const setLang = useLanguage((s) => s.setLang);
 
   const [fontsLoaded] = useFonts({
     'Philosopher-Regular': require("../../assets/app-fonts/Philosopher-Regular.ttf"),
@@ -28,18 +31,6 @@ export default function LanguagePage() {
     'Philosopher-BoldItalic': require("../../assets/app-fonts/Philosopher-BoldItalic.ttf"),
   });
 
-  const languages = [
-    { code: "fi", name: "Suomi" },
-    { code: "sv", name: "Svenska" },
-    { code: "en", name: "English" },
-  ];
-
-  const handleLanguageSelect = (languageCode: string, languageName: string) => {
-    setSelectedLanguage(languageName);
-    // TODO: Implement language change logic here
-    // This could save to AsyncStorage or update a language store
-    console.log("Selected language:", languageCode, languageName);
-  };
 
   if (!fontsLoaded) {
     return null;
@@ -63,21 +54,22 @@ export default function LanguagePage() {
         {/* Card Container */}
         <View style={styles.card}>
           {/* Title */}
-          <Text style={styles.title}>Kieli</Text>
+          <Text style={styles.title}>{t('language.title')}</Text>
 
           {/* Horizontal line */}
           <View style={styles.titleLine} />
 
           {/* Language Buttons */}
           <View style={styles.buttonsContainer}>
-            {languages.map((language) => (
+            {LANGUAGES.map((language) => (
               <TouchableOpacity
                 key={language.code}
                 style={[
                   styles.languageButton,
-                  selectedLanguage === language.name && styles.languageButtonSelected
+                  lang === language.code && styles.languageButtonSelected
                 ]}
-                onPress={() => handleLanguageSelect(language.code, language.name)}
+                onPress={() => setLang(language.code)}
+                accessibilityState={{ selected: lang === language.code }}
                 activeOpacity={0.7}
               >
                 <Text style={styles.languageButtonText}>{language.name}</Text>
@@ -112,7 +104,6 @@ const styles = StyleSheet.create({
     borderColor: beige,
     width: "100%",
     maxWidth: 400,
-    height: 309,
     paddingTop: 20,
     paddingBottom: 24,
     paddingHorizontal: 24,

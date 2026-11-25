@@ -23,6 +23,7 @@ import Header from "@/components/Header";
 import { useUser, useAuth } from "@clerk/clerk-expo";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { apiFetch, apiHeaders } from "@/lib/api";
+import { useT, tr } from '@/i18n';
 
 const beige = "#D9C7AF";
 const darkBrown = "#423120";
@@ -35,12 +36,12 @@ const fetchSalonDetails = async (salonId: string) => {
     const response = await fetch(`${API_ENDPOINTS.SALONS}/${salonId}`);
     if (response.ok) {
       const salon = await response.json();
-      return salon.name || "Salon";
+      return salon.name || tr('home.salon');
     }
   } catch (error) {
     console.error("Error fetching salon details:", error);
   }
-  return "Salon";
+  return tr('home.salon');
 };
 
 /** Helpers to safely extract names from different possible backend shapes */
@@ -52,7 +53,7 @@ function getServiceName(b: Booking) {
     anyB.service?.name ||
     anyB.subServiceName ||
     anyB.serviceName ||
-    "Palvelu"
+    tr('home.service')
   );
 }
 function getSalonName(b: Booking, salonNames: Record<string, string>) {
@@ -70,7 +71,7 @@ function getSalonName(b: Booking, salonNames: Record<string, string>) {
     anyB.saloon?.name ||
     anyB.salonName ||
     anyB.saloonName ||
-    "Salon"
+    tr('home.salon')
   );
 
   console.log("Extracted salon name:", salonName);
@@ -78,6 +79,7 @@ function getSalonName(b: Booking, salonNames: Record<string, string>) {
 }
 
 export default function BookingsScreen() {
+  const { t, locale } = useT();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -107,11 +109,11 @@ export default function BookingsScreen() {
   const getTitle = () => {
     switch (viewMode) {
       case 'upcoming':
-        return 'Tulevat hoidot';
+        return t('bookings.upcoming');
       case 'past':
-        return 'Menneet hoidot';
+        return t('bookings.past');
       default:
-        return 'Varaukset';
+        return t('bookings.all');
     }
   };
 
@@ -155,7 +157,7 @@ export default function BookingsScreen() {
       }
     } catch (error) {
       console.error("Error fetching bookings:", error);
-      Alert.alert("Error", "Failed to fetch bookings");
+      Alert.alert(t('common.error'), t('bookings.fetchFailed'));
     } finally {
       setLoading(false);
     }
@@ -174,14 +176,14 @@ export default function BookingsScreen() {
   }, [user]);
 
   const confirmCancel = (id: string) => {
-    Alert.alert("Peruuta varaus", "Haluatko varmasti peruuttaa varauksen?", [
-      { text: "Ei", style: "cancel" },
+    Alert.alert(t('bookings.cancelTitle'), t('bookings.cancelConfirm'), [
+      { text: t('common.no'), style: "cancel" },
       {
-        text: "Kyllä",
+        text: t('common.yes'),
         style: "destructive",
         onPress: () => {
           setBookings((prev) => prev.filter((b) => b.id !== id));
-          Alert.alert("Peruutettu", "Varaus peruutettu.");
+          Alert.alert(t('bookings.cancelled'), t('bookings.cancelledBody'));
         },
       },
     ]);
@@ -229,10 +231,10 @@ export default function BookingsScreen() {
       setSelectedBooking(null);
       setSelectedRating(0);
 
-      Alert.alert("Kiitos!", `Annoit arvosanan ${selectedRating}/5 ⭐`);
+      Alert.alert(t('bookings.thanks'), t('bookings.ratedBody', { rating: selectedRating }));
     } catch (error) {
       console.error("Error submitting rating:", error);
-      Alert.alert("Virhe", "Arvosanan lähettäminen epäonnistui.");
+      Alert.alert(t('common.error'), t('bookings.rateFailed'));
     } finally {
       setSubmittingRating(false);
     }
@@ -329,7 +331,7 @@ export default function BookingsScreen() {
                   paddingBottom: 4,
                 }}
               >
-                Tulevat hoidot
+                {t('bookings.upcoming')}
               </Text>
             )}
 
@@ -349,7 +351,7 @@ export default function BookingsScreen() {
                   fontSize: 15,
                   fontFamily: "Philosopher-Bold"
                 }}>
-                  Ei tulevia varauksia.
+                  {t('bookings.noUpcoming')}
                 </Text>
               </View>
             ) : (
@@ -366,13 +368,13 @@ export default function BookingsScreen() {
                   const serviceName = getServiceName(b);
                   const salonName = getSalonName(b, salonNames);
                   const bookingDate = new Date(b.bookingTime);
-                  const dateStr = bookingDate.toLocaleDateString("fi-FI", {
+                  const dateStr = bookingDate.toLocaleDateString(locale, {
                     weekday: "short",
                     day: "numeric",
                     month: "numeric",
                     year: "numeric",
                   });
-                  const timeStr = bookingDate.toLocaleTimeString("fi-FI", {
+                  const timeStr = bookingDate.toLocaleTimeString(locale, {
                     hour: "2-digit",
                     minute: "2-digit",
                   });
@@ -467,7 +469,7 @@ export default function BookingsScreen() {
                   paddingBottom: 4,
                 }}
               >
-                Menneet hoidot
+                {t('bookings.past')}
               </Text>
             )}
 
@@ -487,7 +489,7 @@ export default function BookingsScreen() {
                   fontSize: 15,
                   fontFamily: "Philosopher-Bold"
                 }}>
-                  Ei menneitä hoitoja.
+                  {t('bookings.noPast')}
                 </Text>
               </View>
             ) : (
@@ -504,13 +506,13 @@ export default function BookingsScreen() {
                   const serviceName = getServiceName(b);
                   const salonName = getSalonName(b, salonNames);
                   const bookingDate = new Date(b.bookingTime);
-                  const dateStr = bookingDate.toLocaleDateString("fi-FI", {
+                  const dateStr = bookingDate.toLocaleDateString(locale, {
                     weekday: "short",
                     day: "numeric",
                     month: "numeric",
                     year: "numeric",
                   });
-                  const timeStr = bookingDate.toLocaleTimeString("fi-FI", {
+                  const timeStr = bookingDate.toLocaleTimeString(locale, {
                     hour: "2-digit",
                     minute: "2-digit",
                   });
@@ -657,7 +659,7 @@ export default function BookingsScreen() {
                 textAlign: "center",
                 marginBottom: 8,
               }}>
-                Arvostele hoito
+                {t('bookings.rateTitle')}
               </Text>
 
               {/* Service & Salon name */}
@@ -717,12 +719,12 @@ export default function BookingsScreen() {
                 textAlign: "center",
                 marginBottom: 24,
               }}>
-                {selectedRating === 0 && "Valitse arvosana napauttamalla tähtiä"}
-                {selectedRating === 1 && "Huono kokemus 😞"}
-                {selectedRating === 2 && "Tyydyttävä 😐"}
-                {selectedRating === 3 && "Hyvä 🙂"}
-                {selectedRating === 4 && "Erittäin hyvä 😊"}
-                {selectedRating === 5 && "Erinomainen! 🤩"}
+                {selectedRating === 0 && t('bookings.rate0')}
+                {selectedRating === 1 && t('bookings.rate1')}
+                {selectedRating === 2 && t('bookings.rate2')}
+                {selectedRating === 3 && t('bookings.rate3')}
+                {selectedRating === 4 && t('bookings.rate4')}
+                {selectedRating === 5 && t('bookings.rate5')}
               </Text>
 
               {/* Comment Input */}
@@ -747,7 +749,7 @@ export default function BookingsScreen() {
                     minHeight: 100,
                     textAlignVertical: "top",
                   }}
-                  placeholder="Kerro kokemuksestasi..."
+                  placeholder={t('bookings.ratePlaceholder')}
                   placeholderTextColor="#999"
                   multiline
                   numberOfLines={4}
@@ -779,7 +781,7 @@ export default function BookingsScreen() {
                       fontSize: 16,
                       color: "white",
                     }}>
-                      Lähetä
+                      {t('bookings.send')}
                     </Text>
                   )}
                 </TouchableOpacity>

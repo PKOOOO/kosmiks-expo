@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { API_BASE_URL } from '@/config/constants';
+import { localeTag, tr } from '@/i18n';
 
 // Shared data + maths for the Earnings tab (overview, payout detail,
 // how-it-works). One fetch serves every page in the stack. Earnings are paid
@@ -110,21 +111,21 @@ export const useEarningsStore = create<EarningsState>((set) => ({
         loading: false,
       });
     } catch {
-      set({ error: "Couldn't load your earnings.", loading: false });
+      set({ error: tr('earnings.loadFailed'), loading: false });
     }
   },
 }));
 
 // ─── Formatting ──────────────────────────────────────────────────────────────
 
-const eur = new Intl.NumberFormat('fi-FI', { style: 'currency', currency: 'EUR' });
-export const formatEur = (n: number) => eur.format(n);
+export const formatEur = (n: number) =>
+  new Intl.NumberFormat(localeTag(), { style: 'currency', currency: 'EUR' }).format(n);
 
 export const formatDay = (d: Date) =>
-  d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  d.toLocaleDateString(localeTag(), { weekday: 'short', day: 'numeric', month: 'short' });
 
 export const formatDate = (d: Date) =>
-  d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  d.toLocaleDateString(localeTag(), { day: 'numeric', month: 'short', year: 'numeric' });
 
 export const formatIban = (iban: string) => iban.replace(/\s+/g, '').replace(/(.{4})/g, '$1 ').trim();
 
@@ -192,7 +193,7 @@ export function totalsByMonth(bookings: EarningsBooking[]): MonthTotal[] {
     .sort(([a], [b]) => b.localeCompare(a))
     .map(([key, { revenue, count }]) => {
       const [y, m] = key.split('-');
-      const label = new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+      const label = new Date(Number(y), Number(m) - 1, 1).toLocaleDateString(localeTag(), { month: 'long', year: 'numeric' });
       return { key, label, revenue: round2(revenue), count };
     });
 }

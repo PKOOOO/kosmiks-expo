@@ -28,8 +28,10 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as Haptics from 'expo-haptics';
 import { API_BASE_URL } from '@/config/constants';
 import useProviderServicesStore from '@/store/provider-services.store';
-import { ApiError, friendlyErrorEn } from '@/lib/api';
+import { ApiError, friendlyError } from '@/lib/api';
 import BrandHeader from '@/components/BrandHeader';
+import { useT, formatMoney } from '@/i18n';
+import { formatEur } from '@/lib/earnings';
 
 const darkBrown = '#423120';
 const beige = '#D7C3A7';
@@ -72,6 +74,7 @@ function DurationControl({
   onChange: (duration: number) => void;
   autoFocus?: boolean;
 }) {
+  const { t } = useT();
   const wheelRef = useRef<ScrollViewInstance>(null);
   const [wheelHeight, setWheelHeight] = useState(DURATION_ITEM_HEIGHT * DURATION_VISIBLE_ROWS);
   const initialIndex = Math.max(
@@ -106,11 +109,11 @@ function DurationControl({
             }}
             keyboardType="number-pad"
             maxLength={4}
-            placeholder="Enter minutes"
+            placeholder={t('psvc.enterMinutes')}
             placeholderTextColor="#B9AFA5"
             style={styles.androidDurationInput}
           />
-          <Text style={styles.androidDurationUnit}>minutes</Text>
+          <Text style={styles.androidDurationUnit}>{t('psvc.minutes')}</Text>
         </View>
       </View>
     );
@@ -179,6 +182,7 @@ function DurationControl({
 }
 
 export default function ProviderServicesScreen() {
+  const { t } = useT();
   const { getToken } = useAuth();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -251,7 +255,7 @@ export default function ProviderServicesScreen() {
         setCategories(Array.isArray(cats) ? cats.filter((c: GlobalCategory) => c.services?.length > 0) : []);
       }
     } catch {
-      setError('Failed to load services.');
+      setError(t('psvc.loadFailed'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -367,11 +371,11 @@ export default function ProviderServicesScreen() {
       if (isEditing) {
         const price = parsePrice(editForm.price);
         if (isNaN(price) || price <= 0) {
-          Alert.alert('Required', 'Enter a valid price.');
+          Alert.alert(t('psvc.required'), t('psvc.validPrice'));
           return;
         }
         if (!Number.isFinite(editForm.durationMinutes) || editForm.durationMinutes <= 0) {
-          Alert.alert('Required', 'Enter a valid duration.');
+          Alert.alert(t('psvc.required'), t('psvc.validDuration'));
           return;
         }
         const res = await fetch(`${API_BASE_URL}/saloons/${saloonId}/services/${editForm.serviceId}`, {
@@ -389,12 +393,12 @@ export default function ProviderServicesScreen() {
         );
       } else {
         if (!selectedServiceId) {
-          Alert.alert('Required', 'Please select a service.');
+          Alert.alert(t('psvc.required'), t('psvc.selectService'));
           return;
         }
         const price = parsePrice(addPrice);
         if (isNaN(price) || price <= 0) {
-          Alert.alert('Required', 'Enter a valid price.');
+          Alert.alert(t('psvc.required'), t('psvc.validPrice'));
           return;
         }
         const res = await fetch(`${API_BASE_URL}/saloons/${saloonId}/services`, {
@@ -409,17 +413,17 @@ export default function ProviderServicesScreen() {
       }
       closeModal();
     } catch (e: any) {
-      Alert.alert('Error', friendlyErrorEn(e, 'Failed to save service. Please try again.'));
+      Alert.alert(t('common.error'), friendlyError(e, t('psvc.saveFailed')));
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = (svc: SaloonService) => {
-    Alert.alert('Delete Service', `Remove "${svc.service?.name}" from your salon?`, [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('psvc.deleteTitle'), t('psvc.deleteBody', { name: svc.service?.name ?? '' }), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Delete',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
           if (!saloonId) return;
@@ -430,7 +434,7 @@ export default function ProviderServicesScreen() {
             if (!res.ok) throw new Error();
           } catch {
             setServices(prev => [...prev, svc]);
-            Alert.alert('Error', 'Failed to delete service. Please try again.');
+            Alert.alert(t('common.error'), t('psvc.deleteFailed'));
           }
         },
       },
@@ -443,7 +447,7 @@ export default function ProviderServicesScreen() {
     if (addStep === 1) {
       const price = parsePrice(addPrice);
       if (!Number.isFinite(price) || price <= 0) {
-        setAddError('Enter a valid price to continue.');
+        setAddError(t('psvc.priceToContinue'));
         return;
       }
       Keyboard.dismiss();
@@ -452,7 +456,7 @@ export default function ProviderServicesScreen() {
     }
 
     if (!Number.isFinite(addDuration) || addDuration <= 0) {
-      setAddError('Enter a valid duration to continue.');
+      setAddError(t('psvc.durationToContinue'));
       return;
     }
 
@@ -476,7 +480,7 @@ export default function ProviderServicesScreen() {
     if (editStep === 1) {
       const price = parsePrice(editForm.price);
       if (!Number.isFinite(price) || price <= 0) {
-        setAddError('Enter a valid price to continue.');
+        setAddError(t('psvc.priceToContinue'));
         return;
       }
       Keyboard.dismiss();
@@ -486,7 +490,7 @@ export default function ProviderServicesScreen() {
 
     if (editStep === 2) {
       if (!Number.isFinite(editForm.durationMinutes) || editForm.durationMinutes <= 0) {
-        setAddError('Enter a valid duration to continue.');
+        setAddError(t('psvc.durationToContinue'));
         return;
       }
       Keyboard.dismiss();
@@ -639,7 +643,7 @@ export default function ProviderServicesScreen() {
       return (
         <View style={[styles.noOptionsCard, { marginHorizontal: 20 }]}>
           <Ionicons name="checkmark-circle-outline" size={24} color={muted} />
-          <Text style={styles.noOptionsText}>No more services are available in this category.</Text>
+          <Text style={styles.noOptionsText}>{t('psvc.noMore')}</Text>
         </View>
       );
     }
@@ -662,10 +666,10 @@ export default function ProviderServicesScreen() {
             adjustsFontSizeToFit
             minimumFontScale={0.72}
           >
-            {item.service?.name ?? 'Service'}
+            {item.service?.name ?? t('psvc.service')}
           </Text>
         </View>
-        <Text style={styles.servicePrice}>€{Number(item.price).toFixed(2)}</Text>
+        <Text style={styles.servicePrice}>{formatEur(Number(item.price))}</Text>
       </View>
 
       <View style={styles.cardDivider} />
@@ -674,20 +678,20 @@ export default function ProviderServicesScreen() {
         <View style={styles.metaRow}>
           <View style={styles.durationPill}>
             <Ionicons name="time-outline" size={14} color={muted} />
-            <Text style={styles.durationText}>{item.durationMinutes} min</Text>
+            <Text style={styles.durationText}>{t('psvc.durationMin', { minutes: item.durationMinutes })}</Text>
           </View>
         </View>
 
         <View style={styles.cardActions}>
           <TouchableOpacity
-            accessibilityLabel={`Edit ${item.service?.name ?? 'service'}`}
+            accessibilityLabel={t('psvc.edit', { name: item.service?.name ?? t('psvc.serviceLower') })}
             onPress={() => openEdit(item)}
             style={styles.iconButton}
           >
             <Ionicons name="pencil-outline" size={18} color={darkBrown} />
           </TouchableOpacity>
           <TouchableOpacity
-            accessibilityLabel={`Delete ${item.service?.name ?? 'service'}`}
+            accessibilityLabel={t('psvc.delete', { name: item.service?.name ?? t('psvc.serviceLower') })}
             onPress={() => handleDelete(item)}
             style={[styles.iconButton, styles.deleteButton]}
           >
@@ -717,7 +721,7 @@ export default function ProviderServicesScreen() {
       <BrandHeader
         left={browsingCategoryId ? (
           <TouchableOpacity
-            accessibilityLabel="Back to service categories"
+            accessibilityLabel={t('psvc.backToCategories')}
             onPress={() => (pickingService ? setPickingService(false) : setBrowsingCategoryId(null))}
             style={styles.headerBackButton}
           >
@@ -726,7 +730,7 @@ export default function ProviderServicesScreen() {
         ) : undefined}
         right={browsingCategory && categoryServiceItems.length > 0 && !pickingService ? (
           <TouchableOpacity
-            accessibilityLabel={`Add another ${browsingCategory.name} service`}
+            accessibilityLabel={t('psvc.addAnother', { category: browsingCategory.name })}
             onPress={() => openAdd(browsingCategory.id)}
             activeOpacity={0.85}
             style={styles.addButton}
@@ -741,7 +745,7 @@ export default function ProviderServicesScreen() {
           <Ionicons name="alert-circle-outline" size={18} color="#B44747" />
           <Text style={styles.errorBannerText}>{error}</Text>
           <TouchableOpacity onPress={fetchData}>
-            <Text style={styles.retryText}>Retry</Text>
+            <Text style={styles.retryText}>{t('psvc.retry')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -750,10 +754,10 @@ export default function ProviderServicesScreen() {
         categories.length === 0 ? (
           <View style={styles.emptyStateWrap}>
             <View style={styles.emptyStateCard}>
-              <Text style={styles.emptyTitle}>No service categories found</Text>
-              <Text style={styles.emptyCopy}>Pull to refresh or try again in a moment.</Text>
+              <Text style={styles.emptyTitle}>{t('psvc.noCategories')}</Text>
+              <Text style={styles.emptyCopy}>{t('psvc.noCategoriesBody')}</Text>
               <TouchableOpacity onPress={fetchData} activeOpacity={0.85} style={styles.emptyButton}>
-                <Text style={styles.emptyButtonText}>Retry</Text>
+                <Text style={styles.emptyButtonText}>{t('psvc.retry')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -834,7 +838,7 @@ export default function ProviderServicesScreen() {
               {renderCategoryHero(browsingCategory.name)}
               <View style={styles.emptyCategoryAddWrap}>
                 <TouchableOpacity
-                  accessibilityLabel={`Add a ${browsingCategory.name} service`}
+                  accessibilityLabel={t('psvc.addOne', { category: browsingCategory.name })}
                   onPress={() => openAdd(browsingCategory.id)}
                   activeOpacity={0.65}
                   style={styles.emptyCategoryAddButton}
@@ -905,16 +909,16 @@ export default function ProviderServicesScreen() {
                   <Text style={styles.sheetTitle}>
                     {isEditing
                       ? editStep === 1
-                        ? 'Set the price'
+                        ? t('psvc.setPrice')
                         : editStep === 2
-                          ? 'Choose duration'
-                          : 'Availability'
+                          ? t('psvc.chooseDuration')
+                          : t('psvc.availability')
                       : addStep === 1
-                        ? 'Set the price'
-                        : 'Choose duration'}
+                        ? t('psvc.setPrice')
+                        : t('psvc.chooseDuration')}
                   </Text>
                 </View>
-                <TouchableOpacity accessibilityLabel="Close" onPress={closeModal} style={styles.closeButton}>
+                <TouchableOpacity accessibilityLabel={t('psvc.close')} onPress={closeModal} style={styles.closeButton}>
                   <Ionicons name="close" size={23} color={darkBrown} />
                 </TouchableOpacity>
               </View>
@@ -936,7 +940,7 @@ export default function ProviderServicesScreen() {
                   <View style={styles.editServiceSummary}>
                     <Text style={styles.editServiceName}>{editingServiceName}</Text>
                   </View>
-                  <Text style={styles.focusedQuestion}>What will you charge?</Text>
+                  <Text style={styles.focusedQuestion}>{t('psvc.whatCharge')}</Text>
                   <View style={[styles.priceInputWrap, styles.largePriceInputWrap]}>
                     <Text style={styles.largeCurrencyPrefix}>€</Text>
                     <TextInput
@@ -957,7 +961,7 @@ export default function ProviderServicesScreen() {
                 <View style={styles.focusedStepScrollContent}>
                   <View style={styles.editServiceSummary}>
                     <Text style={styles.editServiceName}>{editingServiceName}</Text>
-                    <Text style={styles.selectionPrice}>€{parsePrice(editForm.price).toFixed(2)}</Text>
+                    <Text style={styles.selectionPrice}>{formatMoney(parsePrice(editForm.price))}</Text>
                   </View>
                   <DurationControl
                     value={editForm.durationMinutes}
@@ -974,8 +978,8 @@ export default function ProviderServicesScreen() {
                   </View>
                   <View style={styles.availabilityStepCard}>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.availabilityTitle}>Available to book</Text>
-                      <Text style={styles.availabilityCopy}>Clients can see and book this service.</Text>
+                      <Text style={styles.availabilityTitle}>{t('psvc.availableToBook')}</Text>
+                      <Text style={styles.availabilityCopy}>{t('psvc.availableBody')}</Text>
                     </View>
                     <Switch
                       value={editForm.isAvailable}
@@ -993,7 +997,7 @@ export default function ProviderServicesScreen() {
                       {selectedService?.name}
                     </Text>
                   </View>
-                  <Text style={styles.focusedQuestion}>What will you charge?</Text>
+                  <Text style={styles.focusedQuestion}>{t('psvc.whatCharge')}</Text>
                   <View style={[styles.priceInputWrap, styles.largePriceInputWrap]}>
                     <Text style={styles.largeCurrencyPrefix}>€</Text>
                     <TextInput
@@ -1014,7 +1018,7 @@ export default function ProviderServicesScreen() {
                 <View style={styles.focusedStepScrollContent}>
                   <View style={styles.selectionSummary}>
                     <Text style={styles.selectionSummaryText} numberOfLines={1}>{selectedService?.name}</Text>
-                    <Text style={styles.selectionPrice}>€{addPriceValue.toFixed(2)}</Text>
+                    <Text style={styles.selectionPrice}>{formatMoney(addPriceValue)}</Text>
                   </View>
                   <DurationControl value={addDuration} onChange={setAddDuration} autoFocus />
                 </View>
@@ -1039,7 +1043,7 @@ export default function ProviderServicesScreen() {
                     disabled={saving}
                   >
                     <Ionicons name="arrow-back" size={20} color={darkBrown} />
-                    <Text style={styles.backButtonText}>Back</Text>
+                    <Text style={styles.backButtonText}>{t('psvc.back')}</Text>
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity
@@ -1059,13 +1063,13 @@ export default function ProviderServicesScreen() {
                       <Text style={styles.primaryButtonText}>
                         {isEditing
                           ? editStep === 1
-                            ? 'Next: Duration'
+                            ? t('psvc.nextDuration')
                             : editStep === 2
-                              ? 'Next: Availability'
-                              : 'Save changes'
+                              ? t('psvc.nextAvailability')
+                              : t('psvc.saveChanges')
                           : addStep === 1
-                            ? 'Next: Duration'
-                            : 'Add service'}
+                            ? t('psvc.nextDuration')
+                            : t('psvc.addService')}
                       </Text>
                       {((isEditing && editStep < 3) || (!isEditing && addStep < 2)) && (
                         <Ionicons name="arrow-forward" size={19} color={white} />

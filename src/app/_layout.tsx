@@ -15,6 +15,8 @@ import * as Device from "expo-device";
 import Constants, { ExecutionEnvironment } from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_ENDPOINTS } from "@/config/constants";
+import { loadLanguage, useLanguage } from "@/i18n";
+import { apiFetch, apiHeaders } from "@/lib/api";
 
 const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
@@ -121,6 +123,34 @@ function PushNotificationRegistrar() {
   return null;
 }
 
+// Tells the backend which language a signed-in user picked, so pushes and
+// emails reach them in it. Runs on sign-in and on every language switch.
+// Best-effort: a failure only means server messages stay in the old language.
+function LanguageSync() {
+  const { isSignedIn, getToken } = useAuth();
+  const lang = useLanguage((s) => s.lang);
+  const loaded = useLanguage((s) => s.loaded);
+
+  useEffect(() => {
+    if (!isSignedIn || !loaded) return;
+    (async () => {
+      try {
+        const userToken = await getToken();
+        if (!userToken) return;
+        await apiFetch(
+          API_ENDPOINTS.USER_LANGUAGE,
+          { method: "PUT", headers: apiHeaders(userToken), body: JSON.stringify({ language: lang }) },
+          { timeoutMs: 8000, retry: false },
+        );
+      } catch (error) {
+        console.warn("[LANGUAGE] Could not save language on the server:", error);
+      }
+    })();
+  }, [isSignedIn, lang, loaded]);
+
+  return null;
+}
+
 // Custom token cache implementation
 const tokenCache = {
   async getToken(key: string) {
@@ -217,12 +247,19 @@ export default function Layout() {
     'Philosopher-BoldItalic': require("../assets/app-fonts/Philosopher-BoldItalic.ttf"),
   });
 
+  // The saved language must be known before the first screen draws, or an
+  // English user would see a flash of Finnish.
+  const languageLoaded = useLanguage((s) => s.loaded);
+  useEffect(() => {
+    loadLanguage();
+  }, []);
+
   // The splash is hidden by ClerkLoadedWithTimeout once Clerk is ready too.
   useEffect(() => {
     if (fontError) throw fontError;
   }, [fontError]);
 
-  if (!fontsLoaded) {
+  if (!fontsLoaded || !languageLoaded) {
     return null;
   }
 
@@ -230,6 +267,7 @@ export default function Layout() {
     <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
       <ClerkLoadedWithTimeout>
         <PushNotificationRegistrar />
+        <LanguageSync />
         <StripeProvider
           publishableKey={stripePublishableKey}
           merchantIdentifier="merchant.com.kosmiks.app"

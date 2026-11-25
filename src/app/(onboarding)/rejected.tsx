@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { unregisterPushToken } from '@/lib/push';
 import { API_BASE_URL } from '@/config/constants';
+import { useT } from '@/i18n';
 
 const ADMIN_API_KEY = process.env.EXPO_PUBLIC_ADMIN_API_KEY || '';
 
@@ -16,6 +17,7 @@ const white = '#FFFFFF';
 const red = '#c00';
 
 export default function RejectedScreen() {
+  const { t } = useT();
   const router = useRouter();
   const { getToken, signOut } = useAuth();
 
@@ -61,7 +63,7 @@ export default function RejectedScreen() {
         </View>
 
         <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 24, color: darkBrown, textAlign: 'center', marginBottom: 12 }}>
-          Application not approved
+          {t('apply.rejectedTitle')}
         </Text>
 
         {loading
@@ -70,7 +72,7 @@ export default function RejectedScreen() {
             ? (
               <View style={{ backgroundColor: '#fff0f0', borderRadius: 12, padding: 16, marginBottom: 16, width: '100%' }}>
                 <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 12, color: red, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>
-                  Reason
+                  {t('apply.reason')}
                 </Text>
                 <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: '#c00', lineHeight: 20 }}>
                   {reason}
@@ -81,7 +83,7 @@ export default function RejectedScreen() {
         }
 
         <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: '#666', textAlign: 'center', lineHeight: 22 }}>
-          If you believe this is a mistake, contact us at{' '}
+          {t('apply.mistake')}{' '}
           <Text style={{ fontFamily: 'Philosopher-Bold', color: darkBrown }}>support@kosmiks.com</Text>
         </Text>
       </View>
@@ -91,7 +93,7 @@ export default function RejectedScreen() {
           onPress={handleSignOut}
           style={{ borderWidth: 1.5, borderColor: beige, borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
         >
-          <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 15, color: darkBrown }}>Sign out</Text>
+          <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 15, color: darkBrown }}>{t('common.signOut')}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { API_BASE_URL } from '@/config/constants';
-import { apiFetch, ApiError, friendlyErrorEn } from '@/lib/api';
+import { apiFetch, ApiError, friendlyError } from '@/lib/api';
 
 // Requests for the native admin dashboard, plus the shared admin data that
 // drives the tab badges (applications to review, payouts to send).
@@ -34,7 +34,7 @@ export async function adminRequest<T = any>(
     });
   } catch (error) {
     // Offline / timeout: never surface "Network request failed".
-    throw new Error(friendlyErrorEn(error));
+    throw new Error(friendlyError(error));
   }
   const text = await res.text();
   let data: any = null;
@@ -46,7 +46,7 @@ export async function adminRequest<T = any>(
     const error = res.status >= 500 || res.status === 401 || res.status === 403 || res.status === 404
       ? ApiError.http(res.status)
       : new Error(serverMessage);
-    throw new Error(friendlyErrorEn(error));
+    throw new Error(friendlyError(error));
   }
   return data as T;
 }

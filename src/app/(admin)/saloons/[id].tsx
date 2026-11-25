@@ -14,6 +14,7 @@ import {
 } from '@/components/admin/AdminUI';
 import { usePageBottomSpace } from '@/lib/layout';
 import RemoteImage from '@/components/RemoteImage';
+import { useT } from '@/i18n';
 
 type SaloonDetail = {
   id: string;
@@ -54,6 +55,7 @@ const BOOKING_TONE: Record<string, 'green' | 'amber' | 'red' | 'neutral'> = {
 };
 
 export default function AdminSaloonDetailScreen() {
+  const { t } = useT();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getToken } = useAuth();
   const pageBottom = usePageBottomSpace();
@@ -74,7 +76,7 @@ export default function AdminSaloonDetailScreen() {
         setResolvedAddress(await reverseGeocode(data.latitude, data.longitude));
       }
     } catch {
-      setError("Couldn't load this salon.");
+      setError(t('adetail.salonFailed'));
     } finally {
       setLoading(false);
     }
@@ -94,11 +96,11 @@ export default function AdminSaloonDetailScreen() {
 
   return (
     <SafeAreaView edges={Platform.OS === 'ios' ? ['top', 'left', 'right'] : undefined} style={{ flex: 1, backgroundColor: colors.sand }}>
-      <SubpageHeader title={saloon?.name ?? 'Salon'} />
+      <SubpageHeader title={saloon?.name ?? t('adetail.salon')} />
       {loading ? (
         <ActivityIndicator size="large" color={colors.dark} style={{ marginTop: 40 }} />
       ) : !saloon ? (
-        <EmptyState icon="storefront-outline" title={error ?? 'Salon not found'} />
+        <EmptyState icon="storefront-outline" title={error ?? t('adetail.salonNotFound')} />
       ) : (
         <ScrollView contentContainerStyle={{ paddingBottom: pageBottom }} showsVerticalScrollIndicator={false}>
           {/* Photos */}
@@ -119,7 +121,7 @@ export default function AdminSaloonDetailScreen() {
             <View style={{ marginHorizontal: 16 }}>
               <Card style={{ height: 120, alignItems: 'center', justifyContent: 'center' }}>
                 <Ionicons name="image-outline" size={26} color={colors.muted} />
-                <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: colors.muted, marginTop: 4 }}>No photos yet</Text>
+                <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: colors.muted, marginTop: 4 }}>{t('more.noPhotos')}</Text>
               </Card>
             </View>
           )}
@@ -133,33 +135,33 @@ export default function AdminSaloonDetailScreen() {
 
             {/* Numbers */}
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
-              <Stat label="Revenue" value={formatEur(saloon.revenue)} />
-              <Stat label="Paid bookings" value={String(saloon.paidBookings)} />
-              <Stat label="Reviews" value={String(saloon._count.reviews)} />
+              <Stat label={t('adetail.revenue')} value={formatEur(saloon.revenue)} />
+              <Stat label={t('adetail.paidBookings')} value={String(saloon.paidBookings)} />
+              <Stat label={t('adetail.reviews')} value={String(saloon._count.reviews)} />
             </View>
 
-            <SectionLabel>Owner</SectionLabel>
+            <SectionLabel>{t('adetail.owner')}</SectionLabel>
             <Card>
-              <InfoRow label="Name" value={saloon.owner.name} />
-              <InfoRow label="Email" value={saloon.owner.email} />
+              <InfoRow label={t('adetail.name')} value={saloon.owner.name} />
+              <InfoRow label={t('adetail.email')} value={saloon.owner.email} />
               <InfoRow
-                label="Phone"
+                label={t('adetail.phone')}
                 value={saloon.owner.phone}
                 right={saloon.owner.phone ? (
-                  <TouchableOpacity onPress={() => Linking.openURL(`tel:${saloon.owner.phone}`).catch(() => undefined)} accessibilityLabel="Call owner">
+                  <TouchableOpacity onPress={() => Linking.openURL(`tel:${saloon.owner.phone}`).catch(() => undefined)} accessibilityLabel={t('adetail.callOwner')}>
                     <Ionicons name="call-outline" size={18} color={colors.muted} />
                   </TouchableOpacity>
                 ) : undefined}
               />
-              <InfoRow label="Joined" value={relativeDay(saloon.createdAt)} last />
+              <InfoRow label={t('adetail.joined')} value={relativeDay(saloon.createdAt)} last />
             </Card>
 
-            <SectionLabel>Location</SectionLabel>
+            <SectionLabel>{t('adetail.location')}</SectionLabel>
             <Card>
               <ListRow
                 icon="location-outline"
-                title={address || 'No address saved'}
-                subtitle={saloon.latitude != null ? 'Open in Maps' : undefined}
+                title={address || t('adetail.noAddressSaved')}
+                subtitle={saloon.latitude != null ? t('adetail.openInMaps') : undefined}
                 onPress={saloon.latitude != null ? openMaps : undefined}
                 last
               />
@@ -168,7 +170,7 @@ export default function AdminSaloonDetailScreen() {
             <SectionLabel>{`Services (${saloon.saloonServices.length})`}</SectionLabel>
             {saloon.saloonServices.length === 0 ? (
               <Card style={{ padding: 16 }}>
-                <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: colors.muted }}>No services added yet.</Text>
+                <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: colors.muted }}>{t('more.noServicesAdded')}</Text>
               </Card>
             ) : (
               <Card>
@@ -176,7 +178,7 @@ export default function AdminSaloonDetailScreen() {
                   <ListRow
                     key={s.serviceId}
                     title={s.service.name}
-                    subtitle={`${s.service.category?.name ? `${s.service.category.name} · ` : ''}${s.durationMinutes} min${s.isAvailable ? '' : ' · hidden'}`}
+                    subtitle={t('adetail.serviceLine', { category: s.service.category?.name ? `${s.service.category.name} · ` : '', minutes: s.durationMinutes, hidden: s.isAvailable ? '' : t('adetail.hidden') })}
                     trailing={formatEur(s.price)}
                     last={i === saloon.saloonServices.length - 1}
                   />
@@ -184,10 +186,10 @@ export default function AdminSaloonDetailScreen() {
               </Card>
             )}
 
-            <SectionLabel>Recent bookings</SectionLabel>
+            <SectionLabel>{t('adetail.recentBookings')}</SectionLabel>
             {saloon.bookings.length === 0 ? (
               <Card style={{ padding: 16 }}>
-                <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: colors.muted }}>No bookings yet.</Text>
+                <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: colors.muted }}>{t('more.noBookingsYet')}</Text>
               </Card>
             ) : (
               <Card>
@@ -201,15 +203,15 @@ export default function AdminSaloonDetailScreen() {
                   >
                     <View style={{ flex: 1 }}>
                       <Text numberOfLines={1} style={{ fontFamily: 'Philosopher-Bold', fontSize: 15, color: colors.dark }}>
-                        {b.service?.name ?? 'Service'}
+                        {b.service?.name ?? t('adetail.service')}
                       </Text>
                       <Text numberOfLines={1} style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: colors.muted, marginTop: 2 }}>
-                        {b.customerName || 'Customer'} · {formatDay(new Date(b.bookingTime))}
+                        {b.customerName || t('adetail.customer')} · {formatDay(new Date(b.bookingTime))}
                       </Text>
                     </View>
                     <View style={{ alignItems: 'flex-end', gap: 5 }}>
                       <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 15, color: colors.dark }}>{formatEur(b.totalAmount ?? 0)}</Text>
-                      <Chip label={b.status.replace('_', ' ')} tone={BOOKING_TONE[b.status] ?? 'neutral'} />
+                      <Chip label={({ pending: t('adetail.stPending'), confirmed: t('adetail.stConfirmed'), completed: t('adetail.stCompleted'), cancelled: t('adetail.stCancelled'), no_show: t('adetail.stNoShow') } as Record<string, string>)[b.status] ?? b.status.replace('_', ' ')} tone={BOOKING_TONE[b.status] ?? 'neutral'} />
                     </View>
                   </View>
                 ))}

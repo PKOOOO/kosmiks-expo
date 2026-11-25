@@ -16,8 +16,10 @@ import Header from "@/components/Header";
 import SideMenu from "@/components/SideMenu";
 import { useClerk, useAuth, useUser } from "@clerk/clerk-expo";
 import { unregisterPushToken } from "@/lib/push";
+import { useT } from '@/i18n';
 
 export default function ProfilePage() {
+  const { t } = useT();
   const { signOut } = useClerk();
   const { isSignedIn, getToken } = useAuth();
   const { user } = useUser();
@@ -26,46 +28,46 @@ export default function ProfilePage() {
 
   const handleMenuPress = async (menuItem: string) => {
     switch (menuItem) {
-      case "Tulevat hoidot":
+      case "upcoming":
         if (isSignedIn) {
           router.push("/bookings?view=upcoming");
         } else {
           router.push("/sign-in");
         }
         break;
-      case "Menneet hoidot":
+      case "past":
         if (isSignedIn) {
           router.push("/bookings?view=past");
         } else {
           router.push("/sign-in");
         }
         break;
-      case "Asetukset":
+      case "settings":
         if (isSignedIn) {
           router.push("/profile-edit");
         } else {
-          Alert.alert("Kirjaudu sisään", "Sinun täytyy kirjautua sisään päästäksesi asetuksiin", [
-            { text: "Peruuta", style: "cancel" },
-            { text: "Kirjaudu", onPress: () => router.push("/sign-in") }
+          Alert.alert(t('profile.settingsSignInTitle'), t('profile.settingsSignInBody'), [
+            { text: t('common.cancel'), style: "cancel" },
+            { text: t('common.signInShort'), onPress: () => router.push("/sign-in") }
           ]);
         }
         break;
-      case "Kieli":
+      case "language":
         router.push("/language");
         break;
-      case "Kirjaudu sisään":
+      case "signIn":
         router.push("/sign-in");
         break;
-      case "Kirjaudu ulos":
+      case "signOut":
         if (isSigningOut) return;
         setIsSigningOut(true);
         try {
           await unregisterPushToken(getToken);
           await signOut();
-          Alert.alert("Onnistui", "Olet kirjautunut ulos");
+          Alert.alert(t('common.success'), t('profile.signedOut'));
           router.replace("/");
         } catch (error) {
-          Alert.alert("Virhe", "Kirjautuminen ulos epäonnistui");
+          Alert.alert(t('common.error'), t('profile.signOutFailed'));
         } finally {
           setIsSigningOut(false);
         }
@@ -74,20 +76,16 @@ export default function ProfilePage() {
   };
 
   const menuItems = isSignedIn
-    ? [
-      "Tulevat hoidot",
-      "Menneet hoidot",
-      "Asetukset",
-      "Kieli",
-      "Kirjaudu ulos",
-    ]
-    : [
-      "Tulevat hoidot",
-      "Menneet hoidot",
-      "Asetukset",
-      "Kieli",
-      "Kirjaudu sisään",
-    ];
+    ? ["upcoming", "past", "settings", "language", "signOut"] as const
+    : ["upcoming", "past", "settings", "language", "signIn"] as const;
+  const menuLabels = {
+    upcoming: t('profile.upcoming'),
+    past: t('profile.past'),
+    settings: t('profile.settings'),
+    language: t('profile.language'),
+    signOut: t('common.signOut'),
+    signIn: t('common.signIn'),
+  };
 
   // Get user's first name for display.
   // Falls back to email username (e.g. "alex" from "alex@gmail.com") so OAuth users
@@ -99,7 +97,7 @@ export default function ProfilePage() {
     || user?.fullName?.split(' ')[0]
     || user?.username
     || emailUsername
-    || 'Käyttäjä';
+    || t('common.user');
 
   return (
     <View collapsable={false} style={styles.container}>
@@ -117,7 +115,7 @@ export default function ProfilePage() {
         <View style={styles.headerContainer}>
           <View style={styles.archContainer}>
             <Text style={styles.welcomeText}>
-              Tervetuloa,{"\n"}
+              {t('profile.welcome')}{"\n"}
               {displayName}!
             </Text>
           </View>
@@ -126,7 +124,7 @@ export default function ProfilePage() {
         {/* MENU */}
         <View style={styles.menuContainer}>
           {menuItems.map((item) => {
-            const isLoading = item === "Kirjaudu ulos" && isSigningOut;
+            const isLoading = item === "signOut" && isSigningOut;
             return (
               <TouchableOpacity
                 key={item}
@@ -135,7 +133,7 @@ export default function ProfilePage() {
                 activeOpacity={0.7}
                 disabled={isLoading}
               >
-                <Text style={styles.menuButtonText}>{item}</Text>
+                <Text style={styles.menuButtonText}>{menuLabels[item]}</Text>
                 {isLoading ? (
                   <ActivityIndicator size="small" color="#423120" />
                 ) : (

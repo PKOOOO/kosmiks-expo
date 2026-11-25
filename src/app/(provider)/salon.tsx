@@ -23,7 +23,8 @@ import { pickSalonPhoto, prepareForUpload } from '@/lib/pick-photo';
 import StackedPhotos, { AddPhotoButton, MAX_PHOTOS } from '@/components/StackedPhotos';
 import BrandHeader from '@/components/BrandHeader';
 import { reverseGeocode, searchAddresses } from '@/lib/geocode';
-import { friendlyErrorEn } from '@/lib/api';
+import { friendlyError } from '@/lib/api';
+import { useT } from '@/i18n';
 
 const darkBrown = '#423120';
 const beige = '#D7C3A7';
@@ -45,10 +46,10 @@ const SCREEN_W = Dimensions.get('window').width;
 const PHOTO_CONTENT_WIDTH = SCREEN_W - 32;
 
 const BUILDING_TYPES = [
-  { label: 'House', icon: 'home-outline' },
-  { label: 'Apartment', icon: 'business-outline' },
-  { label: 'Office', icon: 'desktop-outline' },
-  { label: 'Other', icon: 'storefront-outline' },
+  { label: 'House', name: 'psalon.house', icon: 'home-outline' },
+  { label: 'Apartment', name: 'psalon.apartment', icon: 'business-outline' },
+  { label: 'Office', name: 'psalon.office', icon: 'desktop-outline' },
+  { label: 'Other', name: 'psalon.other', icon: 'storefront-outline' },
 ] as const;
 type BuildingType = (typeof BUILDING_TYPES)[number]['label'];
 type AddressLabel = 'home' | 'custom';
@@ -123,6 +124,7 @@ const resolveFullAddress = async (latitude: number, longitude: number) => {
 };
 
 export default function ProviderSalonScreen() {
+  const { t } = useT();
   const { getToken } = useAuth();
   const getTokenRef = useRef(getToken);
   getTokenRef.current = getToken;
@@ -233,7 +235,7 @@ export default function ProviderSalonScreen() {
         }
       }
 
-    } catch { setError('Failed to load salon info.'); }
+    } catch { setError(t('psalon.loadFailed')); }
     finally { setLoading(false); }
   }, [authHeaders]);
 
@@ -266,12 +268,12 @@ export default function ProviderSalonScreen() {
         setSavedCoordinates({ ...coordinates });
         if (hasImageChanges) setSavedImages([...images]);
       }
-      setSuccessMsg('Saved');
+      setSuccessMsg(t('psalon.saved'));
       setTimeout(() => setSuccessMsg(null), 2000);
     } catch (e: any) {
       // Don't auto-retry the same failing change in a loop; the banner offers a retry.
       failedSaveRef.current = attempt;
-      setError(friendlyErrorEn(e, "Couldn't save your changes."));
+      setError(friendlyError(e, t('psalon.saveFailed')));
     } finally { setSaving(false); }
   };
   const handleSaveRef = useRef(handleSave);
@@ -295,7 +297,7 @@ export default function ProviderSalonScreen() {
 
   const pickAndUpload = async (replaceIndex?: number) => {
     if (replaceIndex == null && images.length >= 6) {
-      Alert.alert('Limit reached', 'Maximum 6 photos allowed.');
+      Alert.alert(t('psalon.limitTitle'), t('psalon.limitBody'));
       return;
     }
     const asset = await pickSalonPhoto();
@@ -314,14 +316,14 @@ export default function ProviderSalonScreen() {
       setImages(prev => replaceIndex == null
         ? [...prev, url]
         : prev.map((currentUrl, index) => index === replaceIndex ? url : currentUrl));
-    } catch { Alert.alert('Upload failed', 'Please try again.'); }
+    } catch { Alert.alert(t('psalon.uploadFailed'), t('psalon.tryAgain')); }
     finally { setUploadingPhoto(null); }
   };
 
   const removeImage = (index: number) => {
-    Alert.alert('Remove photo?', 'It will be removed from your salon.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => setImages(prev => prev.filter((_, i) => i !== index)) },
+    Alert.alert(t('psalon.removePhoto'), t('psalon.removePhotoBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('psalon.remove'), style: 'destructive', onPress: () => setImages(prev => prev.filter((_, i) => i !== index)) },
     ]);
   };
 
@@ -425,12 +427,12 @@ export default function ProviderSalonScreen() {
         items.findIndex(candidate => candidate.address === item.address) === index
       ));
       if (uniqueLocations.length === 0) {
-        Alert.alert('Location not found', 'Try a more specific street, city, or district.');
+        Alert.alert(t('psalon.locationNotFound'), t('psalon.locationNotFoundBody'));
         return;
       }
       setLocationSearchResults(uniqueLocations);
     } catch {
-      Alert.alert('Location not found', 'Try a more specific street, city, or district.');
+      Alert.alert(t('psalon.locationNotFound'), t('psalon.locationNotFoundBody'));
     } finally {
       setSearchingLocation(false);
     }
@@ -470,9 +472,9 @@ export default function ProviderSalonScreen() {
         style={{ flex: 1, backgroundColor: pageBg, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40 }}
       >
         <Ionicons name="storefront-outline" size={52} color={beige} style={{ marginBottom: 14 }} />
-        <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 17, color: darkBrown, textAlign: 'center' }}>No salon found</Text>
+        <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 17, color: darkBrown, textAlign: 'center' }}>{t('psalon.noSalon')}</Text>
         <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: '#888', textAlign: 'center', marginTop: 6 }}>
-          Complete your onboarding to set up your salon profile.
+          {t('psalon.noSalonBody')}
         </Text>
       </SafeAreaView>
     );
@@ -500,7 +502,7 @@ export default function ProviderSalonScreen() {
           <TouchableOpacity
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel="Back to services"
+            accessibilityLabel={t('psalon.backToServices')}
             onPress={() => router.navigate('/(provider)/services' as any)}
           >
             {/* Same Liquid Glass treatment as the location pill on iOS. */}
@@ -532,7 +534,7 @@ export default function ProviderSalonScreen() {
             activeOpacity={0.9}
             onPress={openLocationModal}
             accessibilityRole="button"
-            accessibilityLabel={`Salon location: ${locationLabel || form.address.trim() || 'Add salon address'}`}
+            accessibilityLabel={t('psalon.locationLabel', { address: locationLabel || form.address.trim() || t('psalon.addAddress') })}
             style={locationPillTouchTarget}
           >
             {nativeLiquidGlass ? (
@@ -543,7 +545,7 @@ export default function ProviderSalonScreen() {
                 isInteractive
                 style={[locationPill, locationNativeGlass]}
               >
-                <LocationPillContents label={locationLabel || form.address.trim() || 'Add salon address'} />
+                <LocationPillContents label={locationLabel || form.address.trim() || t('psalon.addAddress')} />
               </GlassView>
             ) : (
               <View style={locationPill}>
@@ -554,7 +556,7 @@ export default function ProviderSalonScreen() {
                     <View pointerEvents="none" style={locationGlassHighlight} />
                   </>
                 )}
-                <LocationPillContents label={locationLabel || form.address.trim() || 'Add salon address'} />
+                <LocationPillContents label={locationLabel || form.address.trim() || t('psalon.addAddress')} />
               </View>
             )}
           </TouchableOpacity>
@@ -566,7 +568,7 @@ export default function ProviderSalonScreen() {
               ? <ActivityIndicator size="small" color="#8A7F75" style={{ transform: [{ scale: 0.7 }] }} />
               : <Ionicons name="checkmark-circle" size={14} color="#2d7a2d" />}
             <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 12, color: saving || hasChanges ? '#8A7F75' : '#2d7a2d' }}>
-              {saving || hasChanges ? 'Saving…' : 'Saved'}
+              {saving || hasChanges ? t('psalon.saving') : t('psalon.saved')}
             </Text>
           </View>
         )}
@@ -588,7 +590,7 @@ export default function ProviderSalonScreen() {
               <Text style={{ fontFamily: 'Philosopher-Regular', color: '#c00', fontSize: 14, flex: 1 }}>{error}</Text>
               {hasChanges && (
                 <TouchableOpacity onPress={() => void handleSave()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Text style={{ fontFamily: 'Philosopher-Bold', color: '#c00', fontSize: 14 }}>Retry</Text>
+                  <Text style={{ fontFamily: 'Philosopher-Bold', color: '#c00', fontSize: 14 }}>{t('psalon.retry')}</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -618,7 +620,7 @@ export default function ProviderSalonScreen() {
 
             {images.length === 0 && (
               <Text style={photoEmptyText}>
-                Add a bright, clear photo that shows customers your salon.
+                {t('psalon.photoEmpty')}
               </Text>
             )}
           </View>
@@ -627,7 +629,7 @@ export default function ProviderSalonScreen() {
               CARD: Phone shown to customers
           ══════════════════════════════════════ */}
           <View style={{ marginTop: 24 }}>
-            <Text style={addressDetailsFieldLabel}>Phone shown to customers</Text>
+            <Text style={addressDetailsFieldLabel}>{t('psalon.phoneLabel')}</Text>
             <TextInput
               value={form.phone}
               onChangeText={phone => setForm(current => ({ ...current, phone }))}
@@ -640,8 +642,8 @@ export default function ProviderSalonScreen() {
             />
             <Text style={[photoEmptyText, { textAlign: 'left', marginTop: 8, paddingHorizontal: 0 }, !phoneValid && { color: '#c00' }]}>
               {phoneValid
-                ? 'Customers can call this number from the map. Leave it empty to hide the call button.'
-                : 'Enter a full phone number, e.g. +358 40 123 4567.'}
+                ? t('psalon.phoneHint')
+                : t('psalon.phoneInvalid')}
             </Text>
           </View>
 
@@ -678,7 +680,7 @@ export default function ProviderSalonScreen() {
                 <TouchableOpacity
                   activeOpacity={0.75}
                   accessibilityRole="button"
-                  accessibilityLabel="Back to the map"
+                  accessibilityLabel={t('psalon.backToMap')}
                   onPress={navigateBackFromLocationModal}
                   style={locationSearchBackButton}
                 >
@@ -696,7 +698,7 @@ export default function ProviderSalonScreen() {
                     }}
                     onSubmitEditing={searchForLocation}
                     returnKeyType="search"
-                    placeholder="Enter street, building number…"
+                    placeholder={t('psalon.enterStreet')}
                     placeholderTextColor="#8D8176"
                     style={locationSearchPageInput}
                   />
@@ -734,13 +736,13 @@ export default function ProviderSalonScreen() {
                 <TouchableOpacity
                   activeOpacity={0.75}
                   accessibilityRole="button"
-                  accessibilityLabel="Back to building types"
+                  accessibilityLabel={t('psalon.backToTypes')}
                   onPress={navigateBackFromLocationModal}
                   style={addressDetailsBackButton}
                 >
                   <Ionicons name="arrow-back" size={27} color={darkBrown} />
                 </TouchableOpacity>
-                <Text style={addressDetailsHeaderTitle}>Address details</Text>
+                <Text style={addressDetailsHeaderTitle}>{t('psalon.addressDetails')}</Text>
                 <View style={{ width: 48 }} />
               </View>
 
@@ -757,17 +759,17 @@ export default function ProviderSalonScreen() {
                     <Ionicons name={selectedBuilding.icon} size={29} color={darkBrown} />
                     <View style={{ flex: 1 }}>
                       <Text numberOfLines={2} style={addressDetailsAddressTitle}>
-                        {detailsAddress.title || 'Selected salon location'}
+                        {detailsAddress.title || t('psalon.selectedLocation')}
                       </Text>
                       <Text numberOfLines={1} style={addressDetailsAddressSubtitle}>
-                        {detailsAddress.subtitle || 'Location selected on the map'}
+                        {detailsAddress.subtitle || t('psalon.selectedOnMap')}
                       </Text>
                     </View>
                   </View>
 
                   <View style={addressDetailsTwoColumns}>
                     <View style={addressDetailsFieldColumn}>
-                      <Text style={addressDetailsFieldLabel}>Floor number</Text>
+                      <Text style={addressDetailsFieldLabel}>{t('psalon.floor')}</Text>
                       <TextInput
                         value={floorNumber}
                         onChangeText={setFloorNumber}
@@ -776,7 +778,7 @@ export default function ProviderSalonScreen() {
                       />
                     </View>
                     <View style={addressDetailsFieldColumn}>
-                      <Text style={addressDetailsFieldLabel}>Door number</Text>
+                      <Text style={addressDetailsFieldLabel}>{t('psalon.door')}</Text>
                       <TextInput
                         value={doorNumber}
                         onChangeText={setDoorNumber}
@@ -786,7 +788,7 @@ export default function ProviderSalonScreen() {
                     </View>
                   </View>
 
-                  <Text style={addressDetailsFieldLabel}>Additional information</Text>
+                  <Text style={addressDetailsFieldLabel}>{t('psalon.additional')}</Text>
                   <TextInput
                     value={additionalLocationInfo}
                     onChangeText={setAdditionalLocationInfo}
@@ -795,8 +797,8 @@ export default function ProviderSalonScreen() {
                     style={addressDetailsLargeInput}
                   />
 
-                  <Text style={addressDetailsSectionTitle}>Mark your entrance</Text>
-                  <Text style={addressDetailsSectionSubtitle}>Help customers find your salon faster</Text>
+                  <Text style={addressDetailsSectionTitle}>{t('psalon.markEntrance')}</Text>
+                  <Text style={addressDetailsSectionSubtitle}>{t('psalon.markEntranceBody')}</Text>
                   <View style={addressDetailsMapCard}>
                     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
                       <AddressMapPicker
@@ -820,7 +822,7 @@ export default function ProviderSalonScreen() {
                       }}
                       style={addressDetailsAdjustPin}
                     >
-                      <Text style={addressDetailsAdjustPinText}>Adjust pin</Text>
+                      <Text style={addressDetailsAdjustPinText}>{t('psalon.adjustPin')}</Text>
                     </TouchableOpacity>
                   </View>
                 </ScrollView>
@@ -835,7 +837,7 @@ export default function ProviderSalonScreen() {
                       (draftLocation.latitude == null || draftLocation.longitude == null) && { opacity: 0.45 },
                     ]}
                   >
-                    <Text style={addressDetailsSaveButtonText}>Save address</Text>
+                    <Text style={addressDetailsSaveButtonText}>{t('psalon.saveAddress')}</Text>
                   </TouchableOpacity>
                 </View>
               </KeyboardAvoidingView>
@@ -855,8 +857,8 @@ export default function ProviderSalonScreen() {
                 showSearch={false}
                 showResolvedAddress={false}
                 markerVariant="location"
-                markerLabel={draftLocation.address || 'Current location'}
-                markerSubtitle={locationModalMode === 'building' ? "We'll deliver here" : 'Use this point'}
+                markerLabel={draftLocation.address || t('psalon.currentLocation')}
+                markerSubtitle={locationModalMode === 'building' ? t('psalon.deliverHere') : t('psalon.usePoint')}
                 markerIcon={locationModalMode === 'list' ? 'globe' : 'home'}
                 onMarkerPress={() => {
                   if (draftLocation.latitude != null && draftLocation.longitude != null) {
@@ -871,7 +873,7 @@ export default function ProviderSalonScreen() {
               <TouchableOpacity
                 activeOpacity={0.82}
                 accessibilityRole="button"
-                accessibilityLabel={locationModalMode === 'list' ? 'Close location map' : 'Go back'}
+                accessibilityLabel={locationModalMode === 'list' ? t('psalon.closeMap') : t('psalon.goBack')}
                 onPress={navigateBackFromLocationModal}
                 style={[
                   mapCloseButton,
@@ -888,7 +890,7 @@ export default function ProviderSalonScreen() {
               {currentLocation && (
                 <TouchableOpacity
                   activeOpacity={0.82}
-                  accessibilityLabel="Recenter on current location"
+                  accessibilityLabel={t('psalon.recenter')}
                   onPress={() => {
                     setDraftLocation(currentLocation);
                     setMapRevision(revision => revision + 1);
@@ -908,7 +910,7 @@ export default function ProviderSalonScreen() {
               <View style={locationSheetHandle} />
               {locationModalMode !== 'edit' && (
                 <Text style={locationSheetTitle}>
-                  {locationModalMode === 'list' ? 'Where is your salon?' : 'Choose your building'}
+                  {locationModalMode === 'list' ? t('psalon.whereSalon') : t('psalon.chooseBuilding')}
                 </Text>
               )}
 
@@ -923,11 +925,11 @@ export default function ProviderSalonScreen() {
                     >
                       <Ionicons name="navigate-outline" size={27} color={darkBrown} />
                       <View style={{ flex: 1 }}>
-                        <Text style={locationOptionTitle}>Current location</Text>
+                        <Text style={locationOptionTitle}>{t('psalon.currentLocation')}</Text>
                         <Text numberOfLines={2} style={locationOptionAddress}>
                           {locating
-                            ? 'Finding your current location…'
-                            : currentLocation?.address || 'Current location unavailable'}
+                            ? t('psalon.finding')
+                            : currentLocation?.address || t('psalon.locationUnavailable')}
                         </Text>
                       </View>
                     </TouchableOpacity>
@@ -953,9 +955,9 @@ export default function ProviderSalonScreen() {
                     >
                       <Ionicons name="storefront-outline" size={27} color={darkBrown} />
                       <View style={{ flex: 1 }}>
-                        <Text style={locationOptionTitle}>{form.name || 'Salon address'}</Text>
+                        <Text style={locationOptionTitle}>{form.name || t('psalon.salonAddress')}</Text>
                         <Text numberOfLines={2} style={locationOptionAddress}>
-                          {form.address || 'No salon address saved'}
+                          {form.address || t('psalon.noAddress')}
                         </Text>
                       </View>
                     </TouchableOpacity>
@@ -981,7 +983,7 @@ export default function ProviderSalonScreen() {
                     })}
                     style={locationAddButton}
                   >
-                    <Text style={locationAddButtonText}>Add a new address</Text>
+                    <Text style={locationAddButtonText}>{t('psalon.addNewAddress')}</Text>
                   </TouchableOpacity>
                 </>
               ) : locationModalMode === 'edit' ? (
@@ -992,18 +994,18 @@ export default function ProviderSalonScreen() {
                   <TouchableOpacity
                     activeOpacity={0.78}
                     accessibilityRole="button"
-                    accessibilityLabel="Search for an address"
+                    accessibilityLabel={t('psalon.searchAddress')}
                     onPress={openLocationSearch}
                     style={locationSearchBar}
                   >
                     <Ionicons name="search" size={21} color="#9A8E83" />
-                    <Text style={locationSearchPlaceholder}>Search street, city, district…</Text>
+                    <Text style={locationSearchPlaceholder}>{t('psalon.searchPh')}</Text>
                   </TouchableOpacity>
                 </>
               ) : (
                 <>
                   <Text style={locationBuildingSubtitle}>
-                    This helps customers know exactly where to find your salon.
+                    {t('psalon.buildingHelp')}
                   </Text>
                   <View style={locationBuildingGrid}>
                     {BUILDING_TYPES.map(building => (
@@ -1014,7 +1016,7 @@ export default function ProviderSalonScreen() {
                         style={locationBuildingCard}
                       >
                         <Ionicons name={building.icon} size={28} color={darkBrown} />
-                        <Text style={locationBuildingLabel}>{building.label}</Text>
+                        <Text style={locationBuildingLabel}>{t(building.name)}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>

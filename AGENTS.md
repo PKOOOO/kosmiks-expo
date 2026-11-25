@@ -1,7 +1,7 @@
 # Kosmiks — Full Project Context
 
 > Handoff document. Paste at the start of a new chat to restore context.
-> Last updated: 8 November 2026 (Railway + new Stripe account, Resend email, redesigned booking emails, booking times in Finnish time) — supersedes all earlier versions.
+> Last updated: 15 November 2026 (app in Finnish + English, per-user language for pushes and emails; earlier: Railway, new Stripe, Resend, security audit) — supersedes all earlier versions.
 > `AGENTS.md` is a copy of this file — keep the two identical.
 
 ---
@@ -280,6 +280,17 @@ curl -X POST https://exp.host/--/api/v2/push/getReceipts \
 - **Logo:** `public/email-logo.png` (cosmix-admin), served at `https://www.kosmiks.com/email-logo.png`; emails need that absolute URL, and sent emails depend on it staying there. It is inside the white card because the arch is the same colour as the sand background (`#F4EDE5`). An image also stops Gmail translate changing the brand name (it turned the text "KOSMIKS" into "COSMIC").
 - **Times:** `SALON_TIME_ZONE = "Europe/Helsinki"` (`lib/send-notification.ts`), used by `formatWhen()` and the email date/time.
 
+## 8d. Languages — Finnish (default) + English (15 Nov 2026)
+
+- **Every screen** (customer, provider, onboarding, admin) takes its text from `src/i18n/fi.ts` (Finnish, the source of truth) and `src/i18n/en.ts` (typed `DeepStrings<Dict>`, so a missing English key fails `tsc`). No translation library — `src/i18n/index.ts` is a small zustand store (no native module, no rebuild needed for it).
+- **Use:** `const { t, locale } = useT()` in components (re-renders on a switch); `tr(key)` in helpers outside React; `localeTag()` / `locale` (`fi-FI` / `en-GB`) for every date and number; `formatMoney()` for prices; `workTypeLabel(code)` for UUDET/PITKAT/…; `{name}` placeholders: `t('map.callNumber', { phone })`. Keys are typed (`TKey`), so a wrong key is a type error.
+- **Never hardcode user-visible text again** — add a key to both `fi.ts` and `en.ts`.
+- **Language screen** (`src/app/(app)/language.tsx`): Suomi / English only (Svenska removed — add it back as a third dictionary once a native speaker has checked it). The choice is saved in AsyncStorage (`@kosmiks_language`); the root layout waits for it before the first screen draws.
+- **Server side:** `users.language` (`"fi"` default; column added 15 Nov 2026 with plain SQL `ADD COLUMN ... DEFAULT 'fi'`). `LanguageSync` in `src/app/_layout.tsx` sends `PUT /api/user/language` on sign-in and on every switch. Backend `lib/i18n.ts` holds every push text (`push.bookingConfirmed(...)` etc. — `notifyUser(userId, message, data)` / `notifyAdmins(message, data)` build each in the recipient's language), date formats (`formatWhen(date, locale)`, `formatLongDate`) and `formatEur`. Booking emails (`lib/email.ts`, dictionary `T`) go out in the customer's / provider's language; guests get Finnish.
+- **Server error texts** are still English; `src/i18n/server-messages.ts` maps the known ones to keys (`friendlyError()` and the onboarding screens use `translateServerMessage()`). Add new backend messages there.
+- **Not translated (by design):** salon names/descriptions, service and category names (database content, Finnish), Clerk's and Stripe's own screens (they follow the phone language), and `ALL_SERVICES` (`'Kaikki palvelut'`), a fixed navigation value that screens translate when shown.
+- `friendlyErrorEn` / `connectionProblemEn` were renamed `friendlyError` / `connectionProblem` (they now follow the app language).
+
 ## 9. Infrastructure
 
 ### Expo / EAS
@@ -441,7 +452,7 @@ EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 
 ### ▶ Next up (as of 8 Nov 2026)
 0. **Security first:** revoke the exposed Gmail app password and make both GitHub repos private (see 🔴 Security).
-1. Build a new APK and check the map + day/time step on a phone.
+1. Build a new APK and check the map, the day/time step and **both languages** on a phone (profile → Kieli).
 2. Build abandoned-`pending` expiry + the double-booking re-check together (no client decision needed).
 3. Test provider cancel/refund and Stripe Connect end to end; sign in with the admin account.
 4. Ask the client for the cancellation rule, then build the real customer cancel.
@@ -501,6 +512,8 @@ EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 - [ ] Optional: remove the SSH key `kosmiks-laptop` from Railway (account → SSH keys) if this machine shouldn't keep database access.
 
 ### 🟡 Housekeeping
+- [ ] Dead code found during translation (not translated, not imported anywhere): `ServiceSelection`, `ServiceBooking`, `BookingConfirmation`, `ServiceCard`, `BookingCalendar`, `MyBookings`, `LoadingOverlay`, `PaytrailPayment*`/`PaymentSheet`, and the routes `src/app/(app)/success.tsx` / `cancel.tsx` (old pay-at-salon copy). Delete them.
+- [ ] Swedish: add `sv.ts` + a third button once a native speaker has reviewed the texts. Service/category names would need translation columns in the database to be bilingual.
 - [ ] **Finish Cloudinary removal:** `CLOUDINARY_*` env vars **removed from Vercel (26 Oct 2026)**. Before deleting, verified: all 6 current provider documents exist in private R2, and nothing in the DB references Cloudinary. **Still to do (by hand — permanent deletion):** delete folder `cosmix/provider-documents` (and optionally `cosmix/salon-images`) on Cloudinary account `dhedbjqza` with CDN invalidation — the migrated documents are still publicly reachable there — then close accounts `dhedbjqza`, `dzmrvngco`, `dguk4ks45`
 - [ ] Update `scripts/cleanup-test-data.ts` keep-list; commit it
 - [ ] Set up a dev database (e.g. a second Railway environment) so schema work stops hitting production
@@ -547,3 +560,5 @@ EXPO_PUBLIC_ADMIN_DASHBOARD_URL=https://www.kosmiks.com
 27. **The Railway database has no public port.** Reach it with `railway ssh` (§9 Railway). Opening a TCP proxy exposes it to the internet — only temporarily and with approval.
 28. **The server runs in UTC.** Bookings are stored in true UTC, so any date or time shown to a person must pass `timeZone: SALON_TIME_ZONE`. Without it, emails and pushes showed times 2 h early (fixed 8 Nov 2026).
 29. **`railway logs` doesn't tell you when an email arrived.** `resend emails list` / `get` (`~/.resend/bin/resend`) give the time Resend accepted it and its last event.
+30. **All user-visible text lives in `src/i18n/fi.ts` + `en.ts`** (§8d). Hardcoding a string — or a `'fi-FI'`/`'en-GB'` locale — shows Finnish to English users. Server pushes/emails go through backend `lib/i18n.ts`.
+31. **`users.language` must exist before deploying backend code that selects it** (Prisma reads every column) — add new columns to the database first, then push the code.

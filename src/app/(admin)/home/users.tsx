@@ -6,6 +6,7 @@ import { useFocusEffect } from 'expo-router';
 import { adminRequest } from '@/lib/admin-api';
 import { SubpageHeader, Card, Avatar, Chip, EmptyState, SearchBar, colors, relativeDay } from '@/components/admin/AdminUI';
 import { usePageBottomSpace } from '@/lib/layout';
+import { useT } from '@/i18n';
 
 type User = {
   id: string;
@@ -17,6 +18,7 @@ type User = {
 };
 
 export default function AdminUsersScreen() {
+  const { t } = useT();
   const { getToken } = useAuth();
   const pageBottom = usePageBottomSpace();
   const getTokenRef = useRef(getToken);
@@ -34,7 +36,7 @@ export default function AdminUsersScreen() {
       const data = await adminRequest<User[]>(() => getTokenRef.current(), '/admin/users');
       setUsers(Array.isArray(data) ? data : []);
     } catch {
-      setError("Couldn't load users.");
+      setError(t('admin.usersFailed'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -51,8 +53,8 @@ export default function AdminUsersScreen() {
 
   return (
     <SafeAreaView edges={Platform.OS === 'ios' ? ['top', 'left', 'right'] : undefined} style={{ flex: 1, backgroundColor: colors.sand }}>
-      <SubpageHeader title={`Users${users.length ? ` · ${users.length}` : ''}`} />
-      <SearchBar value={query} onChange={setQuery} placeholder="Search name or email" />
+      <SubpageHeader title={`${t('admin.users')}${users.length ? ` · ${users.length}` : ''}`} />
+      <SearchBar value={query} onChange={setQuery} placeholder={t('admin.searchUsers')} />
 
       {loading ? (
         <ActivityIndicator size="large" color={colors.dark} style={{ marginTop: 40 }} />
@@ -62,7 +64,7 @@ export default function AdminUsersScreen() {
           keyExtractor={u => u.id}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: pageBottom, paddingTop: 4 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} tintColor={colors.dark} />}
-          ListEmptyComponent={<EmptyState icon="people-outline" title={error ?? 'No users found'} />}
+          ListEmptyComponent={<EmptyState icon="people-outline" title={error ?? t('admin.noUsers')} />}
           ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
           renderItem={({ item }) => (
             <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 }}>
@@ -70,15 +72,15 @@ export default function AdminUsersScreen() {
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: 'Philosopher-Bold', fontSize: 15, color: colors.dark }}>
-                    {item.name || 'No name'}
+                    {item.name || t('admin.noName')}
                   </Text>
-                  {item.isAdmin && <Chip label="Admin" tone="amber" />}
+                  {item.isAdmin && <Chip label={t('admin.adminChip')} tone="amber" />}
                 </View>
                 <Text numberOfLines={1} style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: colors.muted, marginTop: 1 }}>
                   {item.email}
                 </Text>
                 <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 12, color: colors.muted, marginTop: 3 }}>
-                  {item._count.bookings} bookings · {item._count.saloons > 0 ? 'Provider · ' : ''}joined {relativeDay(item.createdAt).toLowerCase()}
+                  {t('admin.userLine', { bookings: item._count.bookings, provider: item._count.saloons > 0 ? t('admin.providerPrefix') : '', joined: relativeDay(item.createdAt).toLowerCase() })}
                 </Text>
               </View>
             </Card>

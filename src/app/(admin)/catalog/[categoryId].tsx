@@ -9,6 +9,8 @@ import { RoundButton, Button, colors } from '@/components/admin/AdminUI';
 import { CategorySheet, ServiceSheet } from '@/components/admin/CatalogSheets';
 import { useCatalogStore, type Service } from '@/lib/admin-catalog';
 import { usePageBottomSpace } from '@/lib/layout';
+import { useT } from '@/i18n';
+import { translateServerMessage } from '@/i18n/server-messages';
 
 // Mirrors the customer category page (blob hero, service titles, bordered
 // option cards) so admins edit exactly what customers see.
@@ -17,6 +19,7 @@ const heroBg = '#D7C3A7';
 type ServiceSheetState = { service: Service | null; parentServiceId: string | null; parentName?: string } | null;
 
 export default function AdminCategoryScreen() {
+  const { t } = useT();
   const { categoryId } = useLocalSearchParams<{ categoryId: string }>();
   const { getToken } = useAuth();
   const router = useRouter();
@@ -40,9 +43,9 @@ export default function AdminCategoryScreen() {
   if (!category) {
     return (
       <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: colors.white }}>
-        <BrandHeader left={<RoundButton icon="arrow-back" label="Back" onPress={() => router.back()} />} />
+        <BrandHeader left={<RoundButton icon="arrow-back" label={t('adetail.back')} onPress={() => router.back()} />} />
         <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 15, color: colors.muted, textAlign: 'center', marginTop: 30 }}>
-          This category no longer exists.
+          {t('adetail.categoryGone')}
         </Text>
       </SafeAreaView>
     );
@@ -52,15 +55,15 @@ export default function AdminCategoryScreen() {
     try {
       await saveCategory(tokenFn, { name: category.name, popular: !category.popular }, category.id);
     } catch {
-      Alert.alert("Couldn't update", 'Please try again.');
+      Alert.alert(t('adetail.updateCatFailed'), t('adetail.tryAgain'));
     }
   };
 
   const confirmDeleteCategory = () => {
-    Alert.alert(`Delete “${category.name}”?`, 'Only possible when it has no services.', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('adetail.deleteCat', { name: category.name }), t('adetail.deleteCatBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Delete',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
           try {
@@ -68,7 +71,7 @@ export default function AdminCategoryScreen() {
             setEditingCategory(false);
             router.back();
           } catch {
-            Alert.alert("Can't delete", 'Remove the services in this category first.');
+            Alert.alert(t('adetail.cantDelete'), t('adetail.cantDeleteCat'));
           }
         },
       },
@@ -78,20 +81,20 @@ export default function AdminCategoryScreen() {
   const confirmDeleteService = (svc: Service) => {
     const options = services.filter(s => s.parentServiceId === svc.id).length;
     if (options > 0) {
-      Alert.alert("Can't delete yet", `Delete the ${options} options under “${svc.name}” first.`);
+      Alert.alert(t('adetail.cantDeleteYet'), t('adetail.deleteOptionsFirst', { options, name: svc.name }));
       return;
     }
-    Alert.alert(`Delete “${svc.name}”?`, undefined, [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('adetail.deleteSvc', { name: svc.name }), undefined, [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Delete',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
           try {
             await deleteService(tokenFn, svc.id);
             setServiceSheet(null);
           } catch (e: any) {
-            Alert.alert("Can't delete", e?.message || 'Salons or bookings still use this service.');
+            Alert.alert(t('adetail.cantDelete'), e?.message ? translateServerMessage(e.message) : t('adetail.svcInUse'));
           }
         },
       },
@@ -101,8 +104,8 @@ export default function AdminCategoryScreen() {
   return (
     <SafeAreaView edges={Platform.OS === 'ios' ? ['top', 'left', 'right'] : undefined} style={{ flex: 1, backgroundColor: colors.white }}>
       <BrandHeader
-        left={<RoundButton icon="arrow-back" label="Back" onPress={() => router.back()} />}
-        right={<RoundButton icon="create-outline" label="Edit category" onPress={() => setEditingCategory(true)} />}
+        left={<RoundButton icon="arrow-back" label={t('adetail.back')} onPress={() => router.back()} />}
+        right={<RoundButton icon="create-outline" label={t('adetail.editCategory')} onPress={() => setEditingCategory(true)} />}
       />
 
       <ScrollView contentContainerStyle={{ paddingBottom: pageBottom }} showsVerticalScrollIndicator={false}>
@@ -132,7 +135,7 @@ export default function AdminCategoryScreen() {
             >
               <Ionicons name={category.popular ? 'star' : 'star-outline'} size={15} color={category.popular ? colors.beige : colors.dark} />
               <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 14, color: category.popular ? colors.white : colors.dark }}>
-                {category.popular ? 'Featured' : 'Not featured'}
+                {category.popular ? t('adetail.featured') : t('adetail.notFeatured')}
               </Text>
             </TouchableOpacity>
             <View style={{ flexDirection: 'row', alignItems: 'center', height: 36, paddingHorizontal: 14, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.55)' }}>
@@ -146,7 +149,7 @@ export default function AdminCategoryScreen() {
         <View style={{ paddingHorizontal: 20 }}>
           {groups.length === 0 ? (
             <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 15, color: colors.muted, textAlign: 'center', marginTop: 30 }}>
-              No services in this category yet.
+              {t('adetail.noServices')}
             </Text>
           ) : (
             groups.map(({ parent, options }, idx) => (
@@ -191,7 +194,7 @@ export default function AdminCategoryScreen() {
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <Ionicons name="add" size={20} color={colors.dark} />
-                    <Text style={{ fontSize: 16, color: colors.dark, fontFamily: 'Philosopher-Bold' }}>Add option</Text>
+                    <Text style={{ fontSize: 16, color: colors.dark, fontFamily: 'Philosopher-Bold' }}>{t('more.addOption')}</Text>
                   </View>
                 </TouchableOpacity>
               </View>
@@ -199,7 +202,7 @@ export default function AdminCategoryScreen() {
           )}
 
           <Button
-            label="Add a service"
+            label={t('adetail.addService')}
             icon="add"
             variant="outline"
             onPress={() => setServiceSheet({ service: null, parentServiceId: null })}
@@ -217,7 +220,7 @@ export default function AdminCategoryScreen() {
             await saveCategory(tokenFn, input, category.id);
             setEditingCategory(false);
           } catch (e: any) {
-            Alert.alert("Couldn't save", e?.message ?? 'Please try again.');
+            Alert.alert(t('adetail.saveFailed'), e?.message ? translateServerMessage(e.message) : t('adetail.tryAgain'));
           }
         }}
         onDelete={confirmDeleteCategory}
@@ -235,7 +238,7 @@ export default function AdminCategoryScreen() {
             await saveService(tokenFn, input, serviceSheet?.service ?? undefined);
             setServiceSheet(null);
           } catch (e: any) {
-            Alert.alert("Couldn't save", e?.message ?? 'Please try again.');
+            Alert.alert(t('adetail.saveFailed'), e?.message ? translateServerMessage(e.message) : t('adetail.tryAgain'));
           }
         }}
         onDelete={serviceSheet?.service ? () => confirmDeleteService(serviceSheet.service!) : undefined}

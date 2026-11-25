@@ -10,6 +10,7 @@ import { Card, EmptyState, SearchBar, shortArea, colors } from '@/components/adm
 import BrandHeader from '@/components/BrandHeader';
 import { useTabBarSpace } from '@/lib/layout';
 import RemoteImage from '@/components/RemoteImage';
+import { useT } from '@/i18n';
 
 type Saloon = {
   id: string;
@@ -25,6 +26,7 @@ type Saloon = {
 };
 
 export default function AdminSaloonsScreen() {
+  const { t } = useT();
   const { getToken } = useAuth();
   const router = useRouter();
   const tabBarSpace = useTabBarSpace();
@@ -44,7 +46,7 @@ export default function AdminSaloonsScreen() {
       const data = await adminRequest<Saloon[]>(() => getTokenRef.current(), '/admin/saloons');
       setSaloons(Array.isArray(data) ? data : []);
     } catch {
-      setError("Couldn't load salons.");
+      setError(t('admin.salonsFailed'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -82,7 +84,7 @@ export default function AdminSaloonsScreen() {
   return (
     <SafeAreaView edges={Platform.OS === 'ios' ? ['top', 'left', 'right'] : undefined} style={{ flex: 1, backgroundColor: colors.sand }}>
       <BrandHeader />
-      <SearchBar value={query} onChange={setQuery} placeholder="Search salon, owner or area" />
+      <SearchBar value={query} onChange={setQuery} placeholder={t('admin.searchSalons')} />
 
       {loading ? (
         <ActivityIndicator size="large" color={colors.dark} style={{ marginTop: 40 }} />
@@ -93,9 +95,9 @@ export default function AdminSaloonsScreen() {
           contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: tabBarSpace }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} tintColor={colors.dark} />}
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-          ListEmptyComponent={<EmptyState icon="storefront-outline" title={error ?? 'No salons found'} />}
+          ListEmptyComponent={<EmptyState icon="storefront-outline" title={error ?? t('admin.noSalons')} />}
           renderItem={({ item }) => {
-            const area = shortArea(item.address) ?? areas[item.id] ?? (item.latitude != null ? 'Location pinned' : 'No address');
+            const area = shortArea(item.address) ?? areas[item.id] ?? (item.latitude != null ? t('admin.locationPinned') : t('admin.noAddress'));
             const cover = item.images?.[0]?.url;
             return (
               <TouchableOpacity activeOpacity={0.85} onPress={() => router.push(`/(admin)/saloons/${item.id}` as any)}>
@@ -119,7 +121,7 @@ export default function AdminSaloonsScreen() {
                   </View>
                   <View style={{ alignItems: 'flex-end', gap: 4 }}>
                     <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 15, color: colors.dark }}>{item._count.bookings}</Text>
-                    <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 11, color: colors.muted }}>bookings</Text>
+                    <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 11, color: colors.muted }}>{t('more.bookingsLower')}</Text>
                   </View>
                 </Card>
               </TouchableOpacity>

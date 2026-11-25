@@ -8,6 +8,7 @@ import { useAuth, useUser } from '@clerk/clerk-expo';
 import { initStripe, useStripe } from '@/lib/stripe';
 import { describeError } from '@/lib/api';
 import { isOfflineNow } from '@/lib/network';
+import { useT, tr } from '@/i18n';
 
 /** Errors whose message is safe to show as-is (Stripe's payment sheet copy). */
 class UserFacingError extends Error {}
@@ -38,33 +39,26 @@ const describeConfirmFailure = (status?: number): {
   switch (status) {
     case 402:
       return {
-        title: 'Maksu veloitettu — vahvistus kesken',
-        message:
-          'Maksusi on veloitettu, mutta varauksen vahvistus ei vielä onnistunut. ' +
-          'Voit yrittää vahvistamista uudelleen — sitä ei veloiteta kahdesti.',
+        title: tr('checkout.paidPending'),
+        message: tr('checkout.paidPendingBody'),
         canRetry: true,
       };
     case 403:
       return {
-        title: 'Varausta ei voitu vahvistaa',
-        message:
-          'Varaus ei vastaa tehtyä maksua. Uudelleenyritys ei auta. ' +
-          'Ota yhteyttä asiakaspalveluun ja mainitse maksutunnus.',
+        title: tr('checkout.mismatch'),
+        message: tr('checkout.mismatchBody'),
         canRetry: false,
       };
     case 404:
       return {
-        title: 'Varausta ei löytynyt',
-        message:
-          'Varausta ei löytynyt järjestelmästä. Ota yhteyttä asiakaspalveluun ja mainitse maksutunnus.',
+        title: tr('checkout.notFound'),
+        message: tr('checkout.notFoundBody'),
         canRetry: false,
       };
     default:
       return {
-        title: 'Vahvistus epäonnistui',
-        message:
-          'Maksusi on veloitettu, mutta vahvistusta ei saatu läpi. ' +
-          'Tarkista verkkoyhteytesi ja yritä uudelleen — sitä ei veloiteta kahdesti.',
+        title: tr('checkout.confirmFailed'),
+        message: tr('checkout.confirmFailedBody'),
         canRetry: true,
       };
   }
@@ -76,8 +70,9 @@ const CheckoutButtonInner: React.FC<CheckoutButtonProps> = ({
   onSuccess,
   onError,
   disabled = false,
-  children = "Confirm Booking"
+  children
 }) => {
+  const { t } = useT();
   const [isLoading, setIsLoading] = useState(false);
   const { isSignedIn, getToken } = useAuth();
   const { user } = useUser();
@@ -88,18 +83,18 @@ const CheckoutButtonInner: React.FC<CheckoutButtonProps> = ({
 
   const handleCheckout = async () => {
     if (saloonServices.length === 0) {
-      Alert.alert('Virhe', 'Valitse vähintään yksi palvelu');
+      Alert.alert(t('common.error'), t('checkout.selectService'));
       return;
     }
 
     if (!customerInfo.name || !customerInfo.email) {
-      Alert.alert('Virhe', 'Täytä nimesi ja sähköpostiosoitteesi');
+      Alert.alert(t('common.error'), t('checkout.fillDetails'));
       return;
     }
 
     // Don't start a payment we can't finish.
     if (await isOfflineNow()) {
-      Alert.alert('Ei internetyhteyttä', 'Tarvitset internetyhteyden varauksen maksamiseen. Yritä uudelleen, kun yhteys palaa.');
+      Alert.alert(t('checkout.offline'), t('checkout.offlineBody'));
       return;
     }
 
@@ -129,7 +124,7 @@ const CheckoutButtonInner: React.FC<CheckoutButtonProps> = ({
       const result = await initiateCheckout(saloonServices, customerInfoWithUserId, authToken || undefined);
       
       if (!result.paymentIntentClientSecret) {
-        throw new Error('Maksun alustus epäonnistui');
+        throw new Error(t('checkout.initFailed'));
       }
 
       console.log('Got payment intent, initializing payment sheet...');
@@ -160,7 +155,7 @@ const CheckoutButtonInner: React.FC<CheckoutButtonProps> = ({
 
       if (initError) {
         console.error('Error initializing payment sheet:', initError);
-        throw new UserFacingError(initError.message || 'Maksulomakkeen alustus epäonnistui');
+        throw new UserFacingError(initError.message || t('checkout.sheetFailed'));
       }
 
       console.log('Payment sheet initialized, presenting...');
@@ -175,7 +170,7 @@ const CheckoutButtonInner: React.FC<CheckoutButtonProps> = ({
           return;
         }
         console.error('Payment failed:', paymentError);
-        throw new UserFacingError(paymentError.message || 'Maksu epäonnistui');
+        throw new UserFacingError(paymentError.message || t('checkout.paymentFailed'));
       }
 
       // Step 4: Payment successful - confirm the booking.
@@ -186,11 +181,11 @@ const CheckoutButtonInner: React.FC<CheckoutButtonProps> = ({
 
       const paymentIntentId = result.paymentIntentClientSecret.split('_secret_')[0];
 
-      const showConfirmed = (message?: string) => {
+      const showConfirmed = (_serverMessage?: string) => {
         Alert.alert(
-          'Varaus vahvistettu! 🎉',
-          message || 'Varauksesi on vahvistettu. Saat vahvistusviestin sähköpostiisi.',
-          [{ text: 'OK', onPress: () => onSuccess?.(result.bookingIds) }]
+          t('checkout.confirmed'),
+          t('checkout.confirmedBody'),
+          [{ text: t('common.ok'), onPress: () => onSuccess?.(result.bookingIds) }]
         );
       };
 
@@ -215,17 +210,17 @@ const CheckoutButtonInner: React.FC<CheckoutButtonProps> = ({
 
           // Always give the customer the payment reference — it is what support
           // needs to reconcile a charge against a missing booking.
-          const body = `${message}\n\nMaksutunnus: ${paymentIntentId}`;
+          const body = `${message}\n\n${t('checkout.paymentRef', { id: paymentIntentId })}`;
 
           Alert.alert(
             title,
             body,
             canRetry
               ? [
-                  { text: 'Sulje', style: 'cancel' },
-                  { text: 'Yritä uudelleen', onPress: () => { void attemptConfirm(); } },
+                  { text: t('common.close'), style: 'cancel' },
+                  { text: t('common.retry'), onPress: () => { void attemptConfirm(); } },
                 ]
-              : [{ text: 'OK' }]
+              : [{ text: t('common.ok') }]
           );
 
           onError?.(
@@ -243,7 +238,7 @@ const CheckoutButtonInner: React.FC<CheckoutButtonProps> = ({
       // written for customers; anything else gets friendly copy, never the
       // raw error text.
       const message = error instanceof UserFacingError ? error.message : describeError(error).message;
-      Alert.alert('Varaus epäonnistui', `${message}\n\nVeloitusta ei tehty.`);
+      Alert.alert(t('checkout.bookingFailed'), `${message}\n\n${t('checkout.notCharged')}`);
       onError?.(error instanceof Error ? error : new Error(String(error)));
     } finally {
       setIsLoading(false);
@@ -277,12 +272,12 @@ const CheckoutButtonInner: React.FC<CheckoutButtonProps> = ({
           <>
             <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
             <Text style={{ color: '#FFFFFF', fontFamily: 'Philosopher-Bold', fontSize: 16 }}>
-              Käsitellään maksua...
+              {t('checkout.processing')}
             </Text>
           </>
         ) : (
           <Text style={{ color: '#FFFFFF', fontFamily: 'Philosopher-Bold', fontSize: 16 }}>
-            {children}
+            {children ?? t('checkout.confirmBooking')}
           </Text>
         )}
       </View>

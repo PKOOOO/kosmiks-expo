@@ -10,16 +10,18 @@ import {
   useEarningsStore, summarise, totalsByMonth, formatEur, formatDay, formatDate, type EarningsBooking,
 } from '@/lib/earnings';
 import { setUpStripePayouts, openStripeDashboard, refreshStripeStatus, withdrawEarnings } from '@/lib/stripe-payouts';
-import { friendlyErrorEn } from '@/lib/api';
+import { friendlyError } from '@/lib/api';
 import { Card, SectionLabel, ListRow, StatusChip, colors } from '@/components/earnings/EarningsUI';
 import BrandHeader from '@/components/BrandHeader';
 import { useTabBarSpace } from '@/lib/layout';
+import { useT } from '@/i18n';
 
 type Segment = 'payouts' | 'revenue';
 
 // Earnings tab: "Payouts" (what you'll be paid and when) and "Revenue"
 // (booking history by month) — formerly two separate tabs.
 export default function EarningsScreen() {
+  const { t } = useT();
   const { getToken } = useAuth();
   const router = useRouter();
   const tabBarSpace = useTabBarSpace();
@@ -82,6 +84,7 @@ export default function EarningsScreen() {
 // ─── Payouts ─────────────────────────────────────────────────────────────────
 
 function PayoutsSection({ router, reload }: { router: ReturnType<typeof useRouter>; reload: () => Promise<void> }) {
+  const { t } = useT();
   const { getToken } = useAuth();
   const data = useEarningsStore(s => s.data)!;
   const summary = summarise(data);
@@ -101,7 +104,7 @@ function PayoutsSection({ router, reload }: { router: ReturnType<typeof useRoute
       await refreshStripeStatus(getToken).catch(() => undefined);
       await reload();
     } catch (e) {
-      Alert.alert('Stripe setup', friendlyErrorEn(e, "Couldn't open Stripe. Please try again."));
+      Alert.alert(t('earn.stripeSetup'), friendlyError(e, t('earn.openStripeFailed')));
     } finally {
       setBusy(null);
     }
@@ -112,7 +115,7 @@ function PayoutsSection({ router, reload }: { router: ReturnType<typeof useRoute
     try {
       await openStripeDashboard(getToken);
     } catch (e) {
-      Alert.alert('Stripe', friendlyErrorEn(e, "Couldn't open Stripe. Please try again."));
+      Alert.alert('Stripe', friendlyError(e, t('earn.openStripeFailed')));
     } finally {
       setBusy(null);
     }
@@ -120,25 +123,25 @@ function PayoutsSection({ router, reload }: { router: ReturnType<typeof useRoute
 
   const withdraw = () => {
     Alert.alert(
-      `Withdraw ${formatEur(summary.available)}?`,
-      'It goes to your Stripe account, and Stripe pays it out to your bank.',
+      t('earn.withdrawTitle', { amount: formatEur(summary.available) }),
+      t('earn.withdrawBody'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Withdraw',
+          text: t('earn.withdraw'),
           onPress: async () => {
             setBusy('withdraw');
             try {
               const result = await withdrawEarnings(getToken);
               await reload();
               Alert.alert(
-                'Sent to Stripe',
+                t('earn.sentToStripe'),
                 result.failed > 0
-                  ? `${formatEur(result.amount)} was sent. ${result.failed} booking(s) couldn't be sent yet and stay in your balance.`
-                  : `${formatEur(result.amount)} is on its way to your Stripe account.`,
+                  ? t('earn.sentPartial', { amount: formatEur(result.amount), failed: result.failed })
+                  : t('earn.sentAll', { amount: formatEur(result.amount) }),
               );
             } catch (e) {
-              Alert.alert('Withdrawal', friendlyErrorEn(e, "The withdrawal didn't go through. Please try again."));
+              Alert.alert(t('earn.withdrawal'), friendlyError(e, t('earn.withdrawFailed')));
             } finally {
               setBusy(null);
             }
@@ -153,7 +156,7 @@ function PayoutsSection({ router, reload }: { router: ReturnType<typeof useRoute
       {/* Hero: the one number that matters */}
       <View style={{ backgroundColor: colors.dark, borderRadius: 22, padding: 22 }}>
         <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: colors.beige }}>
-          Available to withdraw
+          {t('earn.available')}
         </Text>
         <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 42, color: colors.white, marginTop: 4 }}>
           {formatEur(summary.available)}
@@ -164,16 +167,16 @@ function PayoutsSection({ router, reload }: { router: ReturnType<typeof useRoute
         }}>
           <Ionicons name="card-outline" size={16} color={colors.beige} />
           <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 14, color: colors.white, flex: 1 }}>
-            Paid out through Stripe
+            {t('earn.paidThroughStripe')}
           </Text>
           <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: colors.beige }}>
-            after {feePct}% fee
+            {t('earn.afterFee', { pct: feePct })}
           </Text>
         </View>
 
         {stripe.payoutsEnabled ? (
           <PrimaryButton
-            label={summary.available > 0 ? `Withdraw ${formatEur(summary.available)}` : 'Nothing to withdraw yet'}
+            label={summary.available > 0 ? t('earn.withdrawAmount', { amount: formatEur(summary.available) }) : t('earn.nothingToWithdraw')}
             icon="arrow-up-circle-outline"
             disabled={summary.available <= 0 || busy !== null}
             loading={busy === 'withdraw'}
@@ -181,7 +184,7 @@ function PayoutsSection({ router, reload }: { router: ReturnType<typeof useRoute
           />
         ) : hasEarnings ? (
           <PrimaryButton
-            label={stripe.connected ? 'Finish payout setup' : 'Set up payouts'}
+            label={stripe.connected ? t('earn.finishSetup') : t('earn.setUp')}
             icon="shield-checkmark-outline"
             disabled={busy !== null}
             loading={busy === 'setup'}
@@ -195,8 +198,8 @@ function PayoutsSection({ router, reload }: { router: ReturnType<typeof useRoute
           <Ionicons name="information-circle-outline" size={22} color={colors.dark} />
           <Text style={{ flex: 1, fontFamily: 'Philosopher-Regular', fontSize: 14, lineHeight: 20, color: colors.muted }}>
             {stripe.detailsSubmitted
-              ? 'Stripe is checking your details. You can withdraw as soon as they are approved — pull down to refresh.'
-              : 'To receive your earnings, set up a free Stripe account once. Stripe asks for your ID and bank account; it takes about 5 minutes.'}
+              ? t('earn.stripeChecking')
+              : t('earn.setupInfo')}
           </Text>
         </Card>
       )}
@@ -205,15 +208,15 @@ function PayoutsSection({ router, reload }: { router: ReturnType<typeof useRoute
         <Card style={{ marginTop: 12 }}>
           <ListRow
             icon="time-outline"
-            title="Upcoming"
-            subtitle={`${summary.upcomingCount} ${summary.upcomingCount === 1 ? 'booking' : 'bookings'} not yet completed`}
+            title={t('earn.upcoming')}
+            subtitle={t(summary.upcomingCount === 1 ? 'earn.upcomingOne' : 'earn.upcomingMany', { count: summary.upcomingCount })}
             trailing={formatEur(summary.upcomingNet)}
             last
           />
         </Card>
       )}
 
-      <SectionLabel>Recent payouts</SectionLabel>
+      <SectionLabel>{t('earn.recentPayouts')}</SectionLabel>
       {recent.length === 0 ? (
         <Card style={{ paddingVertical: 26, paddingHorizontal: 24, alignItems: 'center' }}>
           <View style={{
@@ -222,9 +225,9 @@ function PayoutsSection({ router, reload }: { router: ReturnType<typeof useRoute
           }}>
             <Ionicons name="wallet-outline" size={22} color={colors.dark} />
           </View>
-          <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 16, color: colors.dark }}>No payouts yet</Text>
+          <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 16, color: colors.dark }}>{t('earn.noPayouts')}</Text>
           <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: colors.muted, textAlign: 'center', marginTop: 4, lineHeight: 20 }}>
-            Your withdrawals will show up here.
+            {t('earn.noPayoutsBody')}
           </Text>
         </Card>
       ) : (
@@ -254,17 +257,17 @@ function PayoutsSection({ router, reload }: { router: ReturnType<typeof useRoute
         </Card>
       )}
 
-      <SectionLabel>Settings</SectionLabel>
+      <SectionLabel>{t('earn.settings')}</SectionLabel>
       <Card>
         <ListRow
           icon="card-outline"
-          title="Stripe payout account"
-          subtitle={stripe.payoutsEnabled ? 'Active · open Stripe' : stripe.connected ? 'Setup not finished' : 'Not set up yet'}
+          title={t('earn.stripeAccount')}
+          subtitle={stripe.payoutsEnabled ? t('earn.stripeActive') : stripe.connected ? t('earn.stripeUnfinished') : t('earn.stripeNotSet')}
           onPress={stripe.detailsSubmitted ? openDashboard : setUp}
         />
         <ListRow
           icon="help-circle-outline"
-          title="How payouts work"
+          title={t('earn.howItWorks')}
           onPress={() => router.push('/(provider)/payouts/how-it-works' as any)}
           last
         />
@@ -276,6 +279,7 @@ function PayoutsSection({ router, reload }: { router: ReturnType<typeof useRoute
 // ─── Revenue ─────────────────────────────────────────────────────────────────
 
 function RevenueSection() {
+  const { t } = useT();
   const data = useEarningsStore(s => s.data)!;
   const months = totalsByMonth(data.bookings);
   const total = months.reduce((s, m) => s + m.revenue, 0);
@@ -286,9 +290,9 @@ function RevenueSection() {
     return (
       <Card style={{ paddingVertical: 32, paddingHorizontal: 24, alignItems: 'center' }}>
         <Ionicons name="trending-up-outline" size={30} color={colors.beige} />
-        <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 16, color: colors.dark, marginTop: 10 }}>No bookings yet</Text>
+        <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 16, color: colors.dark, marginTop: 10 }}>{t('earn.noBookings')}</Text>
         <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: colors.muted, marginTop: 4 }}>
-          Revenue from your bookings will appear here.
+          {t('earn.noBookingsBody')}
         </Text>
       </Card>
     );
@@ -297,27 +301,27 @@ function RevenueSection() {
   return (
     <>
       <Card style={{ padding: 20 }}>
-        <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: colors.muted }}>Total revenue</Text>
+        <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: colors.muted }}>{t('more.totalRevenue')}</Text>
         <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 34, color: colors.dark, marginTop: 2 }}>{formatEur(total)}</Text>
         <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: colors.muted, marginTop: 4 }}>
           {count} {count === 1 ? 'booking' : 'bookings'} · before platform fee
         </Text>
       </Card>
 
-      <SectionLabel>By month</SectionLabel>
+      <SectionLabel>{t('earn.byMonth')}</SectionLabel>
       <Card>
         {months.map((m, i) => (
           <ListRow
             key={m.key}
             title={m.label}
-            subtitle={`${m.count} ${m.count === 1 ? 'booking' : 'bookings'}`}
+            subtitle={t(m.count === 1 ? 'earn.bookingOne' : 'earn.bookingMany', { count: m.count })}
             trailing={formatEur(m.revenue)}
             last={i === months.length - 1}
           />
         ))}
       </Card>
 
-      <SectionLabel>Recent bookings</SectionLabel>
+      <SectionLabel>{t('earn.recentBookings')}</SectionLabel>
       <Card>
         {recent.map((b, i) => <BookingRow key={b.id} booking={b} last={i === recent.length - 1} />)}
       </Card>
@@ -326,6 +330,7 @@ function RevenueSection() {
 }
 
 function BookingRow({ booking, last }: { booking: EarningsBooking; last: boolean }) {
+  const { t } = useT();
   const when = new Date(booking.bookingTime);
   const cancelled = booking.status === 'cancelled';
   return (
@@ -335,10 +340,10 @@ function BookingRow({ booking, last }: { booking: EarningsBooking; last: boolean
     }}>
       <View style={{ flex: 1, marginRight: 12 }}>
         <Text numberOfLines={1} style={{ fontFamily: 'Philosopher-Bold', fontSize: 15, color: colors.dark }}>
-          {booking.service?.name ?? 'Service'}
+          {booking.service?.name ?? t('earn.service')}
         </Text>
         <Text numberOfLines={1} style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: colors.muted, marginTop: 2 }}>
-          {booking.customerName || booking.user?.name || 'Customer'} · {formatDay(when)}
+          {booking.customerName || booking.user?.name || t('earn.customer')} · {formatDay(when)}
         </Text>
       </View>
       <Text style={{
@@ -382,9 +387,10 @@ function PrimaryButton({ label, icon, disabled, loading, onPress }: {
 }
 
 function SegmentedControl({ value, onChange }: { value: Segment; onChange: (v: Segment) => void }) {
+  const { t } = useT();
   const options: { key: Segment; label: string }[] = [
-    { key: 'payouts', label: 'Payouts' },
-    { key: 'revenue', label: 'Revenue' },
+    { key: 'payouts', label: t('earn.payouts') },
+    { key: 'revenue', label: t('earn.revenue') },
   ];
   return (
     <View style={{ flexDirection: 'row', marginTop: 14, padding: 4, borderRadius: 22, backgroundColor: '#E2D3BF' }}>
@@ -415,12 +421,13 @@ function SegmentedControl({ value, onChange }: { value: Segment; onChange: (v: S
 }
 
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+  const { t } = useT();
   return (
     <Card style={{ padding: 24, alignItems: 'center' }}>
       <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 16, color: colors.dark }}>{message}</Text>
       <TouchableOpacity onPress={onRetry} style={{ marginTop: 12 }}>
         <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 14, color: colors.dark, textDecorationLine: 'underline' }}>
-          Try again
+          {t('earn.tryAgain')}
         </Text>
       </TouchableOpacity>
     </Card>

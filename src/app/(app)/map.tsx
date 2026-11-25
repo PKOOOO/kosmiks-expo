@@ -17,6 +17,7 @@ import { useIsOffline, useOnReconnect } from "@/lib/network";
 import RemoteImage from '@/components/RemoteImage';
 import { getOpeningStatus, TimeSlot } from '@/lib/opening-hours';
 import { MAPBOX_LOADER_JS, KOSMIKS_PIN_CSS, KOSMIKS_PIN_JS, BUILDING_HIGHLIGHT_JS } from '@/lib/map-html';
+import { ALL_SERVICES, useT } from '@/i18n';
 
 // Extended interface for map salon data
 interface MapSalon extends Saloon {
@@ -64,6 +65,7 @@ const normalizeSearchText = (value: string) => (value || '')
 
 
 export default function MapScreen() {
+  const { t } = useT();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -221,8 +223,8 @@ export default function MapScreen() {
         getCurrentLocation();
       } else {
         Alert.alert(
-          'Permission Denied',
-          'Location permission is required to show nearby service providers.'
+          t('map.permissionTitle'),
+          t('map.permissionBody')
         );
         setLoading(false);
       }
@@ -354,11 +356,11 @@ export default function MapScreen() {
       }
       if (status !== 'granted') {
         Alert.alert(
-          'Sijainti tarvitaan',
-          'Salli sijainti, niin näytämme reitin salonkiin.',
+          t('map.locationNeeded'),
+          t('map.locationNeededBody'),
           [
-            { text: 'Peruuta', style: 'cancel' },
-            { text: 'Asetukset', onPress: () => Linking.openSettings() },
+            { text: t('common.cancel'), style: 'cancel' },
+            { text: t('map.settings'), onPress: () => Linking.openSettings() },
           ]
         );
         return;
@@ -407,7 +409,7 @@ export default function MapScreen() {
     const number = salon.phone?.replace(/[^\d+]/g, '');
     if (!number) return;
     Linking.openURL(`tel:${number}`).catch(() => {
-      Alert.alert('Puhelu ei onnistunut', `Soita numeroon ${salon.phone}`);
+      Alert.alert(t('map.callFailed'), t('map.callNumber', { phone: salon.phone }));
     });
   };
 
@@ -419,7 +421,7 @@ export default function MapScreen() {
       params: {
         salonId: salon.id,
         salonName: salon.name,
-        categoryName: 'Kaikki palvelut'
+        categoryName: ALL_SERVICES
       }
     });
   };
@@ -488,26 +490,27 @@ export default function MapScreen() {
             type: 'zoomToService',
             center: { latitude: avgLat, longitude: avgLng },
             salons: salonsWithService,
-            serviceName: service.name
+            serviceName: service.name,
+            label: t('map.popupFound', { count: salonsWithService.length }),
           });
           webViewRef.postMessage(message);
         }
 
         Alert.alert(
-          'Palvelu löytyi!',
-          `Löytyi ${salonsWithService.length} salon ${service.name} palvelulla. Kartta on keskitetty näihin saloneihin.`,
-          [{ text: 'OK' }]
+          t('map.serviceFound'),
+            t('map.serviceFoundBody', { count: salonsWithService.length, service: service.name }),
+            [{ text: t('common.ok') }]
         );
       } else {
         Alert.alert(
-          'Palvelua ei löytynyt',
-          `Valitettavasti kukaan salon ei tarjoa "${service.name}" palvelua tällä hetkellä.`,
-          [{ text: 'OK' }]
+          t('map.serviceNotFound'),
+            t('map.serviceNotFoundBody', { service: service.name }),
+            [{ text: t('common.ok') }]
         );
       }
     } catch (error) {
       console.error('Error filtering salons by service:', error);
-      Alert.alert('Virhe', 'Palvelun hakemisessa tapahtui virhe.');
+      Alert.alert(t('common.error'), t('map.serviceSearchError'));
     } finally {
       setSearchLoading(false);
     }
@@ -678,7 +681,7 @@ export default function MapScreen() {
                   .setLngLat([data.center.longitude, data.center.latitude])
                   .setHTML(
                     '<div class="popup-title">' + data.serviceName + '</div>' +
-                    '<div class="popup-details">Löytyi ' + data.salons.length + ' salonkia tällä palvelulla</div>'
+                    '<div class="popup-details">' + (data.label || '') + '</div>'
                   )
                   .addTo(map);
               }, 1600);
@@ -763,7 +766,7 @@ export default function MapScreen() {
             params: {
               salonId: salon.id,
               salonName: salon.name,
-              categoryName: 'Kaikki palvelut' // or get from salon services
+              categoryName: ALL_SERVICES // or get from salon services
             }
           });
         }
@@ -815,7 +818,7 @@ export default function MapScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={darkBrown} />
           <Text style={[styles.loadingText, { color: darkBrown, fontFamily: 'Philosopher-Bold' }]}>
-            Ladataan karttaa...
+            {t('map.loading')}
           </Text>
         </View>
       </View>
@@ -869,7 +872,7 @@ export default function MapScreen() {
             <View style={styles.webViewLoading}>
               <ActivityIndicator size="large" color={darkBrown} />
               <Text style={[styles.loadingText, { color: darkBrown, fontFamily: 'Philosopher-Bold' }]}>
-                Ladataan karttaa...
+                {t('map.loading')}
               </Text>
             </View>
           )}
@@ -885,7 +888,7 @@ export default function MapScreen() {
                   style={[styles.routeModeButton, route.profile === profile && { backgroundColor: darkBrown }]}
                   onPress={() => changeRouteProfile(profile)}
                   accessibilityRole="button"
-                  accessibilityLabel={profile === 'walking' ? 'Kävely' : 'Auto'}
+                  accessibilityLabel={profile === 'walking' ? t('map.walking') : t('map.driving')}
                   accessibilityState={{ selected: route.profile === profile }}
                 >
                   <Ionicons name={profile === 'walking' ? 'walk' : 'car'} size={18} color={route.profile === profile ? white : darkBrown} />
@@ -893,9 +896,9 @@ export default function MapScreen() {
               ))}
               <View style={styles.routeInfo}>
                 {route.status === 'loading' ? (
-                  <Text style={styles.routeInfoMain}>Haetaan reittiä…</Text>
+                  <Text style={styles.routeInfoMain}>{t('map.routeLoading')}</Text>
                 ) : route.status === 'error' ? (
-                  <Text style={styles.routeInfoMain}>Reittiä ei löytynyt</Text>
+                  <Text style={styles.routeInfoMain}>{t('map.routeNotFound')}</Text>
                 ) : (
                   <Text style={styles.routeInfoMain} numberOfLines={1}>
                     {formatDuration(route.duration ?? 0)} · {formatDistance(route.distance ?? 0)}
@@ -909,7 +912,7 @@ export default function MapScreen() {
                 onPress={clearRoute}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 accessibilityRole="button"
-                accessibilityLabel="Sulje reitti"
+                accessibilityLabel={t('map.closeRoute')}
               >
                 <Ionicons name="close-circle" size={26} color={darkBrown} />
               </TouchableOpacity>
@@ -923,7 +926,7 @@ export default function MapScreen() {
                 style={[styles.topSearchText, { color: darkBrown, fontFamily: 'Philosopher-Bold' }]}
                 value={searchQuery}
                 onChangeText={handleSearchQuery}
-                placeholder="Etsi Salonki.."
+                placeholder={t('map.searchSalon')}
                 placeholderTextColor="#999"
                 returnKeyType="search"
               />
@@ -932,7 +935,7 @@ export default function MapScreen() {
                   onPress={clearSearch}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   accessibilityRole="button"
-                  accessibilityLabel="Clear search"
+                  accessibilityLabel={t('map.clearSearch')}
                 >
                   <Ionicons name="close-circle" size={22} color={darkBrown} />
                 </TouchableOpacity>
@@ -990,7 +993,7 @@ export default function MapScreen() {
                     activeOpacity={0.9}
                     onPress={() => handleSalonCardPress(salon)}
                     accessibilityRole="button"
-                    accessibilityLabel={`${salon.name}, näytä tiedot`}
+                    accessibilityLabel={t('map.showDetails', { name: salon.name })}
                   >
                     <View>
                       <RemoteImage
@@ -1012,7 +1015,7 @@ export default function MapScreen() {
                         <View style={styles.cardRatingPill}>
                           <Ionicons name="star" size={13} color={darkBrown} />
                           <Text style={styles.cardRatingText}>
-                            {salon.reviewCount > 0 ? `${rating.toFixed(1)} (${salon.reviewCount})` : 'Uusi'}
+                            {salon.reviewCount > 0 ? `${rating.toFixed(1)} (${salon.reviewCount})` : t('map.new')}
                           </Text>
                         </View>
                       </View>
@@ -1040,7 +1043,7 @@ export default function MapScreen() {
                           accessibilityRole="button"
                         >
                           <Ionicons name="navigate-outline" size={16} color={darkBrown} />
-                          <Text style={[styles.cardButtonText, { color: darkBrown }]}>Reittiohjeet</Text>
+                          <Text style={[styles.cardButtonText, { color: darkBrown }]}>{t('map.directions')}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                           style={[styles.cardButton, styles.cardButtonFilled]}
@@ -1048,7 +1051,7 @@ export default function MapScreen() {
                           accessibilityRole="button"
                         >
                           <Ionicons name="calendar-outline" size={16} color={white} />
-                          <Text style={[styles.cardButtonText, { color: white }]}>Varaa</Text>
+                          <Text style={[styles.cardButtonText, { color: white }]}>{t('map.book')}</Text>
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -1070,7 +1073,7 @@ export default function MapScreen() {
               accessibilityRole="button"
             >
               <Ionicons name="refresh" size={17} color={white} />
-              <Text style={styles.mapStateActionText}>Yritä uudelleen</Text>
+              <Text style={styles.mapStateActionText}>{t('common.retry')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1079,10 +1082,10 @@ export default function MapScreen() {
           <View pointerEvents="none" style={[styles.mapStatePanel, { bottom: 150 + insets.bottom }]}>
             <Ionicons name="location-outline" size={22} color={darkBrown} style={styles.mapStateIcon} />
             <Text style={styles.mapStateTitle}>
-              Ei vielä salonkeja
+              {t('map.noSalons')}
             </Text>
             <Text style={styles.mapStateMessage}>
-              Uudet salongit näkyvät täällä, kun ne liittyvät palveluun.
+              {t('map.noSalonsBody')}
             </Text>
           </View>
         )}
@@ -1090,15 +1093,15 @@ export default function MapScreen() {
         {showNoSearchResults && (
           <View style={[styles.mapStatePanel, { bottom: 150 + insets.bottom }]}>
             <Ionicons name="search-outline" size={22} color={darkBrown} style={styles.mapStateIcon} />
-            <Text style={styles.mapStateTitle}>Ei tuloksia haulle '{activeSearchLabel}'</Text>
-            <Text style={styles.mapStateMessage}>Tarkista kirjoitusasu tai kokeile toista hakua.</Text>
+            <Text style={styles.mapStateTitle}>{t('map.noResults', { query: activeSearchLabel })}</Text>
+            <Text style={styles.mapStateMessage}>{t('map.noResultsBody')}</Text>
             <TouchableOpacity
               style={styles.mapStateAction}
               onPress={clearSearch}
               accessibilityRole="button"
             >
               <Ionicons name="close" size={17} color={white} />
-              <Text style={styles.mapStateActionText}>Tyhjennä haku</Text>
+              <Text style={styles.mapStateActionText}>{t('map.clearSearch')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1133,7 +1136,7 @@ export default function MapScreen() {
               {/* Search Header */}
               <View style={styles.searchHeader}>
                 <Text style={[styles.searchTitle, { color: darkBrown, fontFamily: 'Philosopher-Bold' }]}>
-                  Etsi palvelua
+                  {t('map.searchService')}
                 </Text>
                 <TouchableOpacity onPress={() => setSearchVisible(false)}>
                   <Ionicons name="close" size={24} color={darkBrown} />
@@ -1145,7 +1148,7 @@ export default function MapScreen() {
                 <Ionicons name="search" size={20} color={darkBrown} style={styles.searchInputIcon} />
                 <TextInput
                   style={[styles.searchInput, { color: darkBrown, fontFamily: 'Philosopher-Regular' }]}
-                  placeholder="Kirjoita palvelun nimi..."
+                  placeholder={t('map.typeService')}
                   placeholderTextColor="#999"
                   value={searchQuery}
                   onChangeText={handleSearchQuery}
@@ -1164,7 +1167,7 @@ export default function MapScreen() {
                     style={styles.searchButton}
                     onPress={clearSearch}
                     accessibilityRole="button"
-                    accessibilityLabel="Clear search"
+                    accessibilityLabel={t('map.clearSearch')}
                   >
                     <Ionicons name="close-circle" size={20} color={darkBrown} />
                   </TouchableOpacity>
@@ -1199,7 +1202,7 @@ export default function MapScreen() {
                 <View style={styles.searchLoadingContainer}>
                   <ActivityIndicator size="large" color={darkBrown} />
                   <Text style={[styles.searchLoadingText, { color: darkBrown, fontFamily: 'Philosopher-Regular' }]}>
-                    Ladataan palveluja...
+                    {t('map.loadingServices')}
                   </Text>
                 </View>
               ) : (
@@ -1250,7 +1253,7 @@ export default function MapScreen() {
                   ListEmptyComponent={
                     <View style={styles.emptyContainer}>
                       <Text style={[styles.emptyText, { color: darkBrown, fontFamily: 'Philosopher-Regular' }]}>
-                        {searchQuery ? 'Ei tuloksia – kokeile toista hakusanaa' : 'Aloita kirjoittamalla palvelun tai salon nimen'}
+                        {searchQuery ? t('map.noResultsTryAgain') : t('map.startTyping')}
                       </Text>
                     </View>
                   }
@@ -1326,13 +1329,13 @@ export default function MapScreen() {
                           ⭐
                         </Text>
                         <Text style={[styles.salonDetailReviewCount, { color: '#666', fontFamily: 'Philosopher-Regular' }]}>
-                          • {selectedSalonForDetail.reviewCount} {selectedSalonForDetail.reviewCount === 1 ? 'arvostelu' : 'arvostelua'}
+                          • {selectedSalonForDetail.reviewCount} {selectedSalonForDetail.reviewCount === 1 ? t('map.reviewOne') : t('map.reviewMany')}
                         </Text>
                       </>
                     ) : (
                       // Same label as the map card while a salon has no reviews.
                       <Text style={[styles.salonDetailRating, { color: darkBrown, fontFamily: 'Philosopher-Bold' }]}>
-                        ★ Uusi
+                        ★ {t('map.new')}
                       </Text>
                     )}
                   </View>
@@ -1353,7 +1356,7 @@ export default function MapScreen() {
                     >
                       <Ionicons name="navigate" size={20} color={white} />
                       <Text style={[styles.salonDetailActionButtonText, { color: white, fontFamily: 'Philosopher-Bold' }]}>
-                        Reitti
+                        {t('map.route')}
                       </Text>
                     </TouchableOpacity>
 
@@ -1365,7 +1368,7 @@ export default function MapScreen() {
                     >
                       <Ionicons name="call" size={20} color={darkBrown} />
                       <Text style={[styles.salonDetailActionButtonText, { color: darkBrown, fontFamily: 'Philosopher-Bold' }]}>
-                        Soita
+                        {t('map.call')}
                       </Text>
                     </TouchableOpacity>
                     )}
@@ -1377,7 +1380,7 @@ export default function MapScreen() {
                     onPress={() => handleViewServices(selectedSalonForDetail)}
                   >
                     <Text style={[styles.salonDetailServicesButtonText, { color: white, fontFamily: 'Philosopher-Bold' }]}>
-                      Katso palvelut
+                      {t('map.seeServices')}
                     </Text>
                   </TouchableOpacity>
                 </View>

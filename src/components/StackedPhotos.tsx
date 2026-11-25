@@ -5,6 +5,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import UploadProgress from '@/components/UploadProgress';
 import RemoteImage from '@/components/RemoteImage';
+import { useT } from '@/i18n';
 
 // Full-width landscape photos that stack while the page scrolls: each photo
 // pins near the top of the scroll view and the next one slides up over it,
@@ -35,6 +36,7 @@ export default function StackedPhotos({
   images, width, scrollY, parentOffsetY, uploading, uploadProgress, onReplace, onRemove, onAdd,
   showAddButton = true,
 }: Props) {
+  const { t } = useT();
   const height = Math.round(width * 0.62);
   const step = height + GAP;
   const [ownY, setOwnY] = useState<number | null>(null);
@@ -85,7 +87,7 @@ export default function StackedPhotos({
             activeOpacity={0.9}
             disabled={busy}
             accessibilityRole="button"
-            accessibilityLabel={index === 0 ? 'Replace cover photo' : `Replace salon photo ${index + 1}`}
+            accessibilityLabel={index === 0 ? t('photos.replaceCover') : t('photos.replacePhoto', { n: index + 1 })}
             onPress={() => onReplace(index)}
             style={StyleSheet.absoluteFill}
           >
@@ -93,14 +95,14 @@ export default function StackedPhotos({
           </TouchableOpacity>
           {index === 0 && (
             <View pointerEvents="none" style={styles.coverBadge}>
-              <Text style={styles.coverBadgeText}>Cover</Text>
+              <Text style={styles.coverBadgeText}>{t('photos.cover')}</Text>
             </View>
           )}
           <TouchableOpacity
             activeOpacity={0.8}
             disabled={busy}
             accessibilityRole="button"
-            accessibilityLabel={index === 0 ? 'Remove cover photo' : `Remove salon photo ${index + 1}`}
+            accessibilityLabel={index === 0 ? t('photos.removeCover') : t('photos.removePhoto', { n: index + 1 })}
             onPress={() => onRemove(index)}
             hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             style={styles.removeButton}
@@ -141,6 +143,7 @@ export function AddPhotoButton({
   /** Solid brown — for when it's the screen's main action in a footer. */
   filled?: boolean;
 }) {
+  const { t } = useT();
   return (
     <TouchableOpacity
       activeOpacity={0.8}
@@ -153,7 +156,7 @@ export function AddPhotoButton({
         <UploadProgress percent={uploadProgress} size={30} onDark={filled} />
       ) : (
         <Text style={[styles.addText, filled && { color: '#FFFFFF' }]}>
-          {isFirst ? 'Add a cover photo' : 'Add photo'}
+          {isFirst ? t('photos.addCover') : t('photos.addPhoto')}
         </Text>
       )}
     </TouchableOpacity>

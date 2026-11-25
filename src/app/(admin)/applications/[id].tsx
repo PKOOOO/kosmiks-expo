@@ -14,13 +14,16 @@ import {
 } from '@/components/admin/AdminUI';
 import { usePageBottomSpace } from '@/lib/layout';
 import RemoteImage from '@/components/RemoteImage';
+import { useT, type TKey } from '@/i18n';
+import { translateServerMessage } from '@/i18n/server-messages';
 
-const DOC_TITLES = ['Diploma or certificate', 'Professional license', 'Government ID'];
+const DOC_TITLES: TKey[] = ['adetail.doc0', 'adetail.doc1', 'adetail.doc2'];
 const DOC_HEIGHT = Math.round((Dimensions.get('window').width - 32) * 0.6);
 
 type Section = 'profile' | 'bank' | 'documents';
 
 export default function ApplicationDetailScreen() {
+  const { t, locale } = useT();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getToken } = useAuth();
   const router = useRouter();
@@ -42,9 +45,9 @@ export default function ApplicationDetailScreen() {
   if (!app) {
     return (
       <SafeAreaView edges={Platform.OS === 'ios' ? ['top', 'left', 'right'] : undefined} style={{ flex: 1, backgroundColor: colors.sand }}>
-        <SubpageHeader title="Application" />
+        <SubpageHeader title={t('adetail.application')} />
         <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 15, color: colors.muted, textAlign: 'center', marginTop: 30 }}>
-          This application couldn't be found.
+          {t('adetail.appNotFound')}
         </Text>
       </SafeAreaView>
     );
@@ -56,15 +59,15 @@ export default function ApplicationDetailScreen() {
   const status = app.user.providerStatus;
   const waiting = isAwaitingReview(status);
   const statusChip = waiting
-    ? <Chip label={`Phase ${app.currentPhase} · needs review`} tone="amber" />
-    : status === 'ACTIVE' ? <Chip label="Active provider" tone="green" />
-    : status === 'REJECTED' ? <Chip label="Rejected" tone="red" />
-    : <Chip label={`Phase ${app.currentPhase} approved`} />;
+    ? <Chip label={t('adetail.phaseReview', { phase: app.currentPhase })} tone="amber" />
+    : status === 'ACTIVE' ? <Chip label={t('adetail.activeProvider')} tone="green" />
+    : status === 'REJECTED' ? <Chip label={t('adetail.rejected')} tone="red" />
+    : <Chip label={t('adetail.phaseApproved', { phase: app.currentPhase })} />;
 
   const submit = async () => {
     if (!action) return;
     if (action === 'reject' && !note.trim()) {
-      Alert.alert('Reason needed', 'Tell the applicant why — they see this in a notification.');
+      Alert.alert(t('adetail.reasonNeeded'), t('adetail.reasonNeededBody'));
       return;
     }
     setBusy(true);
@@ -78,7 +81,7 @@ export default function ApplicationDetailScreen() {
       await loadApplications(() => getTokenRef.current()).catch(() => undefined);
       router.back();
     } catch (e: any) {
-      Alert.alert(`Couldn't ${action}`, e?.message ?? 'Please try again.');
+      Alert.alert(action === 'approve' ? t('adetail.approveFailed') : t('adetail.rejectFailed'), e?.message ? translateServerMessage(e.message) : t('adetail.tryAgain'));
     } finally {
       setBusy(false);
     }
@@ -86,7 +89,7 @@ export default function ApplicationDetailScreen() {
 
   return (
     <SafeAreaView edges={Platform.OS === 'ios' ? ['top', 'left', 'right'] : undefined} style={{ flex: 1, backgroundColor: colors.sand }}>
-      <SubpageHeader title="Application" />
+      <SubpageHeader title={t('adetail.application')} />
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: waiting ? 24 : pageBottom }} showsVerticalScrollIndicator={false}>
         {/* Summary */}
         <Card style={{ padding: 16 }}>
@@ -115,7 +118,7 @@ export default function ApplicationDetailScreen() {
 
         {app.rejectedReason ? (
           <Card style={{ padding: 16, marginTop: 12, backgroundColor: colors.redBg, borderColor: colors.redBg }}>
-            <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 14, color: colors.red }}>Rejected</Text>
+            <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 14, color: colors.red }}>{t('more.rejected')}</Text>
             <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: colors.red, marginTop: 2 }}>{app.rejectedReason}</Text>
           </Card>
         ) : null}
@@ -125,30 +128,30 @@ export default function ApplicationDetailScreen() {
           value={section}
           onChange={setSection}
           options={[
-            { key: 'profile', label: 'Profile' },
-            ...(hasBank ? [{ key: 'bank' as const, label: 'Bank' }] : []),
-            ...(docs.length > 0 ? [{ key: 'documents' as const, label: `Documents · ${docs.length}` }] : []),
+            { key: 'profile', label: t('adetail.profile') },
+            ...(hasBank ? [{ key: 'bank' as const, label: t('adetail.bank') }] : []),
+            ...(docs.length > 0 ? [{ key: 'documents' as const, label: t('adetail.documents', { count: docs.length }) }] : []),
           ]}
         />
 
         {section === 'profile' && (
           <>
-            <SectionLabel>Contact</SectionLabel>
+            <SectionLabel>{t('adetail.contact')}</SectionLabel>
             <Card>
-              <InfoRow label="Phone" value={app.phone} />
-              <InfoRow label="Email" value={app.user.email} last />
+              <InfoRow label={t('adetail.phone')} value={app.phone} />
+              <InfoRow label={t('adetail.email')} value={app.user.email} last />
             </Card>
 
-            <SectionLabel>Location</SectionLabel>
+            <SectionLabel>{t('adetail.location')}</SectionLabel>
             <Card>
-              <InfoRow label="City" value={app.city} />
-              <InfoRow label="Neighbourhood" value={app.neighbourhood} />
-              <InfoRow label="Address" value={app.address} last />
+              <InfoRow label={t('adetail.city')} value={app.city} />
+              <InfoRow label={t('adetail.neighbourhood')} value={app.neighbourhood} />
+              <InfoRow label={t('adetail.address')} value={app.address} last />
             </Card>
 
             {app.serviceCategories?.length > 0 && (
               <>
-                <SectionLabel>Services offered</SectionLabel>
+                <SectionLabel>{t('adetail.servicesOffered')}</SectionLabel>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {app.serviceCategories.map(c => (
                     <View key={c} style={{ paddingHorizontal: 14, height: 34, justifyContent: 'center', borderRadius: 17, backgroundColor: colors.white }}>
@@ -161,7 +164,7 @@ export default function ApplicationDetailScreen() {
 
             {app.adminNotes ? (
               <>
-                <SectionLabel>Admin notes</SectionLabel>
+                <SectionLabel>{t('adetail.adminNotes')}</SectionLabel>
                 <Card style={{ padding: 16 }}>
                   <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: colors.dark, lineHeight: 20 }}>{app.adminNotes}</Text>
                 </Card>
@@ -172,15 +175,15 @@ export default function ApplicationDetailScreen() {
 
         {section === 'bank' && hasBank && (
           <>
-            <SectionLabel>Identity</SectionLabel>
+            <SectionLabel>{t('adetail.identity')}</SectionLabel>
             <Card>
-              <InfoRow label="Legal name" value={app.legalName} />
-              <InfoRow label="Date of birth" value={app.dateOfBirth} last />
+              <InfoRow label={t('adetail.legalName')} value={app.legalName} />
+              <InfoRow label={t('adetail.dob')} value={app.dateOfBirth} last />
             </Card>
 
-            <SectionLabel>Payout account</SectionLabel>
+            <SectionLabel>{t('adetail.payoutAccount')}</SectionLabel>
             <Card>
-              <InfoRow label="Holder" value={app.bankAccountName} />
+              <InfoRow label={t('adetail.holder')} value={app.bankAccountName} />
               {app.iban ? (
                 <InfoRow
                   label="IBAN"
@@ -189,7 +192,7 @@ export default function ApplicationDetailScreen() {
                   right={
                     <TouchableOpacity
                       onPress={() => setShowIban(v => !v)}
-                      accessibilityLabel={showIban ? 'Hide IBAN' : 'Show IBAN'}
+                      accessibilityLabel={showIban ? t('adetail.hideIban') : t('adetail.showIban')}
                       hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
                       <Ionicons name={showIban ? 'eye-off-outline' : 'eye-outline'} size={19} color={colors.muted} />
@@ -203,7 +206,7 @@ export default function ApplicationDetailScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14, marginLeft: 4 }}>
                 <Ionicons name="checkmark-circle" size={17} color={colors.green} />
                 <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: colors.muted }}>
-                  Accepted the terms on {new Date(app.termsAcceptedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  {t('adetail.acceptedTerms', { date: new Date(app.termsAcceptedAt).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' }) })}
                 </Text>
               </View>
             ) : null}
@@ -217,10 +220,10 @@ export default function ApplicationDetailScreen() {
                 <Card style={{ overflow: 'hidden' }}>
                   <RemoteImage source={{ uri: url }} style={{ width: '100%', height: DOC_HEIGHT, backgroundColor: colors.light }} resizeMode="cover" />
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 }}>
-                    <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 15, color: colors.dark }}>{DOC_TITLES[i] ?? `Document ${i + 1}`}</Text>
+                    <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 15, color: colors.dark }}>{DOC_TITLES[i] ? t(DOC_TITLES[i]) : t('adetail.document', { n: i + 1 })}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                       <Ionicons name="expand-outline" size={15} color={colors.muted} />
-                      <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: colors.muted }}>View</Text>
+                      <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: colors.muted }}>{t('adetail.view')}</Text>
                     </View>
                   </View>
                 </Card>
@@ -236,8 +239,8 @@ export default function ApplicationDetailScreen() {
           paddingBottom: insets.bottom + 12,
           borderTopWidth: 1, borderTopColor: 'rgba(66,49,32,0.08)', backgroundColor: colors.sand,
         }}>
-          <Button label="Reject" variant="danger" style={{ flex: 1 }} onPress={() => { setNote(''); setAction('reject'); }} />
-          <Button label={`Approve phase ${app.currentPhase}`} style={{ flex: 1.4 }} onPress={() => { setNote(''); setAction('approve'); }} />
+          <Button label={t('adetail.reject')} variant="danger" style={{ flex: 1 }} onPress={() => { setNote(''); setAction('reject'); }} />
+          <Button label={t('adetail.approvePhase', { phase: app.currentPhase })} style={{ flex: 1.4 }} onPress={() => { setNote(''); setAction('approve'); }} />
         </View>
       )}
 
@@ -245,12 +248,12 @@ export default function ApplicationDetailScreen() {
       <BottomSheet
         visible={action !== null}
         onClose={() => !busy && setAction(null)}
-        title={action === 'approve' ? `Approve ${name}?` : `Reject ${name}?`}
+        title={action === 'approve' ? t('adetail.approveName', { name }) : t('adetail.rejectName', { name })}
         footer={
           <View style={{ flexDirection: 'row', gap: 10 }}>
-            <Button label="Cancel" variant="outline" style={{ flex: 1 }} onPress={() => setAction(null)} disabled={busy} />
+            <Button label={t('adetail.cancel')} variant="outline" style={{ flex: 1 }} onPress={() => setAction(null)} disabled={busy} />
             <Button
-              label={action === 'approve' ? 'Approve' : 'Reject'}
+              label={action === 'approve' ? t('adetail.approve') : t('adetail.reject')}
               variant={action === 'approve' ? 'primary' : 'danger'}
               style={{ flex: 1 }}
               onPress={submit}
@@ -262,14 +265,14 @@ export default function ApplicationDetailScreen() {
       >
         <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 15, color: colors.muted, marginBottom: 14, lineHeight: 21 }}>
           {action === 'approve'
-            ? `They'll be notified and can continue to phase ${Math.min(app.currentPhase + 1, 3)}.`
-            : 'They’ll see this reason in a notification.'}
+            ? t('adetail.approveInfo', { phase: Math.min(app.currentPhase + 1, 3) })
+            : t('adetail.rejectInfo')}
         </Text>
-        <FormField label={action === 'approve' ? 'Note for the team · optional' : 'Reason'}>
+        <FormField label={action === 'approve' ? t('adetail.noteOptional') : t('adetail.reason')}>
           <TextInput
             value={note}
             onChangeText={setNote}
-            placeholder={action === 'approve' ? 'Anything worth remembering' : 'e.g. The licence photo is unreadable'}
+            placeholder={action === 'approve' ? t('adetail.notePh') : t('adetail.reasonPh')}
             placeholderTextColor={colors.muted}
             multiline
             style={[formInputStyle, { minHeight: 96, maxHeight: 160, textAlignVertical: 'top' }]}
@@ -283,7 +286,7 @@ export default function ApplicationDetailScreen() {
           {viewer && <RemoteImage source={{ uri: viewer }} style={{ width: '100%', height: '80%' }} resizeMode="contain" />}
           <TouchableOpacity
             onPress={() => setViewer(null)}
-            accessibilityLabel="Close document"
+            accessibilityLabel={t('adetail.closeDoc')}
             style={{
               position: 'absolute', top: insets.top + 12, right: 16, width: 44, height: 44, borderRadius: 22,
               alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.18)',

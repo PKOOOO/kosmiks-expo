@@ -6,6 +6,7 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useClerk, useAuth } from "@clerk/clerk-expo";
 import { unregisterPushToken } from "@/lib/push";
+import { useT } from '@/i18n';
 
 // New color scheme based on provided HEX codes
 const darkBrown = "#423120"; // Main dark brown
@@ -17,6 +18,7 @@ interface SideMenuProps {
 }
 
 export default function SideMenu({ onClose }: SideMenuProps) {
+  const { t } = useT();
   const router = useRouter();
   const { signOut } = useClerk();
   const { isSignedIn, getToken } = useAuth();
@@ -44,9 +46,9 @@ export default function SideMenu({ onClose }: SideMenuProps) {
     } catch (error) {
       console.error('Error signing out:', error);
       Alert.alert(
-        'Virhe',
-        'Kirjautuminen ulos epäonnistui. Yritä uudelleen.',
-        [{ text: 'OK' }]
+        t('common.error'),
+        t('common.signOutFailed'),
+        [{ text: t('common.ok') }]
       );
     } finally {
       setIsSigningOut(false);
@@ -67,13 +69,14 @@ export default function SideMenu({ onClose }: SideMenuProps) {
 
   // Side menu items
   const menuItems = [
-    { label: "Kategoriat", onPress: handleCategories },
+    { label: t('menu.categories'), onPress: handleCategories },
     {
-      label: isSignedIn ? "Kirjaudu ulos" : "Kirjaudu sisään",
+      label: isSignedIn ? t('common.signOut') : t('common.signIn'),
+      isSignOut: !!isSignedIn,
       onPress: isSignedIn ? handleSignOut : handleSignIn
     },
     {
-      label: "Yrittäjille",
+      label: t('menu.forBusinesses'),
       onPress: () => {
         onClose();
         if (isSignedIn) {
@@ -83,18 +86,18 @@ export default function SideMenu({ onClose }: SideMenuProps) {
         }
       }
     },
-    { label: "Usein kysytyt kysymykset", onPress: () => { onClose(); router.push('/info?tab=faq'); } },
-    { label: "Meistä", onPress: () => { onClose(); router.push('/info?tab=about'); } },
-    { label: "Ota yhteyttä", onPress: () => { onClose(); router.push('/info?tab=contact'); } },
-    { label: "Käyttöehdot", onPress: () => { onClose(); router.push('/info?tab=terms'); } },
-    { label: "Tietosuojaseloste", onPress: () => { onClose(); router.push('/info?tab=privacy'); } },
+    { label: t('menu.faq'), onPress: () => { onClose(); router.push('/info?tab=faq'); } },
+    { label: t('menu.about'), onPress: () => { onClose(); router.push('/info?tab=about'); } },
+    { label: t('menu.contact'), onPress: () => { onClose(); router.push('/info?tab=contact'); } },
+    { label: t('menu.terms'), onPress: () => { onClose(); router.push('/info?tab=terms'); } },
+    { label: t('menu.privacy'), onPress: () => { onClose(); router.push('/info?tab=privacy'); } },
   ];
 
   // Don't render if fonts aren't loaded
   if (!fontsLoaded) {
     return (
       <View style={{ flex: 1, backgroundColor: veryLightBeige, justifyContent: 'center', alignItems: 'center' }}>
-        <Text>Loading...</Text>
+        <Text>{t('common.loading')}</Text>
       </View>
     );
   }
@@ -119,7 +122,7 @@ export default function SideMenu({ onClose }: SideMenuProps) {
 
       <View style={{ flex: 1, paddingHorizontal: 32, paddingTop: 15 }}>
         {menuItems.map((item, index) => {
-          const isSignOutItem = item.label === "Kirjaudu ulos";
+          const isSignOutItem = "isSignOut" in item && item.isSignOut;
           const isLoading = isSignOutItem && isSigningOut;
           
           return (

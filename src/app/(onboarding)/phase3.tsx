@@ -17,8 +17,10 @@ import { uploadImage } from '@/lib/upload-image';
 import StackedPhotos, { AddPhotoButton, MAX_PHOTOS } from '@/components/StackedPhotos';
 import { pickSalonPhoto, prepareForUpload } from '@/lib/pick-photo';
 import { forwardGeocode } from '@/lib/geocode';
-import { connectionProblemEn } from '@/lib/api';
+import { connectionProblem } from '@/lib/api';
 import { isOfflineNow } from '@/lib/network';
+import { useT, type TKey } from '@/i18n';
+import { translateServerMessage } from '@/i18n/server-messages';
 
 const ADMIN_API_KEY = process.env.EXPO_PUBLIC_ADMIN_API_KEY || '';
 const PROVIDER_STATUS_KEY = 'providerStatus';
@@ -37,12 +39,12 @@ const TOTAL_STEPS = 5;
 // Photos use the same stacked layout as the provider salon screen.
 const PHOTO_CONTENT_WIDTH = Dimensions.get('window').width - 56;
 
-const QUESTIONS = [
-  { question: "What's your salon called?" },
-  { question: 'Give customers a one-liner', hint: 'Shown as the tagline on the map · optional' },
-  { question: 'Tell customers about your salon', hint: 'Optional — you can update this anytime' },
-  { question: 'Pin your location', hint: 'Drag the pin or search — this is where customers find you on the map' },
-  { question: 'Show off your salon', hint: 'Add at least 1 photo. The first one becomes your cover.' },
+const QUESTIONS: { question: TKey; hint?: TKey }[] = [
+  { question: 'phase3.qName' },
+  { question: 'phase3.qIntro', hint: 'phase3.hIntro' },
+  { question: 'phase3.qDescription', hint: 'phase3.hDescription' },
+  { question: 'phase3.qLocation', hint: 'phase3.hLocation' },
+  { question: 'phase3.qPhotos', hint: 'phase3.hPhotos' },
 ];
 
 const bigInput = {
@@ -58,6 +60,7 @@ const bigInput = {
 };
 
 export default function Phase3Screen() {
+  const { t } = useT();
   const router = useRouter();
   const { getToken, userId } = useAuth();
   const insets = useSafeAreaInsets();
@@ -137,9 +140,9 @@ export default function Phase3Screen() {
   }, [step]);
 
   const validate = (): boolean => {
-    if (step === 0 && !salonName.trim()) { setError('Please enter your salon name'); return false; }
-    if (step === 3 && (latitude == null || longitude == null)) { setError('Please pin your salon location on the map'); return false; }
-    if (step === 4 && photos.length === 0) { setError('Please add at least one photo'); return false; }
+    if (step === 0 && !salonName.trim()) { setError(t('phase3.errName')); return false; }
+    if (step === 3 && (latitude == null || longitude == null)) { setError(t('phase3.errLocation')); return false; }
+    if (step === 4 && photos.length === 0) { setError(t('phase3.errPhotos')); return false; }
     setError('');
     return true;
   };
@@ -167,13 +170,13 @@ export default function Phase3Screen() {
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (permission.status !== 'granted') {
-        setError('Location access is off — search for your address instead');
+        setError(t('phase3.locationOff'));
         return;
       }
       const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       moveMapTo(position.coords.latitude, position.coords.longitude);
     } catch {
-      setError("Couldn't find your location — search for your address instead");
+      setError(t('phase3.locationNotFound'));
     } finally {
       setLocating(false);
     }
@@ -197,9 +200,9 @@ export default function Phase3Screen() {
         latitude != null && longitude != null ? { latitude, longitude } : null,
       );
       if (hit) moveMapTo(hit.latitude, hit.longitude);
-      else setError('No match for that address — try adding the city');
+      else setError(t('phase3.noMatch'));
     } catch {
-      setError('No match for that address — try adding the city');
+      setError(t('phase3.noMatch'));
     } finally {
       setSearchingLocation(false);
     }
@@ -207,11 +210,11 @@ export default function Phase3Screen() {
 
   const pickAndUpload = async (replaceIndex?: number) => {
     if (replaceIndex == null && photos.length >= MAX_PHOTOS) {
-      Alert.alert('Limit reached', `Maximum ${MAX_PHOTOS} photos allowed.`);
+      Alert.alert(t('phase3.limitTitle'), t('phase3.limitBody', { max: MAX_PHOTOS }));
       return;
     }
     if (await isOfflineNow()) {
-      Alert.alert('No internet connection', 'Connect to the internet to upload.');
+      Alert.alert(t('phase2.noInternet'), t('phase2.noInternetUpload'));
       return;
     }
     const asset = await pickSalonPhoto();
@@ -233,7 +236,7 @@ export default function Phase3Screen() {
         : prev.map((current, i) => (i === replaceIndex ? url : current)));
       setError('');
     } catch (err) {
-      Alert.alert('Upload failed', connectionProblemEn(err) ?? 'Please try again.');
+      Alert.alert(t('phase2.uploadFailed'), connectionProblem(err) ?? t('phase2.tryAgain'));
     } finally {
       setUploading(null);
     }
@@ -247,7 +250,7 @@ export default function Phase3Screen() {
 
   const handleSubmit = async () => {
     if (!saloonId) {
-      Alert.alert('Error', 'Salon not found. Please try again.');
+      Alert.alert(t('common.error'), t('phase3.salonNotFound'));
       return;
     }
     setSubmitting(true);
@@ -268,7 +271,7 @@ export default function Phase3Screen() {
           images: photos.map(url => ({ url })),
         }),
       });
-      if (!patchRes.ok) throw new Error('Failed to save salon info');
+      if (!patchRes.ok) throw new Error(t('phase3.saveFailed'));
 
       // 2. Activate the provider account
       const phase3Res = await fetch(`${API_BASE_URL}/provider/apply/phase3`, {
@@ -285,7 +288,7 @@ export default function Phase3Screen() {
 
       router.replace('/(provider)/bookings' as any);
     } catch (e: any) {
-      Alert.alert('Error', connectionProblemEn(e) ?? e?.message ?? 'Failed to submit. Please try again.');
+      Alert.alert(t('common.error'), translateServerMessage(connectionProblem(e) ?? e?.message ?? t('phase2.submitFailed')));
     } finally {
       setSubmitting(false);
     }
@@ -329,7 +332,7 @@ export default function Phase3Screen() {
             ref={descriptionRef}
             value={description}
             onChangeText={v => { setDescription(v); setError(''); }}
-            placeholder="Tell customers about your salon, specialties, and vibe…"
+            placeholder={t('phase3.descriptionPh')}
             placeholderTextColor="#ccc"
             autoCapitalize="sentences"
             multiline
@@ -405,7 +408,7 @@ export default function Phase3Screen() {
                 markerVariant="location"
                 markerIcon="home"
                 markerLabel={address || salonName}
-                markerSubtitle="Your salon is here"
+                markerSubtitle={t('phase3.yourSalonHere')}
                 onChange={({ address: addr, latitude: lat, longitude: lng }) => {
                   setAddress(addr);
                   setLatitude(lat);
@@ -415,7 +418,7 @@ export default function Phase3Screen() {
               />
               <TouchableOpacity
                 activeOpacity={0.82}
-                accessibilityLabel="Use my current location"
+                accessibilityLabel={t('phase3.useMyLocation')}
                 onPress={locateMe}
                 disabled={locating}
                 style={mapRecenterButton}
@@ -429,10 +432,10 @@ export default function Phase3Screen() {
             <View style={locationSheet}>
               <View style={locationSheetHandle} />
               <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 26, color: darkBrown, lineHeight: 32 }}>
-                {q.question}
+                {t(q.question)}
               </Text>
               <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: '#6F6258', lineHeight: 20, marginTop: 4, marginBottom: 16 }}>
-                Drag the map to put the pin on your door
+                {t('phase3.dragHint')}
               </Text>
 
               <View style={locationSearchBar}>
@@ -440,7 +443,7 @@ export default function Phase3Screen() {
                 <TextInput
                   value={locationQuery}
                   onChangeText={setLocationQuery}
-                  placeholder="Search street, city, district…"
+                  placeholder={t('phase3.searchPh')}
                   placeholderTextColor="#9A8E83"
                   returnKeyType="search"
                   onSubmitEditing={runLocationSearch}
@@ -466,11 +469,11 @@ export default function Phase3Screen() {
             onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
           >
             <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 30, color: darkBrown, lineHeight: 38, marginBottom: q.hint ? 8 : 28 }}>
-              {q.question}
+              {t(q.question)}
             </Text>
             {q.hint ? (
               <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 14, color: '#999', marginBottom: 24, lineHeight: 20 }}>
-                {q.hint}
+                {q.hint && t(q.hint)}
               </Text>
             ) : null}
             {renderStep()}
@@ -506,7 +509,7 @@ export default function Phase3Screen() {
             {submitting
               ? <ActivityIndicator color={white} />
               : <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 16, color: white }}>
-                  {step === TOTAL_STEPS - 1 ? 'Finish setup' : 'Continue'}
+                  {step === TOTAL_STEPS - 1 ? t('phase3.finish') : t('apply.continue')}
                 </Text>
             }
           </TouchableOpacity>

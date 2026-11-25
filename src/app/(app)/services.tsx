@@ -14,6 +14,7 @@ import { Service } from "@/types";
 import { Salon } from "@/types/salon";
 import Header from "@/components/Header";
 import SideMenu from "@/components/SideMenu";
+import { ALL_SERVICES, tr, useT, workTypeLabel, formatMoney } from '@/i18n';
 
 // Colors
 const darkBrown = "#423120";
@@ -33,6 +34,7 @@ const HIUKSET_SUBCATS = [
 ];
 
 export default function ServicesPage() {
+  const { t } = useT();
   const router = useRouter();
   const { categoryName, salonId, salonName, uiVariant, subCategory } = useLocalSearchParams<{
     categoryName: string;
@@ -292,7 +294,7 @@ export default function ServicesPage() {
           // Filter by category if categoryName is provided (coming from salon-sector category click)
           // Skip filtering if categoryName is "Kaikki palvelut" (it's just a heading, not a real category)
           let filteredData = normalizedData;
-          if (categoryName && categoryName !== 'Kaikki palvelut') {
+          if (categoryName && categoryName !== ALL_SERVICES) {
             filteredData = normalizedData.filter(service =>
               service.category?.name === categoryName ||
               service.parentService?.category?.name === categoryName
@@ -311,13 +313,13 @@ export default function ServicesPage() {
 
           // Set dynamic category name - use categoryName if provided, otherwise extract from services
           // Never use "Kaikki palvelut" as it's just a heading, not a category
-          if (categoryName && categoryName !== 'Kaikki palvelut') {
+          if (categoryName && categoryName !== ALL_SERVICES) {
             setDynamicCategoryName(categoryName);
           } else {
             const categoryNames = extractCategoryNames(filteredData);
             const categoryDisplayName = categoryNames.length > 0
               ? categoryNames.join(', ')
-              : 'Palvelut';
+              : tr('services.services');
             setDynamicCategoryName(categoryDisplayName);
           }
 
@@ -781,11 +783,11 @@ export default function ServicesPage() {
           pathname: "/(app)/checkout",
           params: {
             saloonId: salonId,
-            saloonName: salonName || 'Salon',
+            saloonName: salonName || t('services.salon'),
             serviceId: service.id,
             serviceName: service.name,
             parentServiceName: service.parentService?.name,
-            categoryName: categoryName || dynamicCategoryName || 'Service',
+            categoryName: (categoryName === ALL_SERVICES ? dynamicCategoryName : categoryName) || dynamicCategoryName || t('services.service'),
             price: pricingInfo.price.toString(),
             durationMinutes: pricingInfo.durationMinutes.toString()
           }
@@ -800,7 +802,7 @@ export default function ServicesPage() {
             serviceId: service.id,
             serviceName: service.name,
             parentServiceName: service.parentService?.name,
-            categoryName: categoryName || dynamicCategoryName || 'Service',
+            categoryName: (categoryName === ALL_SERVICES ? dynamicCategoryName : categoryName) || dynamicCategoryName || t('services.service'),
             salonId: salonId
           }
         });
@@ -834,11 +836,11 @@ export default function ServicesPage() {
           pathname: "/(app)/checkout",
           params: {
             saloonId: salonId,
-            saloonName: salonName || 'Salon',
+            saloonName: salonName || t('services.salon'),
             serviceId: service.id,
             serviceName: service.name,
             parentServiceName: service.parentService?.name,
-            categoryName: categoryName || dynamicCategoryName || 'Service',
+            categoryName: (categoryName === ALL_SERVICES ? dynamicCategoryName : categoryName) || dynamicCategoryName || t('services.service'),
             price: pricingInfo.price.toString(),
             durationMinutes: pricingInfo.durationMinutes.toString(),
             workType: workType
@@ -855,7 +857,7 @@ export default function ServicesPage() {
         serviceId: service.id,
         serviceName: service.name,
         parentServiceName: service.parentService?.name,
-        categoryName: categoryName || dynamicCategoryName || 'Service',
+        categoryName: (categoryName === ALL_SERVICES ? dynamicCategoryName : categoryName) || dynamicCategoryName || t('services.service'),
         workType: workType
       }
     });
@@ -863,16 +865,7 @@ export default function ServicesPage() {
 
   // Helper to format work type for display
   const formatWorkType = (workType: string): string => {
-    const mapping: Record<string, string> = {
-      'UUDET': 'Uudet',
-      'POISTO': 'Poisto',
-      'HUOLTO': 'Huolto',
-      'EI_LISAKKEITA': 'Ei lisäkkeitä',
-      'LYHYET': 'Lyhyet',
-      'KESKIPITKAT': 'Keskipitkät',
-      'PITKAT': 'Pitkät'
-    };
-    return mapping[workType] || workType;
+    return workTypeLabel(workType) || workType;
   };
 
   // Render work types UI below a service
@@ -1169,7 +1162,7 @@ export default function ServicesPage() {
                         paddingHorizontal: 16
                       }}
                     >
-                      {salonName || salon?.name || "Salon"} Salonki
+                      {t('salons.salonTitle', { name: salonName || salon?.name || '' }).trim()}
                     </Text>
                   </View>
                 )}
@@ -1237,7 +1230,7 @@ export default function ServicesPage() {
                       paddingHorizontal: 20,
                     }}
                   >
-                    {categoryName || "Services"}
+                    {categoryName === ALL_SERVICES ? t('salons.allServices') : categoryName || t('services.services')}
                   </Text>
                 </View>
               </View>
@@ -1450,7 +1443,7 @@ export default function ServicesPage() {
                                   paddingHorizontal: 20,
                                 }}
                               >
-                                Custom-tyyli halukkaille — ota yhteyttä suoraan hoitolaan tai tekijään lisätietoja varten.
+                                {t('services.customStyle')}
                               </Text>
                             )}
                           </>
@@ -1513,7 +1506,7 @@ export default function ServicesPage() {
                                         marginTop: 4,
                                       }}
                                     >
-                                      €{service.price}
+                                      {formatMoney(Number(service.price))}
                                     </Text>
                                   )}
                                 </View>

@@ -11,6 +11,7 @@ import { formatEur } from '@/lib/earnings';
 import { Card, SectionLabel, ListRow, colors } from '@/components/admin/AdminUI';
 import BrandHeader from '@/components/BrandHeader';
 import { useTabBarSpace } from '@/lib/layout';
+import { useT } from '@/i18n';
 
 type RevenueBooking = { totalAmount: number | null; status: string; bookingTime: string };
 type SaloonRevenue = {
@@ -44,6 +45,7 @@ function monthTotals(saloons: SaloonRevenue[], offset: number) {
 }
 
 export default function AdminHomeScreen() {
+  const { t, locale } = useT();
   const { getToken } = useAuth();
   const router = useRouter();
   const tabBarSpace = useTabBarSpace();
@@ -71,7 +73,7 @@ export default function AdminHomeScreen() {
       ]);
       setSaloons(Array.isArray(r?.saloons) ? r.saloons : []);
     } catch {
-      setError("Couldn't load the dashboard.");
+      setError(t('admin.dashFailed'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -85,8 +87,8 @@ export default function AdminHomeScreen() {
   const toSendAmount = scheduled.reduce((s, p) => s + p.amount, 0);
   const thisMonth = monthTotals(saloons, 0);
   const lastMonth = monthTotals(saloons, 1);
-  const monthName = new Date().toLocaleDateString('en-GB', { month: 'long' });
-  const lastMonthName = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toLocaleDateString('en-GB', { month: 'long' });
+  const monthName = new Date().toLocaleDateString(locale, { month: 'long' });
+  const lastMonthName = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toLocaleDateString(locale, { month: 'long' });
 
   return (
     <SafeAreaView
@@ -112,9 +114,9 @@ export default function AdminHomeScreen() {
             <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16 }}>
               <Ionicons name="checkmark-circle" size={22} color={colors.green} />
               <View style={{ flex: 1 }}>
-                <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 16, color: colors.dark }}>All caught up</Text>
+                <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 16, color: colors.dark }}>{t('more.allCaughtUp')}</Text>
                 <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: colors.muted, marginTop: 1 }}>
-                  No applications or payouts waiting.
+                  {t('admin.nothingWaiting')}
                 </Text>
               </View>
             </Card>
@@ -123,14 +125,14 @@ export default function AdminHomeScreen() {
               {toReview > 0 && (
                 <AttentionCard
                   icon="document-text"
-                  title={`${toReview} ${toReview === 1 ? 'application' : 'applications'} to review`}
+                  title={t(toReview === 1 ? 'admin.appsToReviewOne' : 'admin.appsToReviewMany', { count: toReview })}
                   onPress={() => router.navigate('/(admin)/applications' as any)}
                 />
               )}
               {scheduled.length > 0 && (
                 <AttentionCard
                   icon="cash"
-                  title={`${scheduled.length} ${scheduled.length === 1 ? 'payout' : 'payouts'} to send`}
+                  title={t(scheduled.length === 1 ? 'admin.payoutsToSendOne' : 'admin.payoutsToSendMany', { count: scheduled.length })}
                   subtitle={formatEur(toSendAmount)}
                   onPress={() => router.navigate('/(admin)/payouts' as any)}
                 />
@@ -139,9 +141,9 @@ export default function AdminHomeScreen() {
           )}
 
           {/* This month */}
-          <SectionLabel>{`${monthName} so far`}</SectionLabel>
+          <SectionLabel>{t('admin.soFar', { month: monthName.charAt(0).toUpperCase() + monthName.slice(1) })}</SectionLabel>
           <Card style={{ padding: 22 }}>
-            <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 15, color: colors.muted }}>Bookings revenue</Text>
+            <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 15, color: colors.muted }}>{t('admin.bookingsRevenue')}</Text>
             <Text
               numberOfLines={1}
               adjustsFontSizeToFit
@@ -151,13 +153,13 @@ export default function AdminHomeScreen() {
             </Text>
             <Comparison now={thisMonth.revenue} before={lastMonth.revenue} beforeLabel={lastMonthName} />
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
-              <Metric icon="trending-up-outline" label="Platform fee" value={formatEur(thisMonth.fee)} />
-              <Metric icon="calendar-outline" label="Paid bookings" value={String(thisMonth.count)} />
+              <Metric icon="trending-up-outline" label={t('admin.platformFee')} value={formatEur(thisMonth.fee)} />
+              <Metric icon="calendar-outline" label={t('admin.paidBookings')} value={String(thisMonth.count)} />
             </View>
           </Card>
 
           <Card style={{ marginTop: 14 }}>
-            <ListRow icon="people-outline" title="All users" subtitle="Customers, providers and admins" onPress={() => router.push('/(admin)/home/users' as any)} last />
+            <ListRow icon="people-outline" title={t('admin.allUsers')} subtitle={t('admin.allUsersBody')} onPress={() => router.push('/(admin)/home/users' as any)} last />
           </Card>
         </ScrollView>
       )}
@@ -194,6 +196,7 @@ function AttentionCard({
  * have revenue — otherwise just show last month's figure.
  */
 function Comparison({ now, before, beforeLabel }: { now: number; before: number; beforeLabel: string }) {
+  const { t, locale } = useT();
   if (now > 0 && before > 0) {
     const pct = Math.round(((now - before) / before) * 100);
     const up = pct >= 0;
@@ -206,13 +209,13 @@ function Comparison({ now, before, beforeLabel }: { now: number; before: number;
           <Ionicons name={up ? 'arrow-up' : 'arrow-down'} size={12} color={up ? colors.green : colors.red} />
           <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 12, color: up ? colors.green : colors.red }}>{Math.abs(pct)}%</Text>
         </View>
-        <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: colors.muted }}>vs {beforeLabel}</Text>
+        <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: colors.muted }}>{t('admin.vs', { label: beforeLabel })}</Text>
       </View>
     );
   }
   return (
     <Text style={{ fontFamily: 'Philosopher-Regular', fontSize: 13, color: colors.muted, marginTop: 4 }}>
-      {before > 0 ? `${beforeLabel}: ${formatEur(before)}` : now > 0 ? 'First revenue this month' : 'No paid bookings yet this month'}
+      {before > 0 ? `${beforeLabel}: ${formatEur(before)}` : now > 0 ? t('admin.firstRevenue') : t('admin.noPaidYet')}
     </Text>
   );
 }

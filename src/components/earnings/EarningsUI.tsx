@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import type { PayoutStatus } from '@/lib/earnings';
+import { useT, type TKey } from '@/i18n';
 
 export const colors = {
   dark: '#423120',
@@ -100,33 +101,35 @@ export function AmountRow({ label, value, strong }: { label: string; value: stri
   );
 }
 
-const STATUS_STYLE: Record<PayoutStatus, { label: string; color: string; bg: string }> = {
-  processing: { label: 'Processing', color: colors.amber, bg: colors.amberBg },
-  transferred: { label: 'Sent to Stripe', color: colors.green, bg: colors.greenBg },
-  scheduled: { label: 'Scheduled', color: colors.amber, bg: colors.amberBg },
-  sent: { label: 'Sent', color: colors.dark, bg: colors.light },
-  arrived: { label: 'Arrived', color: colors.green, bg: colors.greenBg },
-  failed: { label: 'Failed', color: colors.red, bg: colors.redBg },
+const STATUS_STYLE: Record<PayoutStatus, { label: TKey; color: string; bg: string }> = {
+  processing: { label: 'payout.processing', color: colors.amber, bg: colors.amberBg },
+  transferred: { label: 'payout.transferred', color: colors.green, bg: colors.greenBg },
+  scheduled: { label: 'payout.scheduled', color: colors.amber, bg: colors.amberBg },
+  sent: { label: 'payout.sent', color: colors.dark, bg: colors.light },
+  arrived: { label: 'payout.arrived', color: colors.green, bg: colors.greenBg },
+  failed: { label: 'payout.failed', color: colors.red, bg: colors.redBg },
 };
 
 export function StatusChip({ status }: { status: PayoutStatus }) {
+  const { t } = useT();
   const s = STATUS_STYLE[status];
   return (
     <View style={{ paddingHorizontal: 10, minHeight: 24, justifyContent: 'center', borderRadius: 12, backgroundColor: s.bg }}>
-      <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 12, color: s.color }}>{s.label}</Text>
+      <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 12, color: s.color }}>{t(s.label)}</Text>
     </View>
   );
 }
 
 /** Title bar for pages pushed on top of the Earnings overview. */
 export function SubpageHeader({ title }: { title: string }) {
+  const { t } = useT();
   const router = useRouter();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 14 }}>
       <TouchableOpacity
         onPress={() => router.back()}
         accessibilityRole="button"
-        accessibilityLabel="Back"
+        accessibilityLabel={t('common.back')}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         style={{
           width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center',

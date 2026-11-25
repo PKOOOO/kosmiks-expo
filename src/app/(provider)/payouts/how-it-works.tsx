@@ -3,38 +3,40 @@ import { View, Text, ScrollView, TouchableOpacity, Linking } from 'react-native'
 import { Ionicons } from '@expo/vector-icons';
 import { useEarningsStore, SUPPORT_EMAIL } from '@/lib/earnings';
 import { colors } from '@/components/earnings/EarningsUI';
+import { useT } from '@/i18n';
 
 // Bottom sheet: everything that used to be small print on the payouts page.
 export default function HowPayoutsWorkSheet() {
+  const { t } = useT();
   const feePct = Math.round((useEarningsStore(s => s.data?.feeRate) ?? 0.1) * 100);
 
   const points: { icon: React.ComponentProps<typeof Ionicons>['name']; title: string; body: string }[] = [
     {
       icon: 'pricetag-outline',
-      title: `${feePct}% platform fee`,
-      body: `Taken from each completed booking. You keep ${100 - feePct}%.`,
+      title: t('payout.feeTitle', { pct: feePct }),
+      body: t('payout.feeBody', { keep: 100 - feePct }),
     },
     {
       icon: 'card-outline',
-      title: 'Paid through Stripe',
-      body: 'Set up your free Stripe account once (ID and bank account). Stripe keeps your bank details — Kosmiks never sees them.',
+      title: t('payout.stripeTitle'),
+      body: t('payout.stripeBody'),
     },
     {
       icon: 'arrow-up-circle-outline',
-      title: 'Withdraw when you like',
-      body: 'Earnings become available after each appointment. Tap Withdraw to send them to your Stripe account.',
+      title: t('payout.withdrawTitle'),
+      body: t('payout.withdrawBody'),
     },
     {
       icon: 'time-outline',
-      title: 'Stripe pays your bank',
-      body: 'Usually within a few business days; the first payout can take up to a week.',
+      title: t('payout.bankTitle'),
+      body: t('payout.bankBody'),
     },
   ];
 
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 28, paddingBottom: 32 }}>
       <Text style={{ fontFamily: 'Philosopher-Bold', fontSize: 24, color: colors.dark, marginBottom: 20 }}>
-        How payouts work
+        {t('payout.howTitle')}
       </Text>
       {points.map(p => (
         <View key={p.title} style={{ flexDirection: 'row', gap: 14, marginBottom: 20 }}>

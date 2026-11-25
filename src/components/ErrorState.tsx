@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ViewStyle 
 import { Ionicons } from '@expo/vector-icons';
 import { classifyError, describeError, isServerHealthy } from '@/lib/api';
 import { useIsOffline, useOnReconnect } from '@/lib/network';
+import { useT } from '@/i18n';
 
 const darkBrown = '#423120';
 const white = '#FFFFFF';
@@ -22,6 +23,7 @@ type ErrorStateProps = {
  * the health endpoint whether a "network" failure is really a server outage.
  */
 export default function ErrorState({ error, onRetry, compact = false, style }: ErrorStateProps) {
+  const { t } = useT();
   const isOffline = useIsOffline();
   const [serverDown, setServerDown] = useState(false);
   const [retrying, setRetrying] = useState(false);
@@ -76,7 +78,7 @@ export default function ErrorState({ error, onRetry, compact = false, style }: E
           ) : (
             <>
               <Ionicons name="refresh" size={17} color={white} />
-              <Text style={styles.buttonText}>Yritä uudelleen</Text>
+              <Text style={styles.buttonText}>{t('common.retry')}</Text>
             </>
           )}
         </TouchableOpacity>

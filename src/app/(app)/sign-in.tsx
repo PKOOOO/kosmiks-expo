@@ -15,6 +15,7 @@ import { useOAuth, useAuth } from "@clerk/clerk-expo";
 import * as WebBrowser from "expo-web-browser";
 import Header from "@/components/Header";
 import SideMenu from "@/components/SideMenu";
+import { useT } from '@/i18n';
 
 // Color constants
 const darkBrown = "#423120";
@@ -37,6 +38,7 @@ const useWarmUpBrowser = () => {
 };
 
 export default function SignIn() {
+  const { t } = useT();
   // Warm up browser on component mount
   useWarmUpBrowser();
 
@@ -82,8 +84,8 @@ export default function SignIn() {
     // Check if Clerk is loaded
     if (!isClerkLoaded) {
       Alert.alert(
-        "Odota",
-        "Sovellus latautuu vielä. Yritä uudelleen hetken kuluttua."
+        t('signIn.wait'),
+        t('signIn.stillLoading')
       );
       return;
     }
@@ -121,15 +123,15 @@ export default function SignIn() {
       }
 
       // Show user-friendly error for real failures
-      let displayMessage = 'Yritä uudelleen hetken kuluttua.';
+      let displayMessage = t('signIn.tryLater');
 
       if (errorMessage.includes('Too many requests')) {
-        displayMessage = 'Liian monta yritystä. Odota hetki ja yritä uudelleen.';
+        displayMessage = t('signIn.tooMany');
       } else if (err?.errors?.[0]?.longMessage) {
         displayMessage = err.errors[0].longMessage;
       }
 
-      Alert.alert("Virhe", displayMessage);
+      Alert.alert(t('common.error'), displayMessage);
     } finally {
       setIsLoading(false);
       setLoadingProvider(null);
@@ -158,8 +160,8 @@ export default function SignIn() {
       // Don't show error for user cancellation
       if (err?.errors?.[0]?.code !== 'user_cancelled') {
         Alert.alert(
-          "Virhe",
-          "Kirjautuminen Applella epäonnistui. Yritä uudelleen."
+          t('common.error'),
+          t('signIn.appleFailed')
         );
       }
     } finally {
@@ -201,7 +203,7 @@ export default function SignIn() {
             textAlign: 'center',
             marginTop: 40,
           }}>
-            Kirjaudu sisään
+            {t('common.signIn')}
           </Text>
 
           {/* Google Sign In Button */}
@@ -239,7 +241,7 @@ export default function SignIn() {
                   fontSize: 15,
                   fontFamily: 'Philosopher-Bold',
                 }}>
-                  Jatka Googlella
+                  {t('signIn.google')}
                 </Text>
               </>
             )}
@@ -281,7 +283,7 @@ export default function SignIn() {
                   fontSize: 15,
                   fontFamily: 'Philosopher-Bold',
                 }}>
-                  Jatka Applella
+                  {t('signIn.apple')}
                 </Text>
               </>
             )}
